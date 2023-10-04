@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/library/backtrace" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/library/stdarch" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/book" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/edition-guide" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/embedded-book" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/nomicon" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/reference" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/rust-by-example" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/doc/rustc-dev-guide" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/llvm-project" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/tools/cargo" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust/src/tools/cargo/tests/testsuite/cargo_init/mercurial_autodetect/in" vcs="hg4idea" />
+    <mapping directory="$PROJECT_DIR$/rust/src/tools/cargo/tests/testsuite/cargo_init/simple_hg_ignore_exists/in" vcs="hg4idea" />
+  </component>
+</project>
