@@ -1,0 +1,2 @@
+# RAP
+Rust Analysis Platform
