@@ -13,8 +13,10 @@ extern crate log as rust_log;
 
 use rustc_driver::{Compilation, Callbacks};
 use rustc_interface::{interface::Compiler, Queries, Config};
-use rustc_middle::ty::query::ExternProviders;
+use rustc_middle::util::Providers;
 use rustc_data_structures::sync::Lrc;
+use rustc_session::config::ErrorOutputType;
+use rustc_session::EarlyErrorHandler;
 use rustc_session::search_paths::PathKind;
 
 use std::env;
@@ -50,11 +52,12 @@ impl Display for RapCompilerCalls {
 
 impl Callbacks for RapCompilerCalls {
     fn config(&mut self, config: &mut Config) {
-        config.override_queries = Some(|_, _, external_providers| {
-           external_providers.used_crate_source = |tcx, cnum| {
-               let mut providers = ExternProviders::default();
-               rustc_metadata::provide_extern(&mut providers);
-               let mut crate_source = (providers.used_crate_source)(tcx, cnum);
+        config.override_queries = Some(|_, providers| {
+            providers.extern_queries.used_crate_source = |tcx, cnum| {
+               let mut providers = Providers::default();
+               rustc_metadata::provide(&mut providers);
+
+                let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
                Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
                crate_source
            };
@@ -70,7 +73,7 @@ impl Callbacks for RapCompilerCalls {
         Verbosity::init_rap_log_system_with_verbosity(self.rap_config.verbose()).expect("Failed to set up RAP log system");
 
         rap_info!("RAP Start");
-        queries.global_ctxt().unwrap().peek_mut().enter(
+        queries.global_ctxt().unwrap().enter(
             |tcx| start_analyzer(tcx, self.rap_config)
         );
         rap_info!("RAP Stop");
@@ -181,16 +184,16 @@ fn run_complier(rap_args: &mut RapArgs) -> i32 {
     exit_code
 }
 
+const BUG_REPORT_URL: &str = "https://github.com/";
+
 fn main() {
     // Installs a panic hook that will print the ICE message on unexpected panics.
-    rustc_driver::install_ice_hook();
+    let handler = EarlyErrorHandler::new(ErrorOutputType::default());
+    rustc_driver::init_rustc_env_logger(&handler);
+    rustc_driver::install_ice_hook(BUG_REPORT_URL, |_| ());
 
     // Parse the config and arguments from env.
     let mut rap_args = config_parse();
-
-    if env::var_os("RUSTC_LOG").is_some() {
-        rustc_driver::init_rustc_env_logger();
-    }
 
     debug!("RAP-Args: {}", &rap_args);
 

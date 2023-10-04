@@ -2,12 +2,10 @@ pub mod connect;
 pub mod type_visitor;
 pub mod ownership;
 
-use rustc_middle::ty::{Ty, TyCtxt};
+use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 
-use crate::rap_info;
 use crate::analysis::RcxMut;
-use crate::analysis::flow_analysis::FlowAnalysis;
 use crate::analysis::type_analysis::ownership::RawTypeOwner;
 use crate::components::context::RapGlobalCtxt;
 
@@ -408,4 +406,9 @@ pub fn is_display_verbose() -> bool {
         Some(_)  => true,
         _ => false,
     }
+}
+
+pub fn mir_body(tcx: TyCtxt<'_>, def_id: DefId) -> &rustc_middle::mir::Body<'_> {
+    let def = ty::InstanceDef::Item(def_id);
+    tcx.instance_mir(def)
 }

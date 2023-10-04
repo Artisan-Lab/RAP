@@ -1,7 +1,6 @@
 use crate::analysis::RcxMut;
 use crate::analysis::flow_analysis::{FlowAnalysis, InterFlowAnalysis};
-use crate::analysis::type_analysis::type_visitor::mir_body;
-use crate::analysis::type_analysis::Unique;
+use crate::analysis::type_analysis::{mir_body, Unique};
 
 use stopwatch::Stopwatch;
 

@@ -1,26 +1,21 @@
-use rustc_span::def_id::DefId;
-use rustc_middle::ty::{self, Ty, TyKind, TypeFoldable, TypeVisitable};
+use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
-                        Terminator, Place, Rvalue, Local, Operand, ProjectionElem,
-                        CastKind, TerminatorKind};
+                        Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
 use rustc_target::abi::VariantIdx;
 
-use crate::{rap_error, rap_info};
+use crate::rap_error;
 use crate::analysis::{Rcx, RcxMut, IcxMut, IcxSliceMut};
 use crate::analysis::type_analysis::ownership::{OwnershipLayoutResult, RawTypeOwner};
-use crate::analysis::type_analysis::type_visitor::{mir_body, TyWithIndex};
-use crate::analysis::type_analysis::{DefaultOwnership, OwnershipLayout, RustBV, Unique};
+use crate::analysis::type_analysis::type_visitor::TyWithIndex;
+use crate::analysis::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV, Unique};
 use crate::analysis::flow_analysis::{IntroFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
-                                     is_z3_goal_verbose, is_icx_slice_verbose};
+                                     is_icx_slice_verbose};
 use crate::analysis::flow_analysis::ownership::IntroVar;
-use crate::components::display::Display;
 
-use colorful::{Color, Colorful};
 use z3::ast::{self, Ast};
 
 use std::ops::Add;
 use stopwatch::Stopwatch;
-use std::borrow::Borrow;
 // Fixme: arg.0
 // Fixme: arg enum
 
@@ -89,7 +84,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let topo:Vec<usize> = self.graph().get_topo().iter().map(|id| *id).collect();
         for bidx in topo
         {
-            let data = &body.basic_blocks()[BasicBlock::from(bidx)];
+            let data = &body.basic_blocks[BasicBlock::from(bidx)];
             self.visit_block_data(ctx, goal, solver, data, sw, bidx);
         }
 
@@ -1856,10 +1851,10 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         match func {
             Operand::Constant(constant) => {
-                match constant.literal.ty().kind() {
+                match constant.ty().kind() {
                     ty::FnDef(id, ..) => {
-                        println!("{:?}",id);
-                        println!("{:?}",mir_body(self.tcx(), *id));
+                        println!("{:?}", id);
+                        println!("{:?}", mir_body(self.tcx(), *id));
                         match id.index.as_usize() {
                             2171 => {
                                 // this for calling std::mem::drop(TY)
@@ -1913,7 +1908,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
                     let a_place_ty = aplace.ty(&self.body().local_decls, self.tcx());
                     let a_ty = a_place_ty.ty;
-                    let is_a_ptr = a_ty.is_unsafe_ptr() || a_ty.is_region_ptr();
+                    let is_a_ptr = a_ty.is_any_ptr();
 
                     let a_ori_bv = self.icx_slice_mut().var_mut()[au].extract();
                     let alen = self.icx_slice().len()[au];
@@ -2003,7 +1998,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     }
 
                     let a_ty = aplace.ty(&self.body().local_decls, self.tcx()).ty;
-                    let is_a_ptr = a_ty.is_unsafe_ptr() || a_ty.is_region_ptr();
+                    let is_a_ptr = a_ty.is_any_ptr();
 
                     let a_ori_bv = self.icx_slice_mut().var_mut()[au].extract();
                     let alen = self.icx_slice().len()[au];
@@ -2301,7 +2296,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         // }
 
         // println!("{}", self.body().local_decls.display());
-        // println!("{}", self.body().basic_blocks().display());
+        // println!("{}", self.body().basic_blocks.display());
         // let g = format!("{}", goal);
         // println!("{}\n", g.color(Color::LightGray).bold());
 
@@ -2560,7 +2555,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             },
             TyKind::Tuple( tuple_ty_list ) => {
                 for tuple_ty in tuple_ty_list.iter() {
-                    if tuple_ty.is_region_ptr() || tuple_ty.is_unsafe_ptr() {
+                    if tuple_ty.is_any_ptr() {
                         res.push(true);
                     } else {
                         res.push(false);
@@ -2624,7 +2619,7 @@ fn is_place_containing_ptr(ty: &Ty) -> bool {
     match ty.kind() {
         TyKind::Tuple( tuple_ty_list ) => {
             for tuple_ty in tuple_ty_list.iter() {
-                if tuple_ty.is_unsafe_ptr() || tuple_ty.is_region_ptr() {
+                if tuple_ty.is_any_ptr() {
                     return true;
                 }
             }
@@ -2716,7 +2711,9 @@ fn extract_projection<'tcx>(place: &Place<'tcx>) -> ProjectionSupport<'tcx> {
             },
             ProjectionElem::ConstantIndex { .. }
             | ProjectionElem::Subslice { .. }
-            | ProjectionElem::Index ( .. ) => {
+            | ProjectionElem::Index ( .. )
+            | ProjectionElem::OpaqueCast ( .. )
+            | ProjectionElem::Subtype ( .. ) => {
                 { ans.unsupport = true; break; }
             }
         }

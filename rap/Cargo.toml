@@ -20,7 +20,7 @@ name = "rap"
 rustc_version = "0.4.0"
 cargo_metadata = "0.14.1"
 smallvec = "1.7.0"
-snafu = "0.6.10"
+snafu = "0.7.0"
 chrono = "0.4.19"
 serde = "1.0.130"
 serde_derive = "1.0.130"
@@ -33,17 +33,6 @@ walkdir = "2.3.2"
 rustc-demangle = "0.1.21"
 colorful = "0.2.1"
 stopwatch = "0.0.7"
-
-#rustc_middle = { path = "./../rust/compiler/rustc_middle" }
-#rustc_driver = { path = "./../rust/compiler/rustc_driver" }
-#rustc_interface = { path = "./../rust/compiler/rustc_interface" }
-#rustc_metadata = { path = "./../rust/compiler/rustc_metadata" }
-#rustc_data_structures = { path = "./../rust/compiler/rustc_data_structures" }
-#rustc_session = { path = "./../rust/compiler/rustc_session" }
-#rustc_hir = { path = "./../rust/compiler/rustc_hir" }
-#rustc_span = { path = "./../rust/compiler/rustc_span" }
-#rustc_index = { path = "./../rust/compiler/rustc_index" }
-#rustc_target = { path = "./../rust/compiler/rustc_target" }
 
 [features]
 backtraces = ["snafu/backtraces", "snafu/backtraces-impl-backtrace-crate"]

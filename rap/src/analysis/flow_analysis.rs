@@ -7,9 +7,9 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 use rustc_middle::mir::Body;
 
-use crate::{Elapsed, rap_info, RapGlobalCtxt};
-use crate::analysis::type_analysis::{AdtOwner, OwnershipLayout, Unique};
-use crate::analysis::type_analysis::type_visitor::{TyWithIndex, mir_body};
+use crate::{Elapsed, RapGlobalCtxt};
+use crate::analysis::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique};
+use crate::analysis::type_analysis::type_visitor::TyWithIndex;
 use crate::analysis::flow_analysis::ownership::{IntroVar, Taint};
 use crate::analysis::{IcxMut, IcxSliceMut, Rcx, RcxMut};
 
@@ -140,7 +140,7 @@ pub struct NodeOrder<'tcx> {
 
 impl<'tcx> NodeOrder<'tcx> {
     pub fn new(body: &'tcx Body<'tcx>) -> Self {
-        let len = body.basic_blocks().len();
+        let len = body.basic_blocks.len();
         Self {
             body,
             graph: Graph::new(len),
@@ -182,7 +182,7 @@ impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'ctx, 'a> {
             rcx,
             ifa: IntroFlowAnalysis::new(rcx, did, unique),
             root_did: did,
-            root_body: mir_body(rcx.tcx(), did),
+            root_body: mir_body(rcx.tcx(), did)
         }
     }
 
@@ -219,7 +219,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
     {
         let body = mir_body(rcx.tcx(), did);
         let v_len = body.local_decls.len();
-        let b_len = body.basic_blocks().len();
+        let b_len = body.basic_blocks.len();
         let graph = rcx.mir_graph().get(&did).unwrap();
 
         Self {

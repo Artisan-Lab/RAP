@@ -2,7 +2,6 @@
 #![feature(control_flow_enum)]
 #![feature(box_patterns)]
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_variables, unused_mut, dead_code, unused_must_use))]
-#![cfg_attr(not(debug_assertions), allow(dead_code, unused_imports, unused_variables, unused_mut, dead_code, unused_must_use))]
 
 pub mod analysis;
 pub mod components;
@@ -12,6 +11,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 extern crate rustc_index;
 extern crate rustc_target;
+extern crate rustc_abi;
 
 extern crate serde;
 extern crate serde_json;

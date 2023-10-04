@@ -2,10 +2,10 @@ use rustc_middle::mir::TerminatorKind;
 
 use crate::analysis::RcxMut;
 use crate::analysis::flow_analysis::{FlowAnalysis, NodeOrder};
-use crate::analysis::type_analysis::type_visitor::mir_body;
 
 use std::collections::BinaryHeap;
 use stopwatch::Stopwatch;
+use crate::analysis::type_analysis::mir_body;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
     pub fn order(&mut self) {
@@ -23,7 +23,7 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
             let body = mir_body(tcx, def_id);
 
             let mut path = NodeOrder::new(body);
-            let mut lev:Vec<usize> = vec![0 ; body.basic_blocks().len()];
+            let mut lev:Vec<usize> = vec![0 ; body.basic_blocks.len()];
 
             path.collect_edges(&mut lev);
             path.topo_order(&mut lev);
@@ -39,7 +39,7 @@ impl<'tcx> NodeOrder<'tcx> {
 
     /// !Note: this function does not collect the edges that belongs to unwind paths.
     pub(crate) fn collect_edges(&mut self, lev: &mut Vec<usize>) {
-        let bbs = self.body().basic_blocks();
+        let bbs = &self.body().basic_blocks;
         for (block, data) in bbs.iter().enumerate() {
             let mut result:Vec<usize> = vec![];
             match &data.terminator().kind {
@@ -51,18 +51,12 @@ impl<'tcx> NodeOrder<'tcx> {
                             result.push(bb.as_usize());
                         }
                     },
-                TerminatorKind::Resume =>
-                    (),
-                TerminatorKind::Abort =>
-                    (),
                 TerminatorKind::Return =>
                     (),
                 TerminatorKind::Unreachable =>
                     (),
                 TerminatorKind::Drop { target, .. } =>
                     result.push(target.as_usize()),
-                TerminatorKind::DropAndReplace { .. } =>
-                    (),
                 TerminatorKind::Assert { target, .. } =>
                     result.push(target.as_usize()),
                 TerminatorKind::Yield { .. } =>
@@ -74,6 +68,10 @@ impl<'tcx> NodeOrder<'tcx> {
                 TerminatorKind::FalseUnwind { .. } =>
                     (),
                 TerminatorKind::InlineAsm { .. } =>
+                    (),
+                TerminatorKind::UnwindResume =>
+                    (),
+                TerminatorKind::UnwindTerminate( .. ) =>
                     (),
                 TerminatorKind::Call { target, .. } => {
                     // We check the destination due to following case.

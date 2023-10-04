@@ -1,7 +1,6 @@
-use rustc_middle::mir::{Operand, Rvalue, Statement, StatementKind, TerminatorKind, BasicBlock,
+use rustc_middle::mir::{Operand, Rvalue, Statement, StatementKind, TerminatorKind, BasicBlocks,
                         BasicBlockData, Body, LocalDecl, LocalDecls, Terminator};
 use rustc_middle::ty::{self, TyKind};
-use rustc_index::vec::IndexVec;
 use rustc_span::def_id::DefId;
 
 use std::env;
@@ -9,8 +8,6 @@ use std::env;
 const NEXT_LINE:&str = "\n";
 const PADDING:&str = "    ";
 const EXPLAIN:&str = " @ ";
-
-type BasicBlocks<'tcx> = IndexVec<BasicBlock, BasicBlockData<'tcx>>;
 
 // In this crate we will costume the display information for Compiler-Metadata by implementing
 // rap::Display for target data structure.
@@ -73,18 +70,12 @@ impl<'tcx> Display for TerminatorKind<'tcx>{
                     s += "Goto",
                 TerminatorKind::SwitchInt { .. } =>
                     s += "SwitchInt",
-                TerminatorKind::Resume =>
-                    s += "Resume",
-                TerminatorKind::Abort =>
-                    s += "Abort",
                 TerminatorKind::Return =>
                     s += "Return",
                 TerminatorKind::Unreachable =>
                     s += "Unreachable",
                 TerminatorKind::Drop { .. } =>
                     s += "Drop",
-                TerminatorKind::DropAndReplace { .. } =>
-                    s += "DropAndReplace",
                 TerminatorKind::Assert { .. } =>
                     s += "Assert",
                 TerminatorKind::Yield { .. } =>
@@ -97,10 +88,14 @@ impl<'tcx> Display for TerminatorKind<'tcx>{
                     s += "FalseUnwind",
                 TerminatorKind::InlineAsm { .. } =>
                     s += "InlineAsm",
+                TerminatorKind::UnwindResume =>
+                    s += "UnwindResume",
+                TerminatorKind::UnwindTerminate( .. ) =>
+                    s += "UnwindTerminate",
                 TerminatorKind::Call { func, .. } => {
                     match func {
                         Operand::Constant(constant) => {
-                                match constant.literal.ty().kind() {
+                                match constant.ty().kind() {
                                     ty::FnDef(id, ..) =>
                                         s += &format!("Call: FnDid: {}", id.index.as_usize()).as_str(),
                                     _ => (),
@@ -152,10 +147,14 @@ impl<'tcx> Display for StatementKind<'tcx> {
                     s += "AscribeUserType",
                 StatementKind::Coverage( .. ) =>
                     s += "Coverage",
-                StatementKind::CopyNonOverlapping( .. ) =>
-                    s += "CopyNonOverlapping",
                 StatementKind::Nop =>
                     s += "Nop",
+                StatementKind::PlaceMention( .. ) =>
+                    s += "PlaceMention",
+                StatementKind::Intrinsic( .. ) =>
+                    s += "Intrinsic",
+                StatementKind::ConstEvalCounter =>
+                    s += "ConstEvalCounter",
             }
         } else {
             ()
@@ -264,7 +263,7 @@ impl<'tcx> Display for Body<'tcx> {
         let mut s = String::new();
         if is_display_verbose() {
             s += &self.local_decls.display();
-            s += &self.basic_blocks().display();
+            s += &self.basic_blocks.display();
         }
         s
     }

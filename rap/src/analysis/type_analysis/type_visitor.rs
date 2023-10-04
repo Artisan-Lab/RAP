@@ -1,29 +1,22 @@
-use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, TypeVisitor, TypeFoldable, TypeVisitable,
+use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, GenericArgKind, TypeVisitor, TypeVisitable,
                        TypeSuperVisitable};
-use rustc_middle::ty::subst::GenericArgKind;
+use rustc_middle::ty::EarlyBinder;
 use rustc_middle::mir::visit::{Visitor, TyContext};
 use rustc_middle::mir::Local;
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, LocalDecl, Operand, TerminatorKind};
 use rustc_span::def_id::DefId;
-use rustc_target::abi::VariantIdx;
+use rustc_abi::VariantIdx;
 
 use crate::components::display::{self, Display};
 use crate::analysis::RcxMut;
 use crate::analysis::type_analysis::{self, TypeAnalysis, OwnerPropagation, RawGeneric,
                                      RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
-                                     DefaultOwnership, FindPtr};
+                                     DefaultOwnership, FindPtr, mir_body};
 
 use std::collections::HashMap;
 use std::ops::ControlFlow;
 
 use colorful::{Color, Colorful};
-use stopwatch::Stopwatch;
-
-pub(crate) fn mir_body(tcx: TyCtxt, def_id: DefId) -> &Body {
-    let id = ty::WithOptConstParam::unknown(def_id);
-    let def = ty::InstanceDef::Item(id);
-    tcx.instance_mir(def)
-}
 
 // This function is aiming at resolving problems due to 'TyContext' not implementing 'Clone' trait,
 // thus we call function 'copy_ty_context' to simulate 'self.clone()'.
@@ -69,7 +62,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         fn show_owner_if_needed(ref_type_analysis: &mut TypeAnalysis) {
             if !type_analysis::is_display_verbose() { return; }
             for elem in ref_type_analysis.adt_owner() {
-                let name = format!("{:?}", ref_type_analysis.tcx().type_of(*elem.0));
+                let name = format!("{:?}", EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0)));
                 let owning = format!("{:?}", elem.1);
                 println!("{} {}", name.color(Color::Orange1), owning.color(Color::Yellow3a));
             }
@@ -81,7 +74,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
             if !display::is_display_verbose() { return; }
             println!("{}", did.display().color(Color::LightRed));
             println!("{}", body.local_decls.display().color(Color::Green));
-            println!("{}", body.basic_blocks().display().color(Color::LightGoldenrod2a));
+            println!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
         }
 
         // Get the Global TyCtxt from rustc
@@ -133,7 +126,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     fn extract_raw_generic(&mut self, did: DefId) {
 
         // Get the definition and subset reference from adt did
-        let ty = self.tcx().type_of(did);
+        let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
             TyKind::Adt(adt_def, substs) => (adt_def, substs),
             _ => unreachable!(),
@@ -187,7 +180,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     fn extract_raw_generic_prop(&mut self, did: DefId) {
 
         // Get the definition and subset reference from adt did
-        let ty = self.tcx().type_of(did);
+        let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
             TyKind::Adt(adt_def, substs) => (adt_def, substs),
             _ => unreachable!(),
@@ -224,7 +217,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     fn extract_phantom_unit(&mut self, did: DefId) {
 
         // Get ty from defid and the ty is made up with generic type
-        let ty = self.tcx().type_of(did);
+        let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
             TyKind::Adt(adt_def, substs) => (adt_def, substs),
             _ => unreachable!(),
@@ -287,7 +280,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     fn extract_owner_prop(&mut self, did: DefId) {
 
         // Get the definition and subset reference from adt did
-        let ty = self.tcx().type_of(did);
+        let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
             TyKind::Adt(adt_def, substs) => (adt_def, substs),
             _ => unreachable!(),
@@ -323,7 +316,7 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
             self.visit_local_decl(Local::from(local), local_decl);
         }
 
-        for (block, data) in body.basic_blocks().iter().enumerate() {
+        for (block, data) in body.basic_blocks.iter().enumerate() {
             self.visit_basic_block_data(BasicBlock::from(block), data);
         }
 
@@ -339,10 +332,10 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
             TerminatorKind::Call { func, .. } => {
                 match func {
                     Operand::Constant(constant) => {
-                        match constant.literal.ty().kind() {
+                        match constant.ty().kind() {
                             ty::FnDef(def_id, ..) => {
                                 if self.tcx().is_mir_available(*def_id) && self.fn_set_mut().insert(*def_id) {
-                                    let body = mir_body(self.tcx(), *def_id); //
+                                    let body = mir_body(self.tcx(), *def_id);
                                     self.visit_body(body);
                                 }
                             },
@@ -404,7 +397,7 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
 
 }
 
-impl<'tcx> TypeVisitor<'tcx> for RawGeneric<'tcx>  {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric<'tcx>  {
 
     type BreakTy = ();
 
@@ -422,16 +415,16 @@ impl<'tcx> TypeVisitor<'tcx> for RawGeneric<'tcx>  {
             },
             TyKind::Param(param_ty) => {
                 self.record_mut()[param_ty.index as usize] = true;
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
 }
 
-impl<'tcx> TypeVisitor<'tcx> for RawGenericFieldSubst<'tcx> {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGenericFieldSubst<'tcx> {
     type BreakTy = ();
 
     // #[inline(always)]
@@ -440,7 +433,7 @@ impl<'tcx> TypeVisitor<'tcx> for RawGenericFieldSubst<'tcx> {
     // }
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty:Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
         match ty.kind() {
             TyKind::Array( .. ) => {
                 ty.super_visit_with(self)
@@ -453,17 +446,17 @@ impl<'tcx> TypeVisitor<'tcx> for RawGenericFieldSubst<'tcx> {
             }
             TyKind::Param(param_ty) => {
                 self.parameters_mut().insert(param_ty.index as usize);
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
 
 }
 
-impl<'tcx, 'a> TypeVisitor<'tcx> for RawGenericPropagation<'tcx, 'a>  {
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for RawGenericPropagation<'tcx, 'a>  {
     type BreakTy = ();
 
     // #[inline(always)]
@@ -480,7 +473,7 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for RawGenericPropagation<'tcx, 'a>  {
 
                 if !self.source_enum() && adtdef.is_enum() { return ControlFlow::Break(()); }
 
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::CONTINUE; }
+                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
 
                 let mut map_raw_generic_field_subst = HashMap::new();
                 for (index, subst) in substs.iter().enumerate() {
@@ -525,14 +518,14 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for RawGenericPropagation<'tcx, 'a>  {
                 ty.super_visit_with(self)
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
 
 }
 
-impl<'tcx, 'a> TypeVisitor<'tcx> for OwnerPropagation<'tcx, 'a> {
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
     type BreakTy = ();
 
     // #[inline(always)]
@@ -545,7 +538,7 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for OwnerPropagation<'tcx, 'a> {
 
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::CONTINUE; }
+                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
 
                 if adtdef.is_enum() { return ControlFlow::Break(()); }
 
@@ -577,13 +570,13 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for OwnerPropagation<'tcx, 'a> {
                 ty.super_visit_with(self)
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
 }
 
-impl<'tcx> TypeVisitor<'tcx> for FindPtr<'tcx> {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
     type BreakTy = ();
 
     #[inline(always)]
@@ -592,7 +585,7 @@ impl<'tcx> TypeVisitor<'tcx> for FindPtr<'tcx> {
             TyKind::Adt( adtdef, substs ) => {
 
                 if adtdef.is_struct() {
-                    if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::CONTINUE; }
+                    if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
 
                     for field in adtdef.all_fields() {
                         let field_ty = field.ty(self.tcx(), substs);
@@ -600,7 +593,7 @@ impl<'tcx> TypeVisitor<'tcx> for FindPtr<'tcx> {
                     }
                     self.unique_mut().remove(&adtdef.did());
                 }
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
 
             },
             TyKind::Tuple( .. ) => {
@@ -615,14 +608,14 @@ impl<'tcx> TypeVisitor<'tcx> for FindPtr<'tcx> {
                 ControlFlow::Break(())
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
 
 }
 
-impl<'tcx, 'a> TypeVisitor<'tcx> for DefaultOwnership<'tcx, 'a>   {
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
     type BreakTy = ();
 
     // #[inline(always)]
@@ -640,7 +633,7 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for DefaultOwnership<'tcx, 'a>   {
                     return ControlFlow::Break(());
                 }
 
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::CONTINUE; }
+                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
 
@@ -669,7 +662,7 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for DefaultOwnership<'tcx, 'a>   {
                     },
                 }
 
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
             TyKind::Array( .. ) => {
                 ty.super_visit_with(self)
@@ -685,14 +678,14 @@ impl<'tcx, 'a> TypeVisitor<'tcx> for DefaultOwnership<'tcx, 'a>   {
             },
             TyKind::RawPtr( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
             TyKind::Ref( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
             _ => {
-                ControlFlow::CONTINUE
+                ControlFlow::Continue(())
             },
         }
     }
