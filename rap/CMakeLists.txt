@@ -25,7 +25,7 @@ set(CMAKE_OBJDUMP "/usr/bin/llvm-objdump")
 set(CMAKE_RANLIB  "/usr/bin/llvm-ranlib")
 
 #your project name
-project(rlc_phase_llvm)
+project(rap_phase_llvm)
 
 find_package(LLVM REQUIRED CONFIG)
 
