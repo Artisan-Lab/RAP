@@ -1,4 +1,3 @@
-// Created by VaynNecol on 2021/9/22.
 // This module can be used in RAP
 // and is also available for heap cost analysis for new Rust RFC.
 

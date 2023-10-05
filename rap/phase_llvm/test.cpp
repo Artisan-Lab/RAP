@@ -1,7 +1,3 @@
-//
-// Created by VaynNecol on 2021/9/27.
-//
-
 #include <llvm/IR/Module.h>
 using namespace llvm;
 

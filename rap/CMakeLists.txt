@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.27)
 
 # Use 'where clang' to find dir to clang and change CMAKE_C_COMPILER
 set(CMAKE_C_COMPILER             "/usr/bin/clang")
@@ -10,12 +10,12 @@ set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g")
 
 # Use 'where clang++' to find dir to clang++ and change CMAKE_CXX_COMPILER
 set(CMAKE_CXX_COMPILER             "/usr/bin/clang++")
-set(CMAKE_CXX_FLAGS                "${CMAKE_CXX_FLAGS} -O3 -std=c++11")
+set(CMAKE_CXX_FLAGS                "${CMAKE_CXX_FLAGS} -O3 -std=c++20")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g")
 set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O4 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 20)
 
 # Like before to modify llvm - bins
 set(CMAKE_AR      "/usr/bin/llvm-ar")
