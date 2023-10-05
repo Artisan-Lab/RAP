@@ -51,7 +51,7 @@ cd rust
 ./x.py build --stage 2
 ```
 
-Like rap-rust toolchain to rustup:
+Link rap-rust toolchain to current rustup and cargo:
 
 ```shell
 # x86_64-unknown-linux-gnu/x86_64-apple-darwin
