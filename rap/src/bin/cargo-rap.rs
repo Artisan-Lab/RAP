@@ -1,5 +1,3 @@
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_variables, unused_mut, dead_code))]
-
 use rap::{RapPhase, rap_info,
           RAP_DEFAULT_ARGS, RAP_ROOT, RAP_LLVM_CACHE, RAP_LLVM_IR};
 use rap::components::log::{Verbosity, rap_error_and_exit};

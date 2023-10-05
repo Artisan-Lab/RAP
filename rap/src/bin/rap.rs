@@ -1,5 +1,4 @@
 #![feature(rustc_private)]
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_variables, unused_mut, dead_code))]
 
 extern crate rustc_driver;
 extern crate rustc_interface;
