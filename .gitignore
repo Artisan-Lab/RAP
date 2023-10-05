@@ -1,3 +1,5 @@
 .idea/
 rap/target
 rap/phase_llvm/cmake-build
+rap/Cargo.lock
+.idea/vcs.xml
