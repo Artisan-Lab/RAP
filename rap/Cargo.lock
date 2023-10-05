@@ -535,7 +535,7 @@ checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rap"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cargo_metadata",
  "chrono",

@@ -1,11 +1,10 @@
 #![feature(rustc_private)]
 #![feature(control_flow_enum)]
 #![feature(box_patterns)]
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_variables, unused_mut, dead_code, unused_must_use))]
-
 pub mod analysis;
 pub mod components;
 
+extern crate rustc_driver;
 extern crate rustc_middle;
 extern crate rustc_hir;
 extern crate rustc_span;
