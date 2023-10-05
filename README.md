@@ -39,14 +39,14 @@ git submodule update --init --recursive
 **rap-rust** is forking from the original branch of rust, and we modified the source code to perform self-defined static
 analysis. It should be compiled before building RAP as its dependencies.
 
-Now we need to boostrap rustc to stage2. As all we need is the libstd, libcore and librustc, those artifacts from 
-are generated from stage1, therefore the compiler needs to be boostrapped to stage2 to produce them.
+Now we need to bootstrap rustc to stage2. As all we need is the libstd, libcore and librustc, those artifacts from 
+are generated from stage1, therefore the compiler needs to be bootstrapped to stage2 to produce them.
 
 ```shell
 # Copy config.toml to rap-rust
 cp ./config.toml ./rust/
 
-# Start Boostrap
+# Start Bootstrap
 cd rust
 ./x.py build --stage 2
 ```
@@ -56,6 +56,7 @@ Link rap-rust toolchain to current rustup and cargo:
 ```shell
 # x86_64-unknown-linux-gnu/x86_64-apple-darwin
 rustup toolchain link stage1 build/<host-triple>/stage1
+rustup toolchain link stage2 build/<host-triple>/stage2
 ```
 
 4. Build and install RAP:

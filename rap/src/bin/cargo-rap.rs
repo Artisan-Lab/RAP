@@ -291,7 +291,7 @@ fn phase_preprocess() {
         show_version();
     }
 
-    rap_info!("Welcome to run RAP - Rust Leakage Checker");
+    rap_info!("Welcome to run RAP - Rust Analysis Platform");
     rap_info!("Ready for RAP Phase I: Preprocess");
 
     // Make sure that the `rap` and `rustc` binary are from the same sysroot.
