@@ -1,5 +1,5 @@
 [toolchain]
 # The default version of the rustc compiler
 # This version is our backend compiler -- self-modified rustc
-channel = "stage1"
-components = ["rustc-dev", "rustc-src"]
+channel = "stage2"
+components = ["rustc-dev", "rustc-src", "llvm-tools-preview"]
