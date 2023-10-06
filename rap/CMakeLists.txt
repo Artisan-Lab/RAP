@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.26)
 
 # Use 'where clang' to find dir to clang and change CMAKE_C_COMPILER
 set(CMAKE_C_COMPILER             "/usr/bin/clang")
