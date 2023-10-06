@@ -50,18 +50,18 @@ impl Display for RapCompilerCalls {
 }
 
 impl Callbacks for RapCompilerCalls {
-    fn config(&mut self, config: &mut Config) {
-        config.override_queries = Some(|_, providers| {
-            providers.extern_queries.used_crate_source = |tcx, cnum| {
-               let mut providers = Providers::default();
-               rustc_metadata::provide(&mut providers);
-
-                let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
-               Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
-               crate_source
-           };
-        });
-    }
+    // fn config(&mut self, config: &mut Config) {
+    //     config.override_queries = Some(|_, providers| {
+    //         providers.extern_queries.used_crate_source = |tcx, cnum| {
+    //            let mut providers = Providers::default();
+    //            rustc_metadata::provide(&mut providers);
+    //
+    //             let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
+    //            Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
+    //            crate_source
+    //        };
+    //     });
+    // }
 
     fn after_analysis<'tcx>(
         &mut self,
