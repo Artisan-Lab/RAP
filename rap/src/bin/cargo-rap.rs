@@ -471,12 +471,12 @@ fn phase_cargo_rap() {
             );
         }
 
-        // // Invoke actual cargo for the job, but with different flags.
-        // // We re-use `cargo test` and `cargo run`, which makes target and binary handling very easy but
-        // // requires some extra work to make the build check-only (see all the `--emit` hacks below).
-        // // <https://github.com/rust-lang/miri/pull/1540#issuecomment-693553191> describes an alternative
-        // // approach that uses `cargo check`, making that part easier but target and binary handling
-        // // harder.
+        // Invoke actual cargo for the job, but with different flags.
+        // We re-use `cargo test` and `cargo run`, which makes target and binary handling very easy but
+        // requires some extra work to make the build check-only (see all the `--emit` hacks below).
+        // <https://github.com/rust-lang/miri/pull/1540#issuecomment-693553191> describes an alternative
+        // approach that uses `cargo check`, making that part easier but target and binary handling
+        // harder.
         let cargo_rap_path = env::current_exe().expect("current executable path invalid");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
 
@@ -676,19 +676,29 @@ impl TargetKind {
 fn main() {
     // Init the log_system for RAP
     Verbosity::init_rap_log_system_with_verbosity(Verbosity::Info).expect("Failed to set up RAP log system");
-    if let Some("rap") = env::args().nth(1).as_ref().map(AsRef::as_ref) {
+
+    let arg_string = env::args().nth(1).unwrap_or_else(
+        || rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.")
+    );
+
+    if arg_string == String::from("rap") {
         // `cargo rap`: call `cargo rustc` for each applicable target,
         // but with the `RUSTC` env var set to the `cargo-rap` binary so that we come back in the other branch,
         // and dispatch the invocations to `rustc` and `rap`, respectively.
         phase_preprocess();
         // phase_llvm_ir();
         phase_cargo_rap();
-    } else if let Some("rustc") = env::args().nth(1).as_ref().map(AsRef::as_ref) {
+    } else if arg_string.ends_with("rustc") {
         // `cargo rap`: `RUSTC_WRAPPER` env var:
         // dependencies get dispatched to `rustc`, the final test/binary to `rap`.
+
+        // this branch is considering the current rust compiler is not directly using bin rustc
+        // it will lead to error: 'failed to run `rustc` to learn about target-specific information'
+        // cargo will invoke /Users/xx/.cargo/bin/cargo-rap /Users/xx/.rustup/toolchains/stage2/bin/rustc
+        // instead of /Users/xx/.cargo/bin/cargo-rap rustc (it is not a dir but is valid in the older version)
         phase_rustc_rap();
     } else {
         rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.");
-    };
+    }
 
 }
