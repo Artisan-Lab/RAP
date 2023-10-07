@@ -15,19 +15,19 @@ by our instructions.
 
 ### Building on a Unix-like system (Linux / Macintosh)
 1. Make sure you have installed the dependencies:
-    * git
-    * ninja
-    * clang++ 17.0 or later
-    * llvm 17.0 or later
-    * python 3.11 or later
-    * z3 4.12 or later
-    * GNU make 3.81 or later
-    * cmake 3.27 or later
-    * rustup 1.26 or later
+    * `git`
+    * `ninja`
+    * `clang++` 17.0 or later
+    * `llvm` 17.0 or later
+    * `python3` 3.11 or later
+    * `z3` 4.12 or later
+    * `make` 3.81 or later
+    * `cmake` 3.27 or later
+    * `rustup` 1.26 or later
 
-**~~We do not need any version of `rustc` or `cargo`~~, because we need to bootstrap a modified version for further use.**
+**~~We do not need any version of `rustc` or `cargo`~~, we will bootstrap a modified `rustc` toolchain  for further use.**
 
-2. Clone the source with git:
+2. Clone the source with `git`:
 
 ```shell
 git clone https://github.com/Artisan-Lab/RAP.git
@@ -35,12 +35,12 @@ cd rap
 git submodule update --init --recursive
 ```
 
-3. Build rap-rust
+3. Build `rap-rust`
 
 `rap-rust` is forking from the original branch of `rust`. We modified the source code to perform self-defined static
-analysis. It must be compiled before building `rap` as dependencies.
+analysis. It must be compiled as dependencies before building `rap`.
 
-Now we need to bootstrap `rustc` to `stage2`. As all we need is `libstd` and `librustc_*`, those artifacts from are  from
+Now we need to bootstrap `rustc` to `stage2`. As all we need is `libstd*` and `librustc_*`, those artifacts are from
 `stage2`, therefore the compiler needs to be bootstrapped to `stage2` to generate them.
 
 ```shell
@@ -50,14 +50,14 @@ cp ./config.toml ./rust/
 # Start Bootstrap
 # Using comiler/rustc due to needing rustc_*.rlib/.so
 cd rust
-./x.py build --stage 2 compiler/rustc
+./x.py build compiler/rustc -i --stage 2
 ```
 
 Link `rap-rust` toolchain to current `rustup` and `cargo`:
 
 ```shell
 # x86_64-unknown-linux-gnu/x86_64-apple-darwin
-rustup toolchain link stage2 build/<host-triple>/stage2
+rustup toolchain link rap-rust build/<host-triple>/stage2
 ```
 
 4. Build and install `rap`:
@@ -67,14 +67,12 @@ It lives in the root of the RAP crate.
 
 `install.sh` script can be run directly on most **unix-like** systems, such as Macintosh, Linux, etc.
 
-Note: before running `install.sh` script, you should change `current dir` to the root of RAP crate.
+Note: before running `install.sh` script, we recommand you to change `dir` to the root of RAP crate.
 
-Configurations of RAP building system can be modified in file `Cargo.toml` and `install.sh`.
-The build system uses a file named `Cargo.toml` in the root of the source tree to determine various configuration 
-settings. `Cargo.toml` can option the compilation of `rap` and `cargo-rap`.
-
-`install.sh` can option the compilation of `rap-llvm`. This binary will be compiled and automated added to your system 
-environment in script.
+Configurations of RAP building system can be modified in `Cargo.toml` and `install.sh`. The build system uses a file 
+named `Cargo.toml` in the root of the source tree to determine various configuration settings. `Cargo.toml` can option 
+the compilation of `rap` and `cargo-rap`. `install.sh` can also option the compilation of `rap-llvm`. This binary will be compiled and automated added to your system 
+environment.
 
 ```shell
 ./install.sh
@@ -86,28 +84,28 @@ It will install the bin `rap` into `cargo` components first:
 RUSTC_INSTALL_BINDIR=bin CFG_RELEASE_CHANNEL=nightly CFG_RELEASE=nightly cargo install --path "$(dirname "$0")" --force
 ```
 
-The environmental variables should be modified by users, including the working dir and system os.
+The environmental variables will be catched by srcipt automatically, including `${RAP_DIR}` and `${HOST_TRIPLE}`.
 ```shell
 # Link libraries
 # Dynamic libraries
-# /<Working Dir>/RAP/rust/build/<host-triple>/stage2/lib
+# /<rap-dir>/RAP/rust/build/<host-triple>/stage2/lib
 # This dir lies in files librustc_driver-*/libstd-*/libtest-*.so (Linux) /.dylib (Macintosh).
 
 # Static libraries
-# /<Working Dir>/RAP/rust/build/<host-triple>/stage2/lib/rustlib/<host-triple>/lib
+# /<rap-dir>/RAP/rust/build/<host-triple>/stage2/lib/rustlib/<host-triple>/lib
 # This dir lies in files as liballoc*.rlib /.meta.
 
 # Link to .rlib / .rmeta / .so files; for Linux
-export LD_LIBRARY_PATH=/<working-dir>/RAP/rust/build/<host-triple>/stage2/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/<working-dir>/RAP/rust/build/<host-triple>/stage2/lib/rustlib/<host-triple>/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$LD_LIBRARY_PATH
 
 # Link to .rlib / .rmeta / .dylib files; for Macintosh
-export DYLD_LIBRARY_PATH=/<working-dir>/RAP/rust/build/<host-triple>/stage2/lib:$DYLD_LIBRARY_PATH
-export DYLD_LIBRARY_PATH=/<working-dir>/RAP/rust/build/<host-triple>/stage2/lib/rustlib/<host-triple>/lib:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$DYLD_LIBRARY_PATH
 
 # Link libraries searching paths for rustc, by using RUSTFLAGs -L DIR
-export RUSTFLAGS="-L /<working-dir>/RAP/rust/build/<host-triple>/stage2/lib":$RUSTFLAGS
-export RUSTFLAGS="-L /<working-dir>/RAP/rust/build/<host-triple>/stage2/lib/rustlib/<host-triple>/lib":$RUSTFLAGS
+export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib":$RUSTFLAGS
+export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib":$RUSTFLAGS
 ```
 
 Modify the current shell settings in `install.sh` consider using bash or zsh:
