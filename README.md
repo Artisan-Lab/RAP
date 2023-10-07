@@ -82,7 +82,7 @@ environment in script.
 
 It will install the bin `rap` into `cargo` components first:
 ```shell
-# Install binary 'rap' into cargo components
+# Build and install binary 'rap' into cargo components
 RUSTC_INSTALL_BINDIR=bin CFG_RELEASE_CHANNEL=nightly CFG_RELEASE=nightly cargo install --path "$(dirname "$0")" --force
 ```
 
@@ -116,7 +116,7 @@ Modify the current shell settings in `install.sh` consider using bash or zsh:
 # For zsh
 echo $p >> ~/.zshrc
 # For bash
-echo $p >> ~/.bashrc 
+echo $p >> ~/.bashrc
 ```
 
 When complete, `install.sh` will link several programs into `$PREFIX/bin`: `rap`, the `rustc` wrapper program for Rust Analysis 
