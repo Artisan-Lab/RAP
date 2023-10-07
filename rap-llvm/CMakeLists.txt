@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.27)
 
 # Use 'where clang' to find dir to clang and change CMAKE_C_COMPILER
 set(CMAKE_C_COMPILER             "/usr/bin/clang")
@@ -25,7 +25,7 @@ set(CMAKE_OBJDUMP "/usr/bin/llvm-objdump")
 set(CMAKE_RANLIB  "/usr/bin/llvm-ranlib")
 
 #your project name
-project(rap_phase_llvm)
+project(rap-llvm)
 
 find_package(LLVM REQUIRED CONFIG)
 
@@ -41,7 +41,7 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 
 # Now build our tools
 # Need to modify the path to main.cpp
-add_executable(${PROJECT_NAME} phase_llvm/main.cpp phase_llvm/test.h phase_llvm/test.cpp)
+add_executable(${PROJECT_NAME} main.cpp test.h test.cpp)
 
 # Find the libraries that correspond to the LLVM components
 # that we wish to use
