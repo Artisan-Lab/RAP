@@ -53,20 +53,45 @@ cd rap && cargo clean
 RUSTC_INSTALL_BINDIR=bin CFG_RELEASE_CHANNEL=nightly CFG_RELEASE=nightly cargo install --path "$(dirname "$0")" --force
 
 # Link to .rlib / .rmeta / .so files; for Linux
-export LD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$LD_LIBRARY_PATH"
 
 # Link to .rlib / .rmeta / .dylib files; for Macintosh
-export DYLD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$DYLD_LIBRARY_PATH
-export DYLD_LIBRARY_PATH=${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$DYLD_LIBRARY_PATH"
+export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$DYLD_LIBRARY_PATH"
 
 # Link libraries searching paths for rustc, by using RUSTFLAGs -L DIR
-export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib":$RUSTFLAGS
-export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib":$RUSTFLAGS
+export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib"
 
 echo "\e[0;32mBuilding success: building, installing and linking \e[1;36mrap \e[0;32mfinished.\e[0m"
+
+# Write environment variables into usr system
+echo "\e[4;31mPHASE5: Writing for user shell.\e[0m"
+if echo "$SHELL" | grep -q "zsh"; then
+    echo "Detection success: running on \e[1;36mZsh\e[0m."
+    export SHELL_CONFIG=~/.zshrc
+elif echo "$SHELL" | grep -q "bash"; then
+    echo "Detection success: running on \e[1;36mBash\e[0m."
+    export SHELL_CONFIG=~/.bashrc
+else
+    echo "Detection failed: please modify the config for: $SHELL."
+    echo "\e[4mPress any key to exit...\e[0m"
+    read -n 1
+    exit 1
+fi
+
+if ! grep -q "LD_LIBRARY_PATH" ${SHELL_CONFIG}; then
+    echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${SHELL_CONFIG}
+    echo "export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH" >> ${SHELL_CONFIG}
+    echo "export RUSTFLAGS="$RUSTFLAGS"" >> ${SHELL_CONFIG}
+    echo "Detection success: running on \e[1;36mZsh\e[0m."
+else
+    echo "Environment variable already exists in ${SHELL_CONFIG}."
+fi
+
 echo "\e[1;33mBuild and install all components successfully.\e[0m"
 echo "\e[4mPress any key to exit...\e[0m"
+source ${SHELL_CONFIG}
 read -n 1
 
 exit 0
