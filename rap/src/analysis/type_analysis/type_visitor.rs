@@ -5,7 +5,7 @@ use rustc_middle::mir::visit::{Visitor, TyContext};
 use rustc_middle::mir::Local;
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, LocalDecl, Operand, TerminatorKind};
 use rustc_span::def_id::DefId;
-use rustc_abi::VariantIdx;
+use rustc_target::abi::VariantIdx;
 
 use crate::components::display::{self, Display};
 use crate::analysis::RcxMut;
