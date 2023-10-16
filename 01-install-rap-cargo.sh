@@ -1,48 +1,53 @@
-#!/bin/zsh
+RED='\033[4;31m'
+YELLOW='\033[4;33m'
+GREEN='\033[0;32m'
+BLUE='\033[36m'
+WHITE='\033[4m'
+NC='\033[0m'
 
+printf "%bNow building cargo rap for your toolchain.%b\n" "${YELLOW}" "${NC}"
+printf "%bPHASE1: Checking operating system.%b\n" "${YELLOW}" "${NC}"
 os_type=$(uname -s)
 
-echo "\e[4;33mNow building cargo rap for your toolchain.\e[0m"
-echo "\e[4;33mPHASE1: Checking operating system.\e[0m"
 if [ "$os_type" = "Linux" ]; then
-    echo "Detection success: running on \e[1;36mLinux (x86_64-unknown-linux-gnu)\e[0m."
+    printf "Detection success: running on %bLinux (x86_64-unknown-linux-gnu)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-unknown-linux-gnu"
 elif [ "$os_type" = "Darwin" ]; then
-    echo "Detection success: running on \e[1;36mMacintosh (x86_64-apple-darwin)\e[0m."
+    printf "Detection success: running on %bMacintosh (x86_64-apple-darwin)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-apple-darwin"
 elif [ "$os_type" = "FreeBSD" ]; then
-    echo "Detection success: running on \e[1;36mFreeBSD (x86_64-unknown-linux-gnu)\e[0m."
+    printf "Detection success: running on %bFreeBSD (x86_64-unknown-linux-gnu)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-unknown-linux-gnu"
 else
-    echo "Detection failed: running unsupported operating system: $os_type."
-    echo "\e[4mPress any key to exit...\e[0m"
+    printf "Detection failed: running unsupported operating system: $os_type.\n"
+    printf "%bPress any key to exit...%b\n" "${WHITE}" "${NC}"
     read -n 1
     exit 1
 fi
 
-echo "\e[4;33mPHASE2: Checking working directory for \e[1;36mrap\e[4;33m.\e[0m"
+printf "%bPHASE2: Checking working directory for %brap%b.%b\n" "${YELLOW}" "${BLUE}" "${YELLOW}" "${NC}"
 export RAP_DIR=$(dirname "$(readlink -f "$0")")
-echo "Detection success: working directory is \e[1;36m${RAP_DIR}\e[0m."
+printf "Detection success: working directory is %b${RAP_DIR}%b.\n" "${BLUE}" "${NC}"
 
-echo "\e[4;33mPHASE3: Checking link of \e[1;36mrap-rust\e[4;33m.\e[0m"
+printf "%bPHASE3: Checking link of %brap-rust%b.%b\n" "${YELLOW}" "${BLUE}" "${YELLOW}" "${NC}"
 RUSTUP_SHOW=$(rustup show)
 if [ -z "$(ls ${RAP_DIR}/rust)" ]; then
-    echo "Detection failed: directory of rap-rust is empty, please build and install \e[1;36mrap-rust\e[0m first."
-    echo "\e[4mPress any key to exit...\e[0m"
+    printf "Detection failed: directory of %brap-rust%b is empty, please build and install %brap-rust%b first.\n" "${BLUE}" "${NC}" "${BLUE}" "${NC}"
+    printf "%bPress any key to exit...%b\n" "${WHITE}" "${NC}"
     read -n 1
     exit 2
 else
   if echo "${RUSTUP_SHOW}" | grep -q "rap-rust"; then
-    echo "Detection success: \e[1;36mrap-rust\e[0m has been linked into \e[1;36mrustup\e[0m toolchain."
+    printf "Detection success: %brap-rust%b has been linked into %brustup%b toolchain.\n" "${BLUE}" "${NC}" "${BLUE}" "${NC}"
   else
-    echo "Detection failed: cannot find \e[1;36mrap-rust\e[0m, please build and install \e[1;36mrap-rust\e[0m first."
-    echo "\e[4mPress any key to exit...\e[0m"
+    printf "Detection failed: cannot find %brap-rust%b, please build and install %brap-rust%b first.\n" "${BLUE}" "${NC}" "${BLUE}" "${NC}"
+    printf "%bPress any key to exit...%b\n" "${WHITE}" "${NC}"
     read -n 1
     exit 2
   fi
 fi
 
-echo "\e[4;31mPHASE4: Building, installing and linking \e[1;36mrap \e[1;31minto \e[1;36mcargo\e[1;31m.\e[0m"
+printf "%bPHASE4: Building, installing and linking %brap%b into %bcargo%b.%b\n" "${RED}" "${BLUE}" "${RED}" "${BLUE}" "${RED}" "${NC}"
 # Execution self cleanup procedure
 cd rap && cargo clean
 
@@ -63,35 +68,34 @@ export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustli
 # Link libraries searching paths for rustc, by using RUSTFLAGs -L DIR
 export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib"
 
-echo "\e[0;32mBuilding success: building, installing and linking \e[1;36mrap \e[0;32mfinished.\e[0m"
+printf "%bBuilding success: building, installing and linking %brap %bfinished.%b\n" "${GREEN}" "${BLUE}" "${GREEN}" "${NC}"
 
 # Write environment variables into usr system
-echo "\e[4;31mPHASE5: Writing for user shell.\e[0m"
+printf "%bPHASE5: Writing for user shell.%b\n" "${RED}" "${NC}"
 if echo "$SHELL" | grep -q "zsh"; then
-    echo "Detection success: running on \e[1;36mZsh\e[0m."
+    printf "Detection success: running on %bZsh%b.\n" "${BLUE}" "${NC}"
     export SHELL_CONFIG=~/.zshrc
 elif echo "$SHELL" | grep -q "bash"; then
-    echo "Detection success: running on \e[1;36mBash\e[0m."
+    printf "Detection success: running on %bBash%b.\n" "${BLUE}" "${NC}"
     export SHELL_CONFIG=~/.bashrc
 else
-    echo "Detection failed: please modify the config for: $SHELL."
-    echo "\e[4mPress any key to exit...\e[0m"
+    printf "Detection failed: please modify the config for: $SHELL."
+    printf "%bPress any key to exit...%b\n" "${WHITE}" "${NC}"
     read -n 1
     exit 1
 fi
 
 if ! grep -q "LD_LIBRARY_PATH" ${SHELL_CONFIG}; then
-    echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${SHELL_CONFIG}
-    echo "export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH" >> ${SHELL_CONFIG}
-    echo "export RUSTFLAGS="$RUSTFLAGS"" >> ${SHELL_CONFIG}
-    echo "Detection success: running on \e[1;36mZsh\e[0m."
+    echo "export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\"" >> ${SHELL_CONFIG}
+    echo "export DYLD_LIBRARY_PATH=\"${DYLD_LIBRARY_PATH}\"" >> ${SHELL_CONFIG}
+    echo "export RUSTFLAGS=\"${RUSTFLAGS}\"" >> ${SHELL_CONFIG}
+    printf "%bEnvironment variable has been successfully writen to ${SHELL_CONFIG}.%b\n" "${GREEN}" "${NC}"
 else
-    echo "Environment variable already exists in ${SHELL_CONFIG}."
+    printf "Environment variable already exists in %b${SHELL_CONFIG}%b.\n" "${BLUE}" "${NC}"
 fi
 
-echo "\e[1;33mBuild and install all components successfully.\e[0m"
-echo "\e[4mPress any key to exit...\e[0m"
-source ${SHELL_CONFIG}
+printf "%bBuild and install all components successfully.%b\n" "${GREEN}" "${NC}"
+printf "%bPress any key to exit...%b\n" "${WHITE}" "${NC}"
 read -n 1
 
 exit 0
