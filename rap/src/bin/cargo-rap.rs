@@ -21,7 +21,13 @@ Usage:
     cargo rap [<cargo options>...] [--] [<rustc/rap options>...]
 
 Options:
-    --help                 Print help message
+    --help              Print help message
+    -MIR=V              Set Verbose to print Rust MIR of each function
+    -MIR==VV            Print more information than -MIR=V. Note that it will overwite -MIR=V.
+    -ADT=V              Print the pair of the result of type analysis, including the type definition and the analysis result.
+    -Z3-GOAL=V          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
+    -GRAN=LOW           Default grain set for RCANAY, use MEDIUM/HIGH/ULTRA to overwrite.
+    -ICX-SLICE=V        Set Verbose to print the middle metadate for RCANAY debug.
 
 The cargo options are exactly the same as for `cargo run` and `cargo test`, respectively.
 

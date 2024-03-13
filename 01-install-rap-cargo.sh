@@ -58,12 +58,12 @@ cd rap && cargo clean
 RUSTC_INSTALL_BINDIR=bin CFG_RELEASE_CHANNEL=nightly CFG_RELEASE=nightly cargo install --path "$(dirname "$0")" --force
 
 # Link to .rlib / .rmeta / .so files; for Linux
-export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$LD_LIBRARY_PATH"
-export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:${LD_LIBRARY_PATH}"
 
 # Link to .rlib / .rmeta / .dylib files; for Macintosh
-export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:$DYLD_LIBRARY_PATH"
-export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:$DYLD_LIBRARY_PATH"
+export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib:${DYLD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib/rustlib/${HOST_TRIPLE}/lib:${DYLD_LIBRARY_PATH}"
 
 # Link libraries searching paths for rustc, by using RUSTFLAGs -L DIR
 export RUSTFLAGS="-L ${RAP_DIR}/rust/build/${HOST_TRIPLE}/stage2/lib"
