@@ -39,14 +39,35 @@ pub static RAP_LLVM_RES:&str = "/tmp/rap/llvm-res";
 
 pub type Elapsed = (i64, i64);
 
+#[derive(Debug, Copy, Clone, Hash, Default)]
+struct SafeDrop(bool);
+
+#[derive(Debug, Copy, Clone, Hash)]
+struct RCanary {
+    enable: bool,
+    adt_display: AdtOwnerDisplay,
+    z3_goal_display: Z3GoalDisplay,
+    icx_slice_display: IcxSliceDisplay,
+}
+
+impl Default for RCanary {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            adt_display: AdtOwnerDisplay::Disabled,
+            z3_goal_display: Z3GoalDisplay::Disabled,
+            icx_slice_display: IcxSliceDisplay::Disabled,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapConfig {
     grain: RapGrain,
     verbose: Verbosity,
     mir_display: MirDisplay,
-    adt_display: AdtOwnerDisplay,
-    z3_goal_display: Z3GoalDisplay,
-    icx_slice_display: IcxSliceDisplay,
+    rcanary: RCanary,
+    safedrop: SafeDrop,
 }
 
 impl Default for RapConfig {
@@ -55,9 +76,8 @@ impl Default for RapConfig {
             grain: RapGrain::Low,
             verbose: Verbosity::Info,
             mir_display: MirDisplay::Disabled,
-            adt_display: AdtOwnerDisplay::Disabled,
-            z3_goal_display: Z3GoalDisplay::Disabled,
-            icx_slice_display: IcxSliceDisplay::Disabled,
+            rcanary: RCanary::default(),
+            safedrop: SafeDrop::default(),
         }
     }
 }
@@ -67,17 +87,15 @@ impl RapConfig {
         grain: RapGrain,
         verbose: Verbosity,
         mir_display: MirDisplay,
-        adt_display: AdtOwnerDisplay,
-        z3_goal_display: Z3GoalDisplay,
-        icx_slice_display: IcxSliceDisplay,
+        rcanary: RCanary,
+        safedrop: SafeDrop,
     ) -> Self {
         Self {
             grain,
             verbose,
             mir_display,
-            adt_display,
-            z3_goal_display,
-            icx_slice_display,
+            rcanary,
+            safedrop,
         }
     }
 
@@ -93,17 +111,25 @@ impl RapConfig {
 
     pub fn set_mir_display(&mut self, mir_display: MirDisplay) { self.mir_display = mir_display; }
 
-    pub fn adt_display(&self) -> AdtOwnerDisplay { self.adt_display }
+    pub fn adt_display(&self) -> AdtOwnerDisplay { self.rcanary.adt_display }
 
-    pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.adt_display = adt_display; }
+    pub fn enable_safedrop(&mut self) { self.safedrop.0 = true; }
 
-    pub fn z3_goal_display(&self) -> Z3GoalDisplay { self.z3_goal_display }
+    pub fn is_safedrop_enabled(&self) -> bool { self.safedrop.0 }
 
-    pub fn set_z3_goal_display(&mut self, z3_goal_display: Z3GoalDisplay) { self.z3_goal_display = z3_goal_display; }
+    pub fn enable_rcanary(&mut self) { self.rcanary.enable = true; }
 
-    pub fn icx_slice_display(&self) -> IcxSliceDisplay { self.icx_slice_display }
+    pub fn is_rcanary_enabled(&self) -> bool { self.rcanary.enable }
 
-    pub fn set_icx_slice_display(&mut self, icx_slice_display: IcxSliceDisplay) { self.icx_slice_display = icx_slice_display; }
+    pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.rcanary.adt_display = adt_display; }
+
+    pub fn z3_goal_display(&self) -> Z3GoalDisplay { self.rcanary.z3_goal_display }
+
+    pub fn set_z3_goal_display(&mut self, z3_goal_display: Z3GoalDisplay) { self.rcanary.z3_goal_display = z3_goal_display; }
+
+    pub fn icx_slice_display(&self) -> IcxSliceDisplay { self.rcanary.icx_slice_display }
+
+    pub fn set_icx_slice_display(&mut self, icx_slice_display: IcxSliceDisplay) { self.rcanary.icx_slice_display = icx_slice_display; }
 
 }
 
@@ -155,15 +181,17 @@ pub fn start_analyzer(tcx: TyCtxt, config: RapConfig) {
     let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, config));
     let rcx = Box::leak(rcx_boxed);
 
-    run_analyzer(
-        "Type Analysis",
-        ||
-            TypeAnalysis::new(rcx).start()
-    );
+    if config.is_rcanary_enabled() {
+        run_analyzer(
+            "Type Analysis",
+            ||
+                TypeAnalysis::new(rcx).start()
+        );
 
-    run_analyzer(
-        "Flow Analysis",
-        ||
-            FlowAnalysis::new(rcx).start()
-    );
+        run_analyzer(
+            "Flow Analysis",
+            ||
+                FlowAnalysis::new(rcx).start()
+        );
+    }
 }

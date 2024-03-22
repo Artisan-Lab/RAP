@@ -120,11 +120,27 @@ impl RapArgs {
 
     pub fn set_mir_display_very_verbose(&mut self) { self.rap_cc.rap_config.set_mir_display(MirDisplay::VeryVerobse); }
 
-    pub fn set_adt_display_verbose(&mut self) { self.rap_cc.rap_config.set_adt_display(AdtOwnerDisplay::Verbose); }
+    pub fn enable_safedrop(&mut self) { self.rap_cc.rap_config.enable_safedrop(); }
 
-    pub fn set_z3_goal_display_verbose(&mut self) { self.rap_cc.rap_config.set_z3_goal_display(Z3GoalDisplay::Verbose); }
+    pub fn enable_rcanary(&mut self) { self.rap_cc.rap_config.enable_rcanary(); }
 
-    pub fn set_icx_slice_display(&mut self) { self.rap_cc.rap_config.set_icx_slice_display(IcxSliceDisplay::Verbose); }
+    pub fn set_adt_display_verbose(&mut self) {
+        if self.rap_cc.rap_config.is_rcanary_enabled() {
+            self.rap_cc.rap_config.set_adt_display(AdtOwnerDisplay::Verbose);
+        }
+    }
+
+    pub fn set_z3_goal_display_verbose(&mut self) {
+        if self.rap_cc.rap_config.is_rcanary_enabled() {
+            self.rap_cc.rap_config.set_z3_goal_display(Z3GoalDisplay::Verbose);
+        }
+    }
+
+    pub fn set_icx_slice_display(&mut self) {
+        if self.rap_cc.rap_config.is_rcanary_enabled() {
+            self.rap_cc.rap_config.set_icx_slice_display(IcxSliceDisplay::Verbose);
+        }
+    }
 
     pub fn push_args(&mut self, arg: String) { self.args.push(arg); }
 
@@ -143,6 +159,8 @@ fn config_parse() -> RapArgs {
             "-GRAIN=ULTRA" => rap_args.set_config_ultra(),
             "-MIR=V" => rap_args.set_mir_display_verbose(),
             "-MIR=VV" => rap_args.set_mir_display_very_verbose(),
+            "-SAFEDROP" => rap_args.enable_safedrop(),
+            "-RCANARY" => rap_args.enable_rcanary(),
             "-ADT=V" => rap_args.set_adt_display_verbose(),
             "-Z3-GOAL=V" => rap_args.set_z3_goal_display_verbose(),
             "-ICX-SLICE=V" => rap_args.set_icx_slice_display(),

@@ -275,16 +275,23 @@ fn rap_add_env(cmd: &mut Command) {
     if has_rap_arg_flag("-MIR=VV") {
         cmd.env("MIR_DISPLAY", "VERY VERBOSE");
     }
-    if has_rap_arg_flag("-ADT=V") {
-        cmd.env("ADT_DISPLAY", "");
-    }
-    if has_rap_arg_flag("-Z3-GOAL=V") {
-        cmd.env("Z3_GOAL", "");
-    }
-    if has_rap_arg_flag("-ICX-SLICE=V") {
-        cmd.env("ICX_SLICE", "");
+
+    if has_rap_arg_flag("RCANARY") {
+        cmd.env("RCANARY", "ENABLED");
+        if has_rap_arg_flag("-ADT=V") {
+            cmd.env("ADT_DISPLAY", "");
+        }
+        if has_rap_arg_flag("-Z3-GOAL=V") {
+            cmd.env("Z3_GOAL", "");
+        }
+        if has_rap_arg_flag("-ICX-SLICE=V") {
+            cmd.env("ICX_SLICE", "");
+        }
     }
 
+    if has_rap_arg_flag("SAFEDROP") {
+        cmd.env("SAFEDROP", "ENABLED");
+    }
 }
 
 fn phase_preprocess() {
