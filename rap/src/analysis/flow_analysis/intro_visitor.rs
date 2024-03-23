@@ -1853,8 +1853,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             Operand::Constant(constant) => {
                 match constant.ty().kind() {
                     ty::FnDef(id, ..) => {
-                        println!("{:?}", id);
-                        println!("{:?}", mir_body(self.tcx(), *id));
+                        //println!("{:?}", id);
+                        //println!("{:?}", mir_body(self.tcx(), *id));
                         match id.index.as_usize() {
                             2171 => {
                                 // this for calling std::mem::drop(TY)

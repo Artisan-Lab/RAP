@@ -283,7 +283,7 @@ fn rap_add_env(cmd: &mut Command) {
         cmd.env("MIR_DISPLAY", "VERY VERBOSE");
     }
 
-    if has_rap_arg_flag("RCANARY") {
+    if has_rap_arg_flag("-RCANARY") {
         cmd.env("RCANARY", "ENABLED");
         if has_rap_arg_flag("-ADT=V") {
             cmd.env("ADT_DISPLAY", "");
@@ -296,7 +296,7 @@ fn rap_add_env(cmd: &mut Command) {
         }
     }
 
-    if has_rap_arg_flag("SAFEDROP") {
+    if has_rap_arg_flag("-SAFEDROP") {
         cmd.env("SAFEDROP", "ENABLED");
     }
 }
