@@ -23,11 +23,9 @@ use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 
 use rap::{RapConfig, compile_time_sysroot, RAP_DEFAULT_ARGS, start_analyzer};
-use rap::analysis::flow_analysis::{IcxSliceDisplay, Z3GoalDisplay};
-use rap::analysis::type_analysis::AdtOwnerDisplay;
-use rap::components::display::MirDisplay;
-use rap::components::grain::RapGrain;
-use rap::components::log::Verbosity;
+use rap::analysis::rcanary::flow_analysis::{IcxSliceDisplay, Z3GoalDisplay};
+use rap::analysis::rcanary::type_analysis::AdtOwnerDisplay;
+use rap::components::{display::MirDisplay, grain::RapGrain, log::Verbosity};
 use rap::rap_info;
 
 #[derive(Copy, Clone)]
@@ -124,6 +122,10 @@ impl RapArgs {
 
     pub fn enable_rcanary(&mut self) { self.rap_cc.rap_config.enable_rcanary(); }
 
+    pub fn enable_example_frontend(&mut self) { self.rap_cc.rap_config.enable_example_frontend(); }
+
+    pub fn enable_example_backend(&mut self)  { self.rap_cc.rap_config.enable_example_backend(); }
+
     pub fn set_adt_display_verbose(&mut self) {
         if self.rap_cc.rap_config.is_rcanary_enabled() {
             self.rap_cc.rap_config.set_adt_display(AdtOwnerDisplay::Verbose);
@@ -159,6 +161,8 @@ fn config_parse() -> RapArgs {
             "-GRAIN=ULTRA" => rap_args.set_config_ultra(),
             "-MIR=V" => rap_args.set_mir_display_verbose(),
             "-MIR=VV" => rap_args.set_mir_display_very_verbose(),
+            "-HELLOWORLD=BACK" => rap_args.enable_example_backend(),
+            "-HELLOWORLD=FRONT" => rap_args.enable_example_frontend(),
             "-SAFEDROP" => rap_args.enable_safedrop(),
             "-RCANARY" => rap_args.enable_rcanary(),
             "-ADT=V" => rap_args.set_adt_display_verbose(),

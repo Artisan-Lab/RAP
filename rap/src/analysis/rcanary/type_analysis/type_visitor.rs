@@ -8,8 +8,8 @@ use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
 use crate::components::display::{self, Display};
-use crate::analysis::RcxMut;
-use crate::analysis::type_analysis::{self, TypeAnalysis, OwnerPropagation, RawGeneric,
+use crate::analysis::rcanary::RcxMut;
+use crate::analysis::rcanary::type_analysis::{self, TypeAnalysis, OwnerPropagation, RawGeneric,
                                      RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
                                      DefaultOwnership, FindPtr, mir_body};
 

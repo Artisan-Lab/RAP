@@ -5,8 +5,8 @@ pub mod ownership;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 
-use crate::analysis::RcxMut;
-use crate::analysis::type_analysis::ownership::RawTypeOwner;
+use crate::analysis::rcanary::RcxMut;
+use crate::analysis::rcanary::type_analysis::ownership::RawTypeOwner;
 use crate::components::context::RapGlobalCtxt;
 
 use std::collections::{HashMap, HashSet};

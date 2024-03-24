@@ -26,6 +26,10 @@ Normal options:
     -MIR=V              Set Verbose to print Rust MIR of each function
     -MIR==VV            Print more information than -MIR=V. Note that it will overwite -MIR=V.
 
+HelloWorld:
+    -HELLOWORLD=BACK    Enable the example for RAP backend.
+    -HELLOWORLD=FRONT   Enable the example for RAP frontend.
+
 SafeDrop:
     -SAFEDROP           Enable analysis in SafeDrop.
 
@@ -281,6 +285,10 @@ fn rap_add_env(cmd: &mut Command) {
     }
     if has_rap_arg_flag("-MIR=VV") {
         cmd.env("MIR_DISPLAY", "VERY VERBOSE");
+    }
+
+    if has_rap_arg_flag("-HELLOWORLD=BACK") {
+        cmd.env("HELLOWORLD", "ENABLED");
     }
 
     if has_rap_arg_flag("-RCANARY") {

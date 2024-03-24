@@ -1,6 +1,6 @@
-use crate::analysis::RcxMut;
-use crate::analysis::flow_analysis::{FlowAnalysis, InterFlowAnalysis};
-use crate::analysis::type_analysis::{mir_body, Unique};
+use crate::analysis::rcanary::RcxMut;
+use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, InterFlowAnalysis};
+use crate::analysis::rcanary::type_analysis::{mir_body, Unique};
 
 use stopwatch::Stopwatch;
 

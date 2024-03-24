@@ -8,10 +8,10 @@ use rustc_span::def_id::DefId;
 use rustc_middle::mir::Body;
 
 use crate::{Elapsed, RapGlobalCtxt};
-use crate::analysis::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique};
-use crate::analysis::type_analysis::type_visitor::TyWithIndex;
-use crate::analysis::flow_analysis::ownership::{IntroVar, Taint};
-use crate::analysis::{IcxMut, IcxSliceMut, Rcx, RcxMut};
+use crate::analysis::rcanary::{IcxMut, IcxSliceMut, Rcx, RcxMut};
+use crate::analysis::rcanary::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique,
+                                              type_visitor::TyWithIndex};
+use crate::analysis::rcanary::flow_analysis::ownership::{IntroVar, Taint};
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};

@@ -1,6 +1,6 @@
 use rustc_middle::ty::Ty;
 
-use crate::analysis::type_analysis::type_visitor::TyWithIndex;
+use crate::analysis::rcanary::type_analysis::type_visitor::TyWithIndex;
 
 use std::collections::HashSet;
 use std::fmt::Debug;

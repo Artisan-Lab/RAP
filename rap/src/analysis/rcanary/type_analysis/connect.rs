@@ -1,5 +1,5 @@
 use crate::RAP_LLVM_IR;
-use crate::analysis::type_analysis::TypeAnalysis;
+use crate::analysis::rcanary::type_analysis::TypeAnalysis;
 use crate::components::fs::{rap_can_read_dir, rap_read, rap_demangle, rap_create_file};
 
 use std::io::{BufRead, BufReader, Write};

@@ -1,6 +1,6 @@
 use rustc_middle::ty::Ty;
 
-use crate::analysis::type_analysis::{DefaultOwnership, OwnershipLayout};
+use crate::analysis::rcanary::type_analysis::{DefaultOwnership, OwnershipLayout};
 
 use std::fmt::Debug;
 

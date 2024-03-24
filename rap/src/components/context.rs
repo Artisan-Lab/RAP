@@ -1,8 +1,8 @@
 use rustc_middle::ty::TyCtxt;
 
 use crate::{RapConfig, Elapsed};
-use crate::analysis::flow_analysis::MirGraph;
-use crate::analysis::type_analysis::AdtOwner;
+use crate::analysis::rcanary::flow_analysis::MirGraph;
+use crate::analysis::rcanary::type_analysis::AdtOwner;
 
 use std::collections::HashMap;
 

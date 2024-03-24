@@ -25,8 +25,8 @@ use crate::components::grain::RapGrain;
 use crate::components::log::Verbosity;
 use crate::components::context::RapGlobalCtxt;
 use crate::components::display::MirDisplay;
-use crate::analysis::flow_analysis::{FlowAnalysis, IcxSliceDisplay, Z3GoalDisplay};
-use crate::analysis::type_analysis::{TypeAnalysis, AdtOwnerDisplay};
+use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, IcxSliceDisplay, Z3GoalDisplay};
+use crate::analysis::rcanary::type_analysis::{TypeAnalysis, AdtOwnerDisplay};
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -50,6 +50,12 @@ struct RCanary {
     icx_slice_display: IcxSliceDisplay,
 }
 
+#[derive(Debug, Copy, Clone, Hash, Default)]
+struct HelloWorld {
+    front: bool,
+    back: bool,
+}
+
 impl Default for RCanary {
     fn default() -> Self {
         Self {
@@ -68,6 +74,7 @@ pub struct RapConfig {
     mir_display: MirDisplay,
     rcanary: RCanary,
     safedrop: SafeDrop,
+    hello_world: HelloWorld,
 }
 
 impl Default for RapConfig {
@@ -78,6 +85,7 @@ impl Default for RapConfig {
             mir_display: MirDisplay::Disabled,
             rcanary: RCanary::default(),
             safedrop: SafeDrop::default(),
+            hello_world: HelloWorld::default(),
         }
     }
 }
@@ -89,6 +97,7 @@ impl RapConfig {
         mir_display: MirDisplay,
         rcanary: RCanary,
         safedrop: SafeDrop,
+        hello_world: HelloWorld,
     ) -> Self {
         Self {
             grain,
@@ -96,6 +105,7 @@ impl RapConfig {
             mir_display,
             rcanary,
             safedrop,
+            hello_world,
         }
     }
 
@@ -120,6 +130,14 @@ impl RapConfig {
     pub fn enable_rcanary(&mut self) { self.rcanary.enable = true; }
 
     pub fn is_rcanary_enabled(&self) -> bool { self.rcanary.enable }
+
+    pub fn enable_example_frontend(&mut self) { self.hello_world.front = true; }
+
+    pub fn enable_example_backend(&mut self) { self.hello_world.back = true; }
+
+    pub fn is_example_front_enabled(&self) -> bool { self.hello_world.front }
+
+    pub fn is_example_back_enabled(&self) -> bool { self.hello_world.back }
 
     pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.rcanary.adt_display = adt_display; }
 
@@ -180,6 +198,15 @@ fn run_analyzer<F, R>(name: &str, func: F) -> R
 pub fn start_analyzer(tcx: TyCtxt, config: RapConfig) {
     let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, config));
     let rcx = Box::leak(rcx_boxed);
+
+    if config.is_example_front_enabled() {
+        use crate::analysis::hello_world::HelloWorld;
+        run_analyzer(
+            "Hello World Example (frontend)",
+            ||
+                HelloWorld::new().start()
+        );
+    }
 
     if config.is_rcanary_enabled() {
         run_analyzer(

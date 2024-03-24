@@ -4,13 +4,12 @@ use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKi
 use rustc_target::abi::VariantIdx;
 
 use crate::rap_error;
-use crate::analysis::{Rcx, RcxMut, IcxMut, IcxSliceMut};
-use crate::analysis::type_analysis::ownership::{OwnershipLayoutResult, RawTypeOwner};
-use crate::analysis::type_analysis::type_visitor::TyWithIndex;
-use crate::analysis::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV, Unique};
-use crate::analysis::flow_analysis::{IntroFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
-                                     is_icx_slice_verbose};
-use crate::analysis::flow_analysis::ownership::IntroVar;
+use crate::analysis::rcanary::{Rcx, RcxMut, IcxMut, IcxSliceMut};
+use crate::analysis::rcanary::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV,
+                                              Unique, ownership::{OwnershipLayoutResult, RawTypeOwner},
+                                              type_visitor::TyWithIndex};
+use crate::analysis::rcanary::flow_analysis::{IntroFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
+                                              is_icx_slice_verbose, ownership::IntroVar};
 
 use z3::ast::{self, Ast};
 
