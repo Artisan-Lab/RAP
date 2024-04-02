@@ -309,14 +309,14 @@ fn rap_add_env(cmd: &mut Command) {
     }
 }
 
-fn phase_preprocess() {
+fn enter_cargo_rap() {
 
     let mut args = env::args();
     if args.any(|a| a=="--help") {
-        show_help();
+        show_help()
     }
     if args.any(|a| a=="--version") {
-        show_version();
+        show_version()
     }
 
     rap_info!("Welcome to run RAP - Rust Analysis Platform");
@@ -333,6 +333,8 @@ fn phase_preprocess() {
     rap_remove_dir(RAP_ROOT, "Failed to init RAP root dir");
 
     rap_info!("Phase-Preprocess has been done");
+
+    phase_cargo_rap();
 }
 
 fn llvm_ir_emitter() {
@@ -713,9 +715,8 @@ fn main() {
         // `cargo rap`: call `cargo rustc` for each applicable target,
         // but with the `RUSTC` env var set to the `cargo-rap` binary so that we come back in the other branch,
         // and dispatch the invocations to `rustc` and `rap`, respectively.
-        phase_preprocess();
+        enter_cargo_rap(); 
         // phase_llvm_ir();
-        phase_cargo_rap();
     } else if arg_string.ends_with("rustc") {
         // `cargo rap`: `RUSTC_WRAPPER` env var:
         // dependencies get dispatched to `rustc`, the final test/binary to `rap`.
