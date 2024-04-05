@@ -12,11 +12,8 @@ extern crate log as rust_log;
 
 use rustc_driver::{Compilation, Callbacks};
 use rustc_interface::{interface::Compiler, Queries, Config};
-use rustc_middle::util::Providers;
-use rustc_data_structures::sync::Lrc;
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyErrorHandler;
-use rustc_session::search_paths::PathKind;
 
 use std::env;
 use std::fmt::{Display, Formatter};

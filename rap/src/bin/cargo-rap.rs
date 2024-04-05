@@ -13,7 +13,6 @@ use std::process;
 
 use rustc_version::VersionMeta;
 use wait_timeout::ChildExt;
-use walkdir::WalkDir;
 
 const CARGO_RAP_HELP: &str = r#"Runs RAP to test and check Rust crates
 
@@ -336,7 +335,7 @@ fn enter_cargo_rap() {
 
     phase_cargo_rap();
 }
-
+/*
 fn llvm_ir_emitter() {
     rap_info!("Ready for RAP Phase II-SubPhase: LLVM-IR-Emitter");
     let (package, targets) = make_package_with_sorted_target();
@@ -437,7 +436,7 @@ fn phase_llvm_ir() {
 
     rap_info!("Phase-LLVM-IR has been done");
 }
-
+*/
 
 fn phase_cargo_rap() {
 

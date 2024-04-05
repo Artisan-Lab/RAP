@@ -157,3 +157,15 @@ you have to run `msys2_shell.cmd -mingw64` from the command line instead)
             mingw-w64-x86_64-ninja
     ```
 4. Navigate to RAP source code (or clone it), then build it.
+
+# Usage
+
+## SafeDrop
+```
+cargo rap -- -SAFEDROP
+```
+
+## RCanary
+```
+cargo rap -- -RCANARY
+```
