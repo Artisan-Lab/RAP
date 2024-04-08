@@ -15,6 +15,9 @@ use z3::ast::{self, Ast};
 
 use std::ops::Add;
 use stopwatch::Stopwatch;
+use colorful::{Color, Colorful};
+
+use super::is_z3_goal_verbose;
 // Fixme: arg.0
 // Fixme: arg enum
 
@@ -2283,16 +2286,16 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         let sec_solve = sw.elapsed_ms() - sec_build;
 
-        self.add_time_build(sec_build);
-        self.add_time_solve(sec_solve);
+        // self.add_time_build(sec_build);
+        // self.add_time_solve(sec_solve);
 
-        // if is_z3_goal_verbose() {
-        //     let g = format!("{}", goal);
-        //     println!("{}\n", g.color(Color::LightGray).bold());
-        //     if model.is_some() {
-        //         println!("{}", format!("{}", model.unwrap()).color(Color::LightCyan).bold());
-        //     }
-        // }
+        if is_z3_goal_verbose() {
+            let g = format!("{}", goal);
+            println!("{}\n", g.color(Color::LightGray).bold());
+            if model.is_some() {
+                println!("{}", format!("{}", model.unwrap()).color(Color::LightCyan).bold());
+            }
+        }
 
         // println!("{}", self.body().local_decls.display());
         // println!("{}", self.body().basic_blocks.display());
@@ -2300,10 +2303,10 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         // println!("{}\n", g.color(Color::LightGray).bold());
 
 
-        // if result == z3::SatResult::Unsat && self.taint_flag {
-        //     println!("{} {:?} {:?}", format!("{:?}", result).color(Color::LightCyan).bold(), self.did(), self.body().span);
-        //
-        // }
+        if result == z3::SatResult::Unsat && self.taint_flag {
+            println!("{} {:?} {:?}", format!("{:?}", result).color(Color::LightCyan).bold(), self.did(), self.body().span);
+        
+        }
 
     }
 
