@@ -1,5 +1,5 @@
 /*
- * This is a buggy case: create_vec() returns a dangling pointer 
+ * This is a buggy case: trigger uaf when executing foo() 
  */
 
 use std::env;
