@@ -1,7 +1,8 @@
 /*
- * This is a buggy case: use-after-free
+ * This is a buggy case: create_vec() returns a dangling pointer 
  */
 
+//fn unsafe create_vec() -> *mut Vec<i32> {// marking the function as unsafe is also inappropriate
 fn create_vec() -> *mut Vec<i32> {
     let mut v = Vec::new();
     //Fix: let mut v = Box::new(Vec::new());

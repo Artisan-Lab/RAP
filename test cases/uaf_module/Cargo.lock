@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "safedrop03"
+name = "uaf_module"
 version = "0.1.0"

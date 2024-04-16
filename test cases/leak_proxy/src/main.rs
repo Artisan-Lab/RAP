@@ -1,9 +1,9 @@
 struct Proxy<T> {
-    ptr: *mut T,
+    _p: *mut T,
 }
 
 fn main() {
     let buf = Box::new("buffer");
     let ptr = Box::into_raw(buf);
-    let proxy = Proxy { ptr };
+    let _proxy = Proxy { _p:ptr };
 }

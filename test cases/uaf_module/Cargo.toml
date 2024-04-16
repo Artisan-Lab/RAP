@@ -1,5 +1,5 @@
 [package]
-name = "safedrop03"
+name = "uaf_module"
 version = "0.1.0"
 edition = "2021"
 
