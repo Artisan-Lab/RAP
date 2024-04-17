@@ -16,7 +16,7 @@ if [ "$os_type" = "Linux" ]; then
 elif [ "$os_type" = "Darwin" ] && [ "$os_type" = "x86_64" ]; then
     printf "Detection success: running on %bMacintosh-Intel (x86_64-apple-darwin)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-apple-darwin"
-elif [ "$os_type" = "Darwin" ] && [ "$os_type" = "arm64" ]; then
+elif [ "$os_type" = "Darwin" ]; then
     printf "Detection success: running on %bMacintosh-Apple-Silicon (aarch64-apple-darwin)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="aarch64-apple-darwin"
 elif [ "$os_type" = "FreeBSD" ]; then

@@ -49,7 +49,7 @@ change-id = 115898
 #
 # Note that many of the LLVM options are not currently supported for
 # downloading. Currently only the "assertions" option can be toggled.
-#download-ci-llvm = if rust.channel == "dev" { "if-available" } else { false }
+download-ci-llvm = false
 
 # Indicates whether the LLVM build is a Release or Debug build
 #optimize = true
@@ -251,7 +251,7 @@ submodules = true
 
 # The path to (or name of) the GDB executable to use. This is only used for
 # executing the debuginfo test suite.
-gdb = "gdb"
+#gdb = "gdb"
 
 # The node.js executable to use. Note that this is only used for the emscripten
 # target when running tests, otherwise this can be omitted.
