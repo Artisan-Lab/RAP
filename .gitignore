@@ -1,4 +1,5 @@
 .idea/
 .idea/vcs.xml
-rap/target
+.vscode/
+target/
 rap-llvm/build
