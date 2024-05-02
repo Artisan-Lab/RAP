@@ -1,11 +1,11 @@
 # RAP -- Rust Analysis Platform
-RAP is a static Rust analysis platform developped by the researchers of Artisan-Lab, Fudan University. The projects aims to provide a basis for Rust programers to develope or use fancy static analysis features beyond the rustc compiler. Currently, we have implemented two features:
+RAP is a static Rust analysis platform developped by researchers at Artisan-Lab, Fudan University. The projects aims to provide a basis for Rust programers to develope or use fancy static analysis features beyond the rustc compiler. Currently, we have implemented two features:
 
-- SafeDrop: a feature to detect use-after-free/double-free and other dangling pointer issues incurred by unsafe code.
+- **SafeDrop**: a feature to detect use-after-free/double-free and other dangling pointer issues incurred by unsafe code.
 
-- rCanary: memory leakage detection. 
+- **rCanary**: for memory leakage detection. 
 
-More details are available in the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
+The project is still under heavy development. For further details, please refer to the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
 
 ## Quick Start
 
