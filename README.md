@@ -5,7 +5,8 @@ RAP is a static Rust analysis platform developped by researchers at Artisan-Lab,
 
 - **rCanary**: for memory leakage detection. 
 
-The project is still under heavy development. For further details, please refer to the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
+The project is still under heavy development. 
+For further details, please refer to the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
 
 ## Quick Start
 
