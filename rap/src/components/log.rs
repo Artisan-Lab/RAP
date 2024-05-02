@@ -26,7 +26,7 @@ impl Verbosity {
 
         if let Some(log_file_path) = env::var_os("RAP_LOG_FILE_PATH") {
             let file_dispatch = Dispatch::new()
-                .filter(|metadata| metadata.target() == "rap-output")
+                .filter(|metadata| metadata.target() == "=RAP=")
                 .format(|callback, args, record| {
                     callback.finish(format_args!(
                         "{} |RAP OUTPUT-{:5}| {}",
@@ -59,18 +59,18 @@ impl Verbosity {
 #[macro_export]
 macro_rules! rap_info {
     ($($arg:tt)+) => (
-        ::log::info!(target: "rap-output", $($arg)+)
+        ::log::info!(target: "=RAP=", $($arg)+)
     );
 }
 
 #[macro_export]
 macro_rules! rap_error {
     ($($arg:tt)+) => (
-        ::log::error!(target: "rap-output", $($arg)+)
+        ::log::error!(target: "=RAP=", $($arg)+)
     );
 }
 
 pub fn rap_error_and_exit(msg: impl AsRef<str>) -> ! {
-    rap_error!("Fatal error in RAP: {}", msg.as_ref());
+    rap_error!("=RAP=: {}", msg.as_ref());
     std::process::exit(1)
 }
