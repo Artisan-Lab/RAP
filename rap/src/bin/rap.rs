@@ -11,9 +11,13 @@ extern crate rustc_session;
 extern crate log as rust_log;
 
 use rustc_driver::{Compilation, Callbacks};
-use rustc_interface::{interface::Compiler, Queries, Config};
+use rustc_interface::{interface::Compiler, Queries};
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyErrorHandler;
+use rustc_middle::util::Providers;
+use rustc_interface::Config;
+use rustc_session::search_paths::PathKind;
+use rustc_data_structures::sync::Lrc;
 
 use std::env;
 use std::fmt::{Display, Formatter};
@@ -45,18 +49,20 @@ impl Display for RapCompilerCalls {
 }
 
 impl Callbacks for RapCompilerCalls {
-    // fn config(&mut self, config: &mut Config) {
-    //     config.override_queries = Some(|_, providers| {
-    //         providers.extern_queries.used_crate_source = |tcx, cnum| {
-    //            let mut providers = Providers::default();
-    //            rustc_metadata::provide(&mut providers);
-    //
-    //             let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
-    //            Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
-    //            crate_source
-    //        };
-    //     });
-    // }
+    fn config(&mut self, config: &mut Config) {
+        config.override_queries = Some(|_, providers| {
+            providers.extern_queries.used_crate_source = |tcx, cnum| {
+                let mut providers = Providers::default();
+                rustc_metadata::provide(&mut providers);
+                let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
+                // HACK: rustc will emit "crate ... required to be available in rlib format, but
+                // was not found in this form" errors once we use `tcx.dependency_formats()` if
+                // there's no rlib provided, so setting a dummy path here to workaround those errors.
+                Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
+                crate_source
+            };
+        });
+    }
 
     fn after_analysis<'tcx>(
         &mut self,
