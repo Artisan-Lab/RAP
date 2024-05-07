@@ -3,7 +3,7 @@ use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKi
                         Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
 use rustc_target::abi::VariantIdx;
 
-use crate::rap_error;
+use crate::{rap_error, rap_warn};
 use crate::analysis::rcanary::{Rcx, RcxMut, IcxMut, IcxSliceMut};
 use crate::analysis::rcanary::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV,
                                               Unique, ownership::{OwnershipLayoutResult, RawTypeOwner},
@@ -40,7 +40,6 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
             let mut sw = Stopwatch::start_new();
 
             let def_id = each_mir.to_def_id();
-            println!("{:?}",def_id);
             let body = mir_body(tcx, def_id);
             // for loop fee function analysis
             if body.basic_blocks.is_cfg_cyclic() { continue; }
@@ -2304,8 +2303,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
 
         if result == z3::SatResult::Unsat && self.taint_flag {
-            println!("{} {:?} {:?}", format!("{:?}", result).color(Color::LightCyan).bold(), self.did(), self.body().span);
-        
+            rap_warn!("{}", format!("{:?} {:?} {:?}", result,self.did(), self.body().span));
         }
 
     }

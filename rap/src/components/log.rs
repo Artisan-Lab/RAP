@@ -1,7 +1,8 @@
 use std::env;
 
-use chrono::Local;
+use chrono::{Datelike, Local, Timelike};
 use fern::{self, Dispatch};
+use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
 
 #[derive(Debug, Copy, Clone, Hash)]
@@ -14,6 +15,15 @@ pub enum Verbosity {
 impl Verbosity {
     pub fn init_rap_log_system_with_verbosity(verbose: Verbosity) -> Result<(), fern::InitError> {
         let mut dispatch = Dispatch::new();
+
+        let color_line = ColoredLevelConfig::new()
+            .info(Color::White)
+            .error(Color::Red)
+            .warn(Color::Yellow)
+            .debug(Color::White)
+            .trace(Color::BrightBlack);
+
+        let color_level = color_line.info(Color::Green);
 
         dispatch = match verbose {
             Verbosity::Info => dispatch.level(LevelFilter::Info),
@@ -40,15 +50,29 @@ impl Verbosity {
         }
 
         let stdout_dispatch = Dispatch::new()
-            .format(|callback, args,record| {
+            .format(move |callback, args, record| {
+                let time_now = Local::now();
                 callback.finish(format_args!(
-                    "{} |{:5}| [{}] {}",
-                    Local::now(),
-                    record.level(),
+                    "{}{}-{}:{}:{}:{} |FRONT| |{:5}{}| [{}] {}\x1B[0m",
+                    format_args!(
+                        "\x1B[{}m",
+                        color_line.get_color(&record.level()).to_fg_str()
+                    ),
+                    time_now.month(),
+                    time_now.day(),
+                    time_now.hour(),
+                    time_now.minute(),
+                    time_now.second(),
+                    color_level.color(record.level()),
+                    format_args!(
+                        "\x1B[{}m",
+                        color_line.get_color(&record.level()).to_fg_str()
+                    ),
                     record.target(),
-                    args,
+                    args
                 ))
             })
+            .level(log::LevelFilter::Info)
             .chain(std::io::stdout());
 
         dispatch.chain(stdout_dispatch).apply()?;
@@ -59,18 +83,25 @@ impl Verbosity {
 #[macro_export]
 macro_rules! rap_info {
     ($($arg:tt)+) => (
-        ::log::info!(target: "=RAP=", $($arg)+)
+        ::log::info!(target: "RAP", $($arg)+)
     );
 }
 
 #[macro_export]
 macro_rules! rap_error {
     ($($arg:tt)+) => (
-        ::log::error!(target: "=RAP=", $($arg)+)
+        ::log::error!(target: "RAP", $($arg)+)
+    );
+}
+
+#[macro_export]
+macro_rules! rap_warn {
+    ($($arg:tt)+) => (
+        ::log::warn!(target: "RAP", $($arg)+)
     );
 }
 
 pub fn rap_error_and_exit(msg: impl AsRef<str>) -> ! {
-    rap_error!("=RAP=: {}", msg.as_ref());
+    rap_error!("{}", msg.as_ref());
     std::process::exit(1)
 }
