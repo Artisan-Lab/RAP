@@ -45,45 +45,45 @@ impl<'tcx> Taint<'tcx> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum IntroVar<'ctx> {
+pub enum IntraVar<'ctx> {
     Declared,
     Init(ast::BV<'ctx>),
     Unsupported,
 }
 
 
-impl<'ctx> Default for IntroVar<'ctx> {
+impl<'ctx> Default for IntraVar<'ctx> {
     fn default() -> Self {
         Self::Declared
     }
 }
 
-impl<'ctx> IntroVar<'ctx> {
+impl<'ctx> IntraVar<'ctx> {
 
     pub fn is_declared(&self) -> bool {
         match *self {
-            IntroVar::Declared => true,
+            IntraVar::Declared => true,
             _ => false,
         }
     }
 
     pub fn is_init(&self) -> bool {
         match *self {
-            IntroVar::Init(_) => true,
+            IntraVar::Init(_) => true,
             _ => false,
         }
     }
 
     pub fn is_unsupported(&self) -> bool {
         match *self {
-            IntroVar::Unsupported => true,
+            IntraVar::Unsupported => true,
             _ => false,
         }
     }
 
     pub fn extract(&self) -> ast::BV<'ctx> {
         match self {
-            IntroVar::Init(ref ast) => ast.clone(),
+            IntraVar::Init(ref ast) => ast.clone(),
             _ => unreachable!(),
         }
     }

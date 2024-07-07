@@ -1,6 +1,6 @@
 pub mod ownership;
 pub mod order;
-pub mod intro_visitor;
+pub mod intra_visitor;
 pub mod inter_visitor;
 
 use rustc_middle::ty::TyCtxt;
@@ -11,7 +11,7 @@ use crate::{Elapsed, RapGlobalCtxt};
 use crate::analysis::rcanary::{IcxMut, IcxSliceMut, Rcx, RcxMut};
 use crate::analysis::rcanary::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique,
                                               type_visitor::TyWithIndex};
-use crate::analysis::rcanary::flow_analysis::ownership::{IntroVar, Taint};
+use crate::analysis::rcanary::flow_analysis::ownership::{IntraVar, Taint};
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
@@ -105,9 +105,9 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
         // this phase determines the final order of all basic blocks for us to visit
         // Note: we will not visit the clean-up blocks (unwinding)
         self.order();
-        // this phase will generate the intro procedural visitor for us to visit the block
+        // this phase will generate the Intra procedural visitor for us to visit the block
         // note that the inter procedural part is inside in this function but cod in module inter_visitor
-        self.intro_run();
+        self.intra_run();
 
         // rap_info!("@@@@@@@@@@@@@Build Analysis:{:?}", self.rcx().get_time_build());
         // rap_info!("@@@@@@@@@@@@@Solve Analysis:{:?}", self.rcx().get_time_solve());
@@ -166,7 +166,7 @@ impl<'tcx> NodeOrder<'tcx> {
 
 struct InterFlowAnalysis<'tcx, 'ctx, 'a> {
     rcx:&'a RapGlobalCtxt<'tcx>,
-    ifa: IntroFlowAnalysis<'tcx, 'ctx, 'a>,
+    ifa: IntraFlowAnalysis<'tcx, 'ctx, 'a>,
     root_did: DefId,
     root_body: &'a Body<'tcx>,
 }
@@ -180,7 +180,7 @@ impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'ctx, 'a> {
     {
         Self {
             rcx,
-            ifa: IntroFlowAnalysis::new(rcx, did, unique),
+            ifa: IntraFlowAnalysis::new(rcx, did, unique),
             root_did: did,
             root_body: mir_body(rcx.tcx(), did)
         }
@@ -198,9 +198,9 @@ impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'ctx, 'a>
     fn tcx(&'o self) -> TyCtxt<'tcx> { self.rcx.tcx() }
 }
 
-struct IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     rcx: &'a RapGlobalCtxt<'tcx>,
-    icx: IntroFlowContext<'tcx, 'ctx>,
+    icx: IntraFlowContext<'tcx, 'ctx>,
     icx_slice: IcxSliceFroBlock<'tcx, 'ctx>,
     did: DefId,
     body: &'a Body<'tcx>,
@@ -210,7 +210,7 @@ struct IntroFlowAnalysis<'tcx, 'ctx, 'a> {
     taint_flag: bool,
 }
 
-impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     pub fn new(
         rcx: &'a RapGlobalCtxt<'tcx>,
         did: DefId,
@@ -224,7 +224,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         Self {
             rcx,
-            icx: IntroFlowContext::new(b_len, v_len),
+            icx: IntraFlowContext::new(b_len, v_len),
             icx_slice: IcxSliceFroBlock::new_for_block_0(v_len),
             did,
             body,
@@ -277,7 +277,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
 }
 
-impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     #[inline(always)]
     fn rcx(&'o self) -> &'a RapGlobalCtxt<'tcx> {
         self.rcx
@@ -287,19 +287,19 @@ impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntroFlowAnalysis<'tcx, 'ctx, 'a>
     fn tcx(&'o self) -> TyCtxt<'tcx> { self.rcx.tcx() }
 }
 
-impl<'tcx, 'ctx, 'o, 'a> IcxMut<'tcx, 'ctx, 'o> for IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'o, 'a> IcxMut<'tcx, 'ctx, 'o> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     #[inline(always)]
-    fn icx(&'o self) -> &'o IntroFlowContext<'tcx, 'ctx> {
+    fn icx(&'o self) -> &'o IntraFlowContext<'tcx, 'ctx> {
         &self.icx
     }
 
     #[inline(always)]
-    fn icx_mut(&'o mut self) -> &'o mut IntroFlowContext<'tcx, 'ctx> {
+    fn icx_mut(&'o mut self) -> &'o mut IntraFlowContext<'tcx, 'ctx> {
         &mut self.icx
     }
 }
 
-impl<'tcx, 'ctx, 'o, 'a> IcxSliceMut<'tcx, 'ctx, 'o> for IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'o, 'a> IcxSliceMut<'tcx, 'ctx, 'o> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     #[inline(always)]
     fn icx_slice(&'o self) -> &'o IcxSliceFroBlock<'tcx, 'ctx> {
         &self.icx_slice
@@ -312,9 +312,9 @@ impl<'tcx, 'ctx, 'o, 'a> IcxSliceMut<'tcx, 'ctx, 'o> for IntroFlowAnalysis<'tcx,
 }
 
 #[derive(Debug, Clone)]
-pub struct IntroFlowContext<'tcx, 'ctx> {
+pub struct IntraFlowContext<'tcx, 'ctx> {
     taint: IOPairForGraph<Taint<'tcx>>,
-    var: IOPairForGraph<IntroVar<'ctx>>,
+    var: IOPairForGraph<IntraVar<'ctx>>,
     len: IOPairForGraph<usize>,
     // the ty in icx is the Rust ownership layout of the pointing instance
     // Note: the ty is not the exact ty of the local
@@ -322,7 +322,7 @@ pub struct IntroFlowContext<'tcx, 'ctx> {
     layout: IOPairForGraph<OwnershipLayout>,
 }
 
-impl<'tcx, 'ctx, 'icx> IntroFlowContext<'tcx, 'ctx> {
+impl<'tcx, 'ctx, 'icx> IntraFlowContext<'tcx, 'ctx> {
     pub fn new(b_len: usize, v_len: usize) -> Self {
         Self {
             taint: IOPairForGraph::new(b_len, v_len),
@@ -341,11 +341,11 @@ impl<'tcx, 'ctx, 'icx> IntroFlowContext<'tcx, 'ctx> {
         &mut self.taint
     }
 
-    pub fn var(&self) -> &IOPairForGraph<IntroVar<'ctx>> {
+    pub fn var(&self) -> &IOPairForGraph<IntraVar<'ctx>> {
         &self.var
     }
 
-    pub fn var_mut(&mut self) -> &mut IOPairForGraph<IntroVar<'ctx>> {
+    pub fn var_mut(&mut self) -> &mut IOPairForGraph<IntraVar<'ctx>> {
         &mut self.var
     }
 
@@ -528,7 +528,7 @@ impl<T> IOPairForGraph<T>
 #[derive(Clone, Default)]
 pub struct IcxSliceFroBlock<'tcx, 'ctx> {
     taint: Vec<Taint<'tcx>>,
-    var: Vec<IntroVar<'ctx>>,
+    var: Vec<IntraVar<'ctx>>,
     len: Vec<usize>,
     // the ty in icx is the Rust ownership layout of the pointing instance
     // Note: the ty is not the exact ty of the local
@@ -538,7 +538,7 @@ pub struct IcxSliceFroBlock<'tcx, 'ctx> {
 
 impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
 
-    pub fn new_in(icx: &mut IntroFlowContext<'tcx, 'ctx>, idx: usize) -> Self {
+    pub fn new_in(icx: &mut IntraFlowContext<'tcx, 'ctx>, idx: usize) -> Self {
         Self {
             taint: icx.taint_mut().get_g_mut()[idx].get_i_mut().clone(),
             var: icx.var_mut().get_g_mut()[idx].get_i_mut().clone(),
@@ -548,7 +548,7 @@ impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
         }
     }
 
-    pub fn new_out(icx: &mut IntroFlowContext<'tcx, 'ctx>, idx: usize) -> Self {
+    pub fn new_out(icx: &mut IntraFlowContext<'tcx, 'ctx>, idx: usize) -> Self {
         Self {
             taint: icx.taint_mut().get_g_mut()[idx].get_o_mut().clone(),
             var: icx.var_mut().get_g_mut()[idx].get_o_mut().clone(),
@@ -561,7 +561,7 @@ impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
     pub fn new_for_block_0(len: usize) -> Self {
         Self {
             taint: vec![ Taint::default() ; len ],
-            var: vec![ IntroVar::default() ; len ],
+            var: vec![ IntraVar::default() ; len ],
             len: vec![ 0 ; len],
             ty: vec![ TyWithIndex::default() ; len ],
             layout: vec![ Vec::new() ; len ],
@@ -576,11 +576,11 @@ impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
         &mut self.taint
     }
 
-    pub fn var(&self) -> &Vec<IntroVar<'ctx>> {
+    pub fn var(&self) -> &Vec<IntraVar<'ctx>> {
         &self.var
     }
 
-    pub fn var_mut(&mut self) -> &mut Vec<IntroVar<'ctx>> {
+    pub fn var_mut(&mut self) -> &mut Vec<IntraVar<'ctx>> {
         &mut self.var
     }
 
