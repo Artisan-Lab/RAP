@@ -156,9 +156,9 @@ fn test_sysroot_consistency() {
 
     let rustc_sysroot = get_sysroot(Command::new("rustc"));
 
-    rap_info!("Detecting RUSTC SYSRROT: {:?}", rustc_sysroot);
+    rap_info!("Detecting RUSTC SYSROOT: {:?}", rustc_sysroot);
     let rap_sysroot = get_sysroot(Command::new(find_rap()));
-    rap_info!("Detecting RAP   SYSRROT: {:?}", rap_sysroot);
+    rap_info!("Detecting RAP   SYSROOT: {:?}", rap_sysroot);
 
     assert_eq!(
         rustc_sysroot,
