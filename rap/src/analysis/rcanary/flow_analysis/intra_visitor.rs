@@ -341,7 +341,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 self.handle_drop(ctx, goal, solver, place, bidx, false);
             },
             TerminatorKind::Call { func, args, destination, .. } => {
-                self.handle_call(ctx, goal, solver, &func, &args, &destination, bidx);
+                self.handle_call(ctx, goal, solver, term.clone(), &func, &args, &destination, bidx);
             },
             TerminatorKind::Return => {
                 self.handle_return(ctx, goal, solver, sw, bidx);
@@ -1844,6 +1844,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         ctx: &'ctx z3::Context,
         goal: &'ctx z3::Goal<'ctx>,
         solver: &'ctx z3::Solver<'ctx>,
+        term: Terminator<'tcx>,
         func: &Operand<'tcx>,
         args: &Vec<Operand<'tcx>>,
         dest: &Place<'tcx>,
@@ -1888,6 +1889,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // the return value should have the same layout as tainted one
         // we will take the ownership of the args if the arg is a pointer
         let recovery_flag = self.check_fn_recovery(args, dest);
+        if source_flag { self.add_taint(term); }
 
         for arg in args {
             match arg {
@@ -2303,7 +2305,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
 
         if result == z3::SatResult::Unsat && self.taint_flag {
-            rap_warn!("{}", format!("{:?} {:?} {:?}", result,self.did(), self.body().span));
+            rap_warn!("{}", format!("RCanary: Leak Function: {:?} {:?} {:?}", result,self.did(), self.body().span));
+            for source in self.taint_source.iter() {
+                rap_warn!("{}", format!("RCanary: LeakItem Candidates: {:?}, {:?}", source.kind, source.source_info.span));
+            }
         }
 
     }

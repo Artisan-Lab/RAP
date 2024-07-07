@@ -5,7 +5,7 @@ pub mod inter_visitor;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
-use rustc_middle::mir::Body;
+use rustc_middle::mir::{Body, Terminator};
 
 use crate::{Elapsed, RapGlobalCtxt};
 use crate::analysis::rcanary::{IcxMut, IcxSliceMut, Rcx, RcxMut};
@@ -208,6 +208,7 @@ struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     ref_fn_unique: &'a mut Unique,
     elasped: Elapsed,
     taint_flag: bool,
+    taint_source: Vec<Terminator<'tcx>>,
 }
 
 impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
@@ -232,6 +233,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             ref_fn_unique: unique,
             elasped: (0, 0),
             taint_flag: false,
+            taint_source: Vec::default(),
         }
     }
 
@@ -273,6 +275,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
     pub fn get_time_solve(&self) -> i64 {
         self.elasped.1
+    }
+
+    pub fn add_taint(&mut self, terminator: Terminator<'tcx>) {
+        self.taint_source.push(terminator);
     }
 
 }
