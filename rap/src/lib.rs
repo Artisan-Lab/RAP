@@ -153,10 +153,10 @@ impl RapConfig {
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RapPhase {
-    PreProcess,
-    LLVM,
+    Cleanup,
     Cargo,
     Rustc,
+    LLVM, // unimplemented yet
 }
 
 /// Returns the "default sysroot" that RAP will use if no `--sysroot` flag is set.
@@ -198,15 +198,6 @@ fn run_analyzer<F, R>(name: &str, func: F) -> R
 pub fn start_analyzer(tcx: TyCtxt, config: RapConfig) {
     let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, config));
     let rcx = Box::leak(rcx_boxed);
-
-    if config.is_example_front_enabled() {
-        use crate::analysis::hello_world::HelloWorld;
-        run_analyzer(
-            "Hello World Example (frontend)",
-            ||
-                HelloWorld::new().start()
-        );
-    }
 
     if config.is_rcanary_enabled() {
         run_analyzer(

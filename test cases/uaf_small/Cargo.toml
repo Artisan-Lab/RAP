@@ -1,5 +1,5 @@
 [package]
-name = "dangling_min"
+name = "uaf_small"
 version = "0.1.0"
 edition = "2021"
 

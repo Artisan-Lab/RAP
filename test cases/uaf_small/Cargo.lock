@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "dangling_min"
+name = "uaf_small"
 version = "0.1.0"

@@ -72,11 +72,11 @@ impl Callbacks for RapCompilerCalls {
         compiler.session().abort_if_errors();
         Verbosity::init_rap_log_system_with_verbosity(self.rap_config.verbose()).expect("Failed to set up RAP log system");
 
-        rap_info!("RAP Start");
+        rap_info!("Start RAP with the after_analysis function of Callbacks");
         queries.global_ctxt().unwrap().enter(
             |tcx| start_analyzer(tcx, self.rap_config)
         );
-        rap_info!("RAP Stop");
+        rap_info!("Stop RAP");
 
         compiler.session().abort_if_errors();
         Compilation::Continue
@@ -156,8 +156,12 @@ impl RapArgs {
 
 fn config_parse() -> RapArgs {
     let mut rap_args = RapArgs::default();
+    //FIXME: logging doesn't work here;
+    //rap_info!("rap received arguments{:#?}", env::args());
     for arg in env::args() {
         match arg.as_str() {
+            "-F" | "-uaf" => {}, //FIXME: println!("dummy front end for safedrop; this will be captured by the compiler."),
+            "-M" | "-mleak" => rap_args.enable_rcanary(),
             "-GRAIN=LOW" => rap_args.set_config_low(),
             "-GRAIN=MEDIUM" => rap_args.set_config_medium(),
             "-GRAIN=HIGH" => rap_args.set_config_high(),
@@ -166,8 +170,6 @@ fn config_parse() -> RapArgs {
             "-MIR=VV" => rap_args.set_mir_display_very_verbose(),
             "-HELLOWORLD=BACK" => rap_args.enable_example_backend(),
             "-HELLOWORLD=FRONT" => rap_args.enable_example_frontend(),
-            "-SAFEDROP" => rap_args.enable_safedrop(),
-            "-RCANARY" => rap_args.enable_rcanary(),
             "-ADT=V" => rap_args.set_adt_display_verbose(),
             "-Z3-GOAL=V" => rap_args.set_z3_goal_display_verbose(),
             "-ICX-SLICE=V" => rap_args.set_icx_slice_display(),
@@ -211,7 +213,8 @@ fn run_complier(rap_args: &mut RapArgs) -> i32 {
 const BUG_REPORT_URL: &str = "https://github.com/";
 
 fn main() {
-    // Installs a panic hook that will print the ICE message on unexpected panics.
+    rap_info!("Enter RAP main.");
+    // Instals a panic hook that will print the ICE message on unexpected panics.
     let handler = EarlyErrorHandler::new(ErrorOutputType::default());
     rustc_driver::init_rustc_env_logger(&handler);
     rustc_driver::install_ice_hook(BUG_REPORT_URL, |_| ());

@@ -1,3 +1,8 @@
+/* 
+    This is a cargo program to start RAP.
+    The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
+*/
+
 use rap::{RapPhase, rap_info,
           RAP_DEFAULT_ARGS, RAP_ROOT, RAP_LLVM_CACHE, RAP_LLVM_IR};
 use rap::components::log::{Verbosity, rap_error_and_exit};
@@ -19,41 +24,29 @@ const CARGO_RAP_HELP: &str = r#"Runs RAP to test and check Rust crates
 Usage:
     cargo rap [<cargo options>...] [--] [<rustc/rap options>...]
 
-Options:
-Normal options:
-    --help              Print help message
-    -MIR=V              Set Verbose to print Rust MIR of each function
-    -MIR==VV            Print more information than -MIR=V. Note that it will overwite -MIR=V.
 
-HelloWorld:
-    -HELLOWORLD=BACK    Enable the example for RAP backend.
-    -HELLOWORLD=FRONT   Enable the example for RAP frontend.
+Use-After-Free/Double Free detection.
+    -F or -uaf     Command: "cargo rap -uaf"
 
-SafeDrop:
-    -SAFEDROP           Enable analysis in SafeDrop.
+Memory leakage detection.
+    -M or -mleak      Command: "cargo rap -mleak"
 
-RCanary:
-    -RCANARY            Enable analysis in RCanary, and it has following sub commands.
-    -ADT=V              Print the pair of the result of type analysis, including the type definition and the analysis result.
-    -Z3-GOAL=V          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
-    -GRAN=LOW           Default grain set for RCANAY, use MEDIUM/HIGH/ULTRA to overwrite.
-    -ICX-SLICE=V        Set Verbose to print the middle metadate for RCANAY debug.
+    More options: 
+    	-ADT=V              Print the pair of the result of type analysis, including the type definition and the analysis result.
+    	-Z3-GOAL=V          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
+    	-GRAN=LOW           Default grain set for RCANAY, use MEDIUM/HIGH/ULTRA to overwrite.
+    	-ICX-SLICE=V        Set Verbose to print the middle metadate for RCANAY debug.
 
-The cargo options are exactly the same as for `cargo run` and `cargo test`, respectively.
+General cargo command: 
+    -H: help information
+    -V: version of RAP
 
-Examples:
-    cargo rap run
+General rustc/rap options:
+    -MIR=V             Set Verbose to print Rust MIR of each function
+    -MIR=VV            Print more information than -MIR=V. Note that it will overwite -MIR=V.
+
 "#;
 
-
-fn show_help() {
-    println!("{}", CARGO_RAP_HELP);
-}
-
-fn show_version() {
-    let version = format!("rap {}", env!("CARGO_PKG_VERSION"));
-    println!("The RAP version: {}", version);
-}
 
 // Determines whether a `--flag` is present.
 fn has_arg_flag(name: &str) -> bool {
@@ -155,10 +148,7 @@ fn test_sysroot_consistency() {
     }
 
     let rustc_sysroot = get_sysroot(Command::new("rustc"));
-
-    rap_info!("Detecting RUSTC SYSRROT: {:?}", rustc_sysroot);
     let rap_sysroot = get_sysroot(Command::new(find_rap()));
-    rap_info!("Detecting RAP   SYSRROT: {:?}", rap_sysroot);
 
     assert_eq!(
         rustc_sysroot,
@@ -245,14 +235,12 @@ fn is_identified_target(
     match TargetKind::from(target) {
         TargetKind::Library => {
             cmd.arg("--lib");
-            cmd.env("RAP_LIB", "");
             clean_package(&package.name);
             true
         },
         TargetKind::Bin => {
             cmd.arg("--bin")
                 .arg(&target.name);
-            cmd.env("RAP_BIN", &target.name);
             clean_package(&package.name);
             true
         },
@@ -285,11 +273,7 @@ fn rap_add_env(cmd: &mut Command) {
     if has_rap_arg_flag("-MIR=VV") {
         cmd.env("MIR_DISPLAY", "VERY VERBOSE");
     }
-
-    if has_rap_arg_flag("-HELLOWORLD=BACK") {
-        cmd.env("HELLOWORLD", "ENABLED");
-    }
-
+    /*
     if has_rap_arg_flag("-RCANARY") {
         cmd.env("RCANARY", "ENABLED");
         if has_rap_arg_flag("-ADT=V") {
@@ -302,179 +286,65 @@ fn rap_add_env(cmd: &mut Command) {
             cmd.env("ICX_SLICE", "");
         }
     }
-
-    if has_rap_arg_flag("-SAFEDROP") {
-        cmd.env("SAFEDROP", "ENABLED");
+    */
+    if has_rap_arg_flag("-F") || has_rap_arg_flag("-uaf") {
+        cmd.env("UAF", "ENABLED");
     }
+}
+
+fn cleanup(){ 
+    let mut cmd = Command::new("cargo");
+    cmd.arg("clean");
+    run_cmd(cmd, RapPhase::Cleanup);
+    rap_info!("Running cargo clean for local package");
+    rap_remove_dir(RAP_ROOT, "Failed to init RAP root dir");
 }
 
 fn enter_cargo_rap() {
-
     let mut args = env::args();
-    if args.any(|a| a=="--help") {
-        show_help()
+    /* format of args: "cargo rap ..."*/
+    args.next().unwrap(); //skip the rap arg: "cargo"
+    let Some(arg) = args.next() else {
+        rap_info!("expect command: `cargo rap ...`");
+	return ;
+    };
+    match arg.as_str() {
+        "rap" => { 
+    		test_sysroot_consistency();// Make sure that the `rap` and `rustc` binary are from the same sysroot.
+    		cleanup(); // clean up the directory before building.
+		phase_cargo_rap(); 
+	},
+	_ => { rap_info!("{:#?}", env::args()); },
     }
-    if args.any(|a| a=="--version") {
-        show_version()
-    }
-
-    rap_info!("Welcome to run RAP - Rust Analysis Platform");
-    rap_info!("Ready for RAP Phase I: Preprocess");
-
-    // Make sure that the `rap` and `rustc` binary are from the same sysroot.
-    test_sysroot_consistency();
-
-    let mut cmd = Command::new("cargo");
-    cmd.arg("clean");
-    run_cmd(cmd, RapPhase::PreProcess);
-    rap_info!("Running cargo clean for local package");
-
-    rap_remove_dir(RAP_ROOT, "Failed to init RAP root dir");
-
-    rap_info!("Phase-Preprocess has been done");
-
-    phase_cargo_rap();
 }
-/*
-fn llvm_ir_emitter() {
-    rap_info!("Ready for RAP Phase II-SubPhase: LLVM-IR-Emitter");
-    let (package, targets) = make_package_with_sorted_target();
-    for target in targets {
-
-        let mut cmd = Command::new("cargo");
-        cmd.arg("rustc")
-            .arg("--target-dir")
-            .arg(RAP_LLVM_CACHE);
-
-        if !is_identified_target(&package, &target, &mut cmd) {
-            continue;
-        }
-
-        cmd.arg("--")
-            .arg("--emit=llvm-ir")
-            .args(RAP_DEFAULT_ARGS);
-
-        if has_arg_flag("-v") || has_arg_flag("-vv") {
-            rap_info!("Command is: {:?}", cmd);
-        }
-
-        if let Err(e) = cmd.status() {
-            rap_error_and_exit(format!("Cannot emit llvm ir: {}", e));
-        }
-
-        rap_create_dir(RAP_LLVM_IR, "Failed to creat dir for llvm ir in /tmp");
-
-        for entry in WalkDir::new(RAP_LLVM_CACHE) {
-            let entry_path = entry.unwrap().into_path();
-            let mut dest_path = PathBuf::from(RAP_LLVM_IR);
-            if entry_path
-                .iter()
-                .last()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .ends_with(".ll")
-                &&
-                entry_path
-                    .iter()
-                    .find(|s| s.to_str().unwrap().contains("deps"))
-                    .is_some()
-            {
-                dest_path
-                    .push(
-                        format!(
-                            "{}_{}",
-                            TargetKind::from(&target),
-                            entry_path
-                                .iter()
-                                .last()
-                                .unwrap()
-                                .to_str()
-                                .unwrap(),
-                        )
-                    );
-
-                rap_copy_file(&entry_path, &dest_path, "Failed to copy LLVM IR file");
-
-                rap_info!("Successful to emit LLVM-IR file and transform to: {:?}", dest_path);
-            }
-        }
-
-        rap_remove_dir(RAP_LLVM_CACHE, "Failed to remove RAP_LLVM_Cache");
-
-    }
-    rap_info!("Ready for RAP Phase II-SubPhase: LLVM-IR-Emitter");
-}
-
-fn phase_llvm_ir() {
-    rap_info!("Ready for RAP Phase II: LLVM-IR");
-
-    llvm_ir_emitter();
-
-    if rap_can_read_dir(RAP_LLVM_IR, "Cannot read LLVM IR files") {
-        for entry in WalkDir::new(RAP_LLVM_IR) {
-            let path = entry.unwrap().into_path();
-            if !path
-                .iter()
-                .last()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .ends_with(".ll") {
-                continue;
-            }
-            let mut cmd = Command::new("rap_phase_llvm");
-            rap_info!("{:?}", path);
-            cmd.arg(path);
-            if let Err(e) = cmd.status() {
-                rap_error_and_exit(format!("RAP-PHASE-LLVM Loaded Failed {}", e));
-            }
-        }
-    } else {
-        rap_error_and_exit("Failed to find RAP_LLVM_IR");
-    }
-
-    rap_info!("Phase-LLVM-IR has been done");
-}
-*/
 
 fn phase_cargo_rap() {
-
-    rap_info!("Ready for RAP Phase III: Cargo-RAP");
+    rap_info!("Welcome to run RAP - Rust Analysis Platform");
+    let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
+    let Some(arg) = args.next() else {
+        rap_info!("expect command: e.g., `cargo rap -- SAFEDROP`");
+	return ;
+    };
+    match arg.as_str() {
+        "-V" | "--version" => { rap_info!("The RAP version: {}", "0.1"); return; },
+        "-H" | "--help" => { rap_info!("{}", CARGO_RAP_HELP); return; },
+	_ => {},
+    }
 
     let (package, targets) = make_package_with_sorted_target();
     for target in targets {
-        let mut args = env::args().skip(2);
-        // Now we run `cargo check $FLAGS $ARGS`, giving the user the
-        // change to add additional arguments. `FLAGS` is set to identify
-        // this target. The user gets to control what gets actually passed to rap.
+	/*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
         let mut cmd = Command::new("cargo");
-        cmd.arg("check");
+        cmd.arg("check"); 
 
+	/* We only process bin and lib targets, and ignore others */
         if !is_identified_target(&package, &target, &mut cmd) {
             continue;
         }
 
-        let verbose = has_arg_flag("-v") || has_arg_flag("-vv");
-        if !cfg!(debug_assertions) && !verbose {
-            cmd.arg("-q");
-        }
-
-        // Forward user-defined `cargo` args until first `--`.
-        while let Some(arg) = args.next() {
-            if arg == "--" {
-                break;
-            }
-            cmd.arg(arg);
-        }
-
-        // Make sure we know the build target, and cargo does, too.
-        // This is needed to make the `CARGO_TARGET_*_RUNNER` env var do something,
-        // and it later helps us detect which crates are proc-macro/build-script
-        // (host crates) and which crates are needed for the program itself.
+        /* set the target as a filter for phase_rustc_rap */
         let host = version_info().host;
         if  get_arg_flag_value("--target").is_none() {
-            // No target given. Pick default and tell cargo about it.
             cmd.arg("--target");
             cmd.arg(&host);
         }
@@ -482,8 +352,7 @@ fn phase_cargo_rap() {
         // Serialize the remaining args into a special environment variable.
         // This will be read by `phase_rustc_rap` when we go to invoke
         // our actual target crate (the binary or the test we are running).
-        // Since we're using "cargo check", we have no other way of passing
-        // these arguments.
+        let mut args = env::args().skip(2);
         let args_vec: Vec<String> = args.collect();
         cmd.env(
             "RAP_ARGS",
@@ -495,7 +364,7 @@ fn phase_cargo_rap() {
         // i.e., the first argument is `rustc` -- which is what we use in `main` to distinguish
         // the two codepaths. (That extra argument is why we prefer this over setting `RUSTC`.)
         if env::var_os("RUSTC_WRAPPER").is_some() {
-            println!(
+            rap_info!(
                 "WARNING: Ignoring `RUSTC_WRAPPER` environment variable, RAP does not support wrapping."
             );
         }
@@ -508,16 +377,15 @@ fn phase_cargo_rap() {
         // harder.
         let cargo_rap_path = env::current_exe().expect("current executable path invalid");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
-
-        if verbose {
-            if has_arg_flag("-v") {
-                cmd.env("RAP_VERBOSE", "VERBOSE"); // this makes `inside_cargo_rustc` verbose.
-            }
-            if has_arg_flag("-vv") {
-                cmd.env("RAP_VERBOSE", "VERY VERBOSE"); // this makes `inside_cargo_rustc` verbose.
-            }
-            rap_info!("Command is: {:?}", cmd);
+        /*
+        if has_arg_flag("-v") {
+            cmd.env("RAP_VERBOSE", "VERBOSE"); // this makes `inside_cargo_rustc` verbose.
         }
+        if has_arg_flag("-vv") {
+            cmd.env("RAP_VERBOSE", "VERY VERBOSE"); // this makes `inside_cargo_rustc` verbose.
+        }
+        */
+        rap_info!("Command is: {:?}", cmd);
 
         rap_add_env(&mut cmd);
 
@@ -526,11 +394,8 @@ fn phase_cargo_rap() {
         let mut child = cmd
             .spawn()
             .expect("could not run cargo check");
-        // 1 hour timeout
-        match child
-            .wait_timeout(Duration::from_secs(60 * 60))
-            .expect("failed to wait for subprocess")
-        {
+        match child.wait_timeout(Duration::from_secs(60 * 60)) // 1 hour timeout
+            .expect("failed to wait for subprocess") {
             Some(status) => {
                 if !status.success() {
                     rap_error_and_exit("Finished with non-zero exit code");
@@ -544,7 +409,6 @@ fn phase_cargo_rap() {
         };
 
     }
-
     rap_info!("Phase-Cargo-RAP has been done");
 }
 
@@ -559,6 +423,7 @@ fn phase_rustc_rap() {
     // never set for host crates. This matches what rustc bootstrap does,
     // which hopefully makes it "reliable enough". This relies on us always
     // invoking cargo itself with `--target`, which `phase_cargo_rap` ensures.
+    //rap_info!("Dispatch to rustc_rap()");
     fn is_target_crate() -> bool {
         get_arg_flag_value("--target").is_some()
     }
@@ -715,7 +580,6 @@ fn main() {
         // but with the `RUSTC` env var set to the `cargo-rap` binary so that we come back in the other branch,
         // and dispatch the invocations to `rustc` and `rap`, respectively.
         enter_cargo_rap(); 
-        // phase_llvm_ir();
     } else if arg_string.ends_with("rustc") {
         // `cargo rap`: `RUSTC_WRAPPER` env var:
         // dependencies get dispatched to `rustc`, the final test/binary to `rap`.
@@ -724,6 +588,7 @@ fn main() {
         // it will lead to error: 'failed to run `rustc` to learn about target-specific information'
         // cargo will invoke /Users/xx/.cargo/bin/cargo-rap /Users/xx/.rustup/toolchains/stage2/bin/rustc
         // instead of /Users/xx/.cargo/bin/cargo-rap rustc (it is not a dir but is valid in the older version)
+	//rap_info!("arg_string.ends_with 'rustcx'.");
         phase_rustc_rap();
     } else {
         rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.");
