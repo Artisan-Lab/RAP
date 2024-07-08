@@ -25,7 +25,9 @@ cargo rap -uaf
 
 The feature is based on our SafeDrop paper published in TOSEM.  
 ```
-Mohan Cui, Chengjun Chen, Hui Xu, and Yangfan Zhou. "SafeDrop: Detecting memory deallocation bugs of rust programs via static data-flow analysis." ACM Transactions on Software Engineering and Methodology 32, no. 4 (2023): 1-21
+Mohan Cui, Chengjun Chen, Hui Xu, and Yangfan Zhou. 
+"SafeDrop: Detecting memory deallocation bugs of rust programs via static data-flow analysis." 
+ACM Transactions on Software Engineering and Methodology 32, no. 4 (2023): 1-21
 ```
 
 ### Memory Leakage Detection 
