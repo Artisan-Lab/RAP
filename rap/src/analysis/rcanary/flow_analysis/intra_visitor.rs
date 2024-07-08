@@ -8,8 +8,8 @@ use crate::analysis::rcanary::{Rcx, RcxMut, IcxMut, IcxSliceMut};
 use crate::analysis::rcanary::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV,
                                               Unique, ownership::{OwnershipLayoutResult, RawTypeOwner},
                                               type_visitor::TyWithIndex};
-use crate::analysis::rcanary::flow_analysis::{IntroFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
-                                              is_icx_slice_verbose, ownership::IntroVar};
+use crate::analysis::rcanary::flow_analysis::{IntraFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
+                                              is_icx_slice_verbose, ownership::IntraVar};
 
 use z3::ast::{self, Ast};
 
@@ -30,7 +30,7 @@ pub enum AsgnKind {
 }
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
-    pub fn intro_run(&mut self) {
+    pub fn intra_run(&mut self) {
         let tcx = self.tcx();
         let mir_keys = tcx.mir_keys(());
         let mut unique = Unique::new();
@@ -51,11 +51,11 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
             let goal = z3::Goal::new(&ctx, true, false, false);
             let solver = z3::Solver::new(&ctx);
 
-            let mut intro_visitor = IntroFlowAnalysis::new(self.rcx, def_id, &mut unique);
-            intro_visitor.visit_body(&ctx, &goal, &solver, body, &sw);
+            let mut intra_visitor = IntraFlowAnalysis::new(self.rcx, def_id, &mut unique);
+            intra_visitor.visit_body(&ctx, &goal, &solver, body, &sw);
 
-            let sec_build = intro_visitor.get_time_build();
-            let sec_solve = intro_visitor.get_time_solve();
+            let sec_build = intra_visitor.get_time_build();
+            let sec_solve = intra_visitor.get_time_solve();
 
             self.rcx_mut().add_time_build(sec_build);
             self.rcx_mut().add_time_solve(sec_solve);
@@ -64,7 +64,7 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
     }
 }
 
-impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     pub(crate) fn type_layout_prep(&mut self) {
         let locals = &self.body().local_decls;
         let mut tys:Vec<Ty> = Vec::default();
@@ -131,14 +131,14 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
                 let ty_with_index = TyWithIndex::new(ty, None);
                 if ty_with_index == TyWithIndex(None) {
-                    self.handle_intro_var_unsupported(idx);
+                    self.handle_intra_var_unsupported(idx);
                     continue;
                 }
 
                 let default_layout = self.extract_default_ty_layout(ty, None);
                 if !default_layout.is_owned() {
                     icx_slice.len_mut()[idx] = 0;
-                    icx_slice.var_mut()[idx] = IntroVar::Unsupported;
+                    icx_slice.var_mut()[idx] = IntraVar::Unsupported;
                     icx_slice.ty_mut()[idx] = TyWithIndex(None);
                     continue;
                 }
@@ -156,7 +156,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 solver.assert(&constraint_init_arg);
 
                 icx_slice.len_mut()[idx] = len;
-                icx_slice.var_mut()[idx] = IntroVar::Init(new_bv);
+                icx_slice.var_mut()[idx] = IntraVar::Init(new_bv);
                 icx_slice.ty_mut()[idx] = ty_with_index;
             }
 
@@ -198,7 +198,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     if var.is_unsupported() {
                         unsupported = true;
                         ans_icx_slice.len_mut()[var_idx] = 0;
-                        ans_icx_slice.var_mut()[var_idx] = IntroVar::Unsupported;
+                        ans_icx_slice.var_mut()[var_idx] = IntraVar::Unsupported;
                         break;
                     }
 
@@ -217,7 +217,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     if ty != v_pre_collect[idx].ty()[var_idx] {
                         unsupported = true;
                         ans_icx_slice.len_mut()[var_idx] = 0;
-                        ans_icx_slice.var_mut()[var_idx] = IntroVar::Unsupported;
+                        ans_icx_slice.var_mut()[var_idx] = IntraVar::Unsupported;
                         break;
                     }
 
@@ -239,7 +239,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 goal.assert(&constraint_phi);
                 solver.assert(&constraint_phi);
 
-                ans_icx_slice.var_mut()[var_idx] = IntroVar::Init(phi_bv);
+                ans_icx_slice.var_mut()[var_idx] = IntraVar::Init(phi_bv);
 
                 *self.icx_slice_mut() = ans_icx_slice.clone();
             }
@@ -294,7 +294,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 //                     match extract_projection(disc_place) {
                 //                         Some(prj) => {
                 //                             if prj.is_unsupported() {
-                //                                 self.handle_intro_var_unsupported(l_local.as_usize());
+                //                                 self.handle_Intra_var_unsupported(l_local.as_usize());
                 //                                 return;
                 //                             }
                 //                             disc = Some(*vidx);
@@ -341,7 +341,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 self.handle_drop(ctx, goal, solver, place, bidx, false);
             },
             TerminatorKind::Call { func, args, destination, .. } => {
-                self.handle_call(ctx, goal, solver, &func, &args, &destination, bidx);
+                self.handle_call(ctx, goal, solver, term.clone(), &func, &args, &destination, bidx);
             },
             TerminatorKind::Return => {
                 self.handle_return(ctx, goal, solver, sw, bidx);
@@ -462,8 +462,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var[ru].is_init() {
@@ -492,8 +492,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             // e.g., y=x ,that y is non-owning => l=0
             // check the pointee layout (of) is same
             if self.icx_slice().ty()[lu] != self.icx_slice().ty[ru] {
-                self.handle_intro_var_unsupported(lu);
-                self.handle_intro_var_unsupported(ru);
+                self.handle_intra_var_unsupported(lu);
+                self.handle_intra_var_unsupported(ru);
                 return;
             }
             l_ori_bv = self.icx_slice_mut().var_mut()[lu].extract();
@@ -509,8 +509,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             match ty_with_vidx.get_priority() {
                 0 => {
                     // cannot identify the ty (unsupported like fn ptr ...)
-                    self.handle_intro_var_unsupported(lu);
-                    self.handle_intro_var_unsupported(ru);
+                    self.handle_intra_var_unsupported(lu);
+                    self.handle_intra_var_unsupported(ru);
                     return;
                 },
                 1 => {
@@ -565,9 +565,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         goal.assert(&constraint_owning_now);
         solver.assert(&constraint_owning_now);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -593,8 +593,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice.var()[ru].is_init() {
@@ -623,8 +623,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             // e.g., y=move x ,that y (l) is non-owning
             // check the pointee layout (of) is same
             if self.icx_slice().ty()[lu] != self.icx_slice().ty[ru] {
-                self.handle_intro_var_unsupported(lu);
-                self.handle_intro_var_unsupported(ru);
+                self.handle_intra_var_unsupported(lu);
+                self.handle_intra_var_unsupported(ru);
                 return;
             }
             l_ori_bv = self.icx_slice_mut().var_mut()[lu].extract();
@@ -640,8 +640,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             match ty_with_vidx.get_priority() {
                 0 => {
                     // cannot identify the ty (unsupported like fn ptr ...)
-                    self.handle_intro_var_unsupported(lu);
-                    self.handle_intro_var_unsupported(ru);
+                    self.handle_intra_var_unsupported(lu);
+                    self.handle_intra_var_unsupported(ru);
                     return;
                 },
                 1 => {
@@ -686,9 +686,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         solver.assert(&r_non_owning);
         solver.assert(&l_owning);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -715,8 +715,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -736,8 +736,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let rpj_fields = extract_projection(rplace);
         if rpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !rpj_fields.has_field() {
@@ -779,8 +779,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             match ty_with_vidx.get_priority() {
                 0 => {
                     // cannot identify the ty (unsupported like fn ptr ...)
-                    self.handle_intro_var_unsupported(lu);
-                    self.handle_intro_var_unsupported(ru);
+                    self.handle_intra_var_unsupported(lu);
+                    self.handle_intra_var_unsupported(ru);
                     return;
                 },
                 1 => {
@@ -859,9 +859,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         goal.assert(&constraint_owning_now);
         solver.assert(&constraint_owning_now);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -888,8 +888,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -902,8 +902,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let rpj_fields = extract_projection(rplace);
         if rpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !rpj_fields.has_field() {
@@ -940,8 +940,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             // e.g., y=move x.f ,that y (l) is non-owning
             // do not check the ty l = ty r due to field operation
             // if self.icx_slice().ty()[lu] != self.icx_slice().ty[ru] {
-            //     self.handle_intro_var_unsupported(lu);
-            //     self.handle_intro_var_unsupported(ru);
+            //     self.handle_intra_var_unsupported(lu);
+            //     self.handle_intra_var_unsupported(ru);
             //     return;
             // }
             l_ori_bv = self.icx_slice_mut().var_mut()[lu].extract();
@@ -958,8 +958,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
             match ty_with_vidx.get_priority() {
                 0 => {
                     // cannot identify the ty (unsupported like fn ptr ...)
-                    self.handle_intro_var_unsupported(lu);
-                    self.handle_intro_var_unsupported(ru);
+                    self.handle_intra_var_unsupported(lu);
+                    self.handle_intra_var_unsupported(ru);
                     return;
                 },
                 1 => {
@@ -1026,9 +1026,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         solver.assert(&l_extend_owning);
         solver.assert(&rpj_non_owning);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -1055,8 +1055,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -1068,8 +1068,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let lpj_fields = extract_projection(lplace);
         if lpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1213,9 +1213,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         goal.assert(&constraint_owning_now);
         solver.assert(&constraint_owning_now);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -1242,8 +1242,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -1255,8 +1255,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let lpj_fields = extract_projection(lplace);
         if lpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1380,9 +1380,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         solver.assert(&r_non_owning);
         solver.assert(&lpj_shrink_owning);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -1408,8 +1408,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -1424,8 +1424,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let rpj_fields = extract_projection(rplace);
         if rpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1435,8 +1435,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let lpj_fields = extract_projection(lplace);
         if lpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1569,9 +1569,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         goal.assert(&constraint_owning_now);
         solver.assert(&constraint_owning_now);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -1597,8 +1597,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
         if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
         if !self.icx_slice().var()[ru].is_init() {
@@ -1613,8 +1613,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let rpj_fields = extract_projection(rplace);
         if rpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1624,8 +1624,8 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         let lpj_fields = extract_projection(lplace);
         if lpj_fields.is_unsupported() {
             // we only support that the field depth is 1 in max
-            self.handle_intro_var_unsupported(lu);
-            self.handle_intro_var_unsupported(ru);
+            self.handle_intra_var_unsupported(lu);
+            self.handle_intra_var_unsupported(ru);
             return;
         }
 
@@ -1738,9 +1738,9 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         solver.assert(&rpj_non_owning);
         solver.assert(&lpj_owning);
 
-        // update the intro var value in current basic block (exactly, the statement)
-        self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
-        self.icx_slice_mut().var_mut()[ru] = IntroVar::Init(r_new_bv);
+        // update the Intra var value in current basic block (exactly, the statement)
+        self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
+        self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
 
     }
@@ -1844,6 +1844,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         ctx: &'ctx z3::Context,
         goal: &'ctx z3::Goal<'ctx>,
         solver: &'ctx z3::Solver<'ctx>,
+        term: Terminator<'tcx>,
         func: &Operand<'tcx>,
         args: &Vec<Operand<'tcx>>,
         dest: &Place<'tcx>,
@@ -1888,6 +1889,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
         // the return value should have the same layout as tainted one
         // we will take the ownership of the args if the arg is a pointer
         let recovery_flag = self.check_fn_recovery(args, dest);
+        if source_flag { self.add_taint(term); }
 
         for arg in args {
             match arg {
@@ -1948,7 +1950,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                                 solver.assert(&a_ori_non_owing);
                                 solver.assert(&update_a);
 
-                                self.icx_slice_mut().var_mut()[au] = IntroVar::Init(a_new_bv);
+                                self.icx_slice_mut().var_mut()[au] = IntraVar::Init(a_new_bv);
                             } else {
                                 // if the aplace is a instance (move i => drop)
                                 self.handle_drop(ctx, goal, solver, aplace, bidx, false);
@@ -1976,7 +1978,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                             }
                         },
                         _ => {
-                            self.handle_intro_var_unsupported(au);
+                            self.handle_intra_var_unsupported(au);
                             continue;
                         }
                     }
@@ -2030,7 +2032,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                                 solver.assert(&a_ori_non_owing);
                                 solver.assert(&update_a);
 
-                                self.icx_slice_mut().var_mut()[au] = IntroVar::Init(a_new_bv);
+                                self.icx_slice_mut().var_mut()[au] = IntraVar::Init(a_new_bv);
 
                             } else {
                                 // if the aplace is a instance (i => Copy)
@@ -2061,7 +2063,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                             solver.assert(&update_a);
                         },
                         _ => {
-                            self.handle_intro_var_unsupported(au);
+                            self.handle_intra_var_unsupported(au);
                             continue;
                         }
                     }
@@ -2072,7 +2074,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // establish constraints for return value
         if self.icx_slice().var()[lu].is_unsupported() {
-            self.handle_intro_var_unsupported(lu);
+            self.handle_intra_var_unsupported(lu);
             return;
         }
 
@@ -2123,7 +2125,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     match ty_with_vidx.get_priority() {
                         0 => {
                             // cannot identify the ty (unsupported like fn ptr ...)
-                            self.handle_intro_var_unsupported(lu);
+                            self.handle_intra_var_unsupported(lu);
                             return;
                         },
                         1 => {
@@ -2155,7 +2157,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 solver.assert(&constraint_new_owning);
 
                 self.icx_slice_mut().len_mut()[lu] =llen;
-                self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
+                self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
             },
             1 => {
                 // alike move to field
@@ -2224,10 +2226,10 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                 solver.assert(&update_filed_using_func);
 
                 self.icx_slice_mut().len_mut()[lu] = return_value_layout.layout().len();
-                self.icx_slice_mut().var_mut()[lu] = IntroVar::Init(l_new_bv);
+                self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
             },
             _ => {
-                self.handle_intro_var_unsupported(lu);
+                self.handle_intra_var_unsupported(lu);
                 return;
             }
         }
@@ -2303,7 +2305,10 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
 
         if result == z3::SatResult::Unsat && self.taint_flag {
-            rap_warn!("{}", format!("{:?} {:?} {:?}", result,self.did(), self.body().span));
+            rap_warn!("{}", format!("RCanary: Leak Function: {:?} {:?} {:?}", result,self.did(), self.body().span));
+            for source in self.taint_source.iter() {
+                rap_warn!("{}", format!("RCanary: LeakItem Candidates: {:?}, {:?}", source.kind, source.source_info.span));
+            }
         }
 
     }
@@ -2334,7 +2339,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
 
         let f = extract_projection(dest);
         if f.is_unsupported() {
-            self.handle_intro_var_unsupported(u);
+            self.handle_intra_var_unsupported(u);
             return;
         }
 
@@ -2355,7 +2360,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     goal.assert(&constraint_recovery);
                     solver.assert(&constraint_recovery);
 
-                    self.icx_slice_mut().var_mut()[u] = IntroVar::Init(new_bv);
+                    self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 } else {
                     // is not recovery for pointer, just normal drop
                     let name = new_local_name(u, bidx, 0).add("_drop_all");
@@ -2370,7 +2375,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     goal.assert(&constraint_reverse);
                     solver.assert(&constraint_reverse);
 
-                    self.icx_slice_mut().var_mut()[u] = IntroVar::Init(new_bv);
+                    self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 }
             },
             true => {
@@ -2394,7 +2399,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     goal.assert(&constraint_update);
                     solver.assert(&constraint_update);
 
-                    self.icx_slice_mut().var_mut()[u] = IntroVar::Init(new_bv);
+                    self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 } else {
                     let f_free = ast::BV::from_u64(ctx, 0, 1);
                     let mut final_bv: ast::BV;
@@ -2414,7 +2419,7 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
                     goal.assert(&constraint_free_f);
                     solver.assert(&constraint_free_f);
 
-                    self.icx_slice_mut().var_mut()[u] = IntroVar::Init(new_bv);
+                    self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 }
 
             },
@@ -2423,16 +2428,16 @@ impl<'tcx, 'ctx, 'a> IntroFlowAnalysis<'tcx, 'ctx, 'a> {
     }
 
 
-    pub(crate) fn handle_intro_var_unsupported(
+    pub(crate) fn handle_intra_var_unsupported(
         &mut self,
         idx: usize
     ) {
         match self.icx_slice_mut().var_mut()[idx] {
-            IntroVar::Unsupported => return,
-            IntroVar::Declared
-            | IntroVar::Init(_) => {
+            IntraVar::Unsupported => return,
+            IntraVar::Declared
+            | IntraVar::Init(_) => {
                 // turns into the unsupported
-                self.icx_slice_mut().var_mut()[idx] = IntroVar::Unsupported;
+                self.icx_slice_mut().var_mut()[idx] = IntraVar::Unsupported;
                 self.icx_slice_mut().len_mut()[idx] = 0;
                 return ;
             } ,

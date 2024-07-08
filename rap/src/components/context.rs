@@ -12,7 +12,7 @@ pub struct RapGlobalCtxt<'tcx> {
     config: RapConfig,
     adt_owner: AdtOwner,
     mir_graph: MirGraph,
-    elasped: Elapsed,
+    elapsed: Elapsed,
 }
 
 impl<'tcx> RapGlobalCtxt<'tcx> {
@@ -22,7 +22,7 @@ impl<'tcx> RapGlobalCtxt<'tcx> {
             config,
             adt_owner: HashMap::default(),
             mir_graph: HashMap::default(),
-            elasped: (0, 0),
+            elapsed: (0, 0),
         }
     }
 
@@ -51,26 +51,26 @@ impl<'tcx> RapGlobalCtxt<'tcx> {
     }
 
     pub fn get_time_build(&self) -> i64 {
-        self.elasped.0
+        self.elapsed.0
     }
 
     pub fn add_time_build(&mut self, time: i64) {
-        self.elasped.0 = self.elasped.0 + time;
+        self.elapsed.0 = self.elapsed.0 + time;
     }
 
     pub fn mut_ref_time_build(&mut self) -> &mut i64{
-        &mut self.elasped.0
+        &mut self.elapsed.0
     }
 
     pub fn get_time_solve(&self) -> i64 {
-        self.elasped.1
+        self.elapsed.1
     }
 
     pub fn add_time_solve(&mut self, time: i64) {
-        self.elasped.1 =  self.elasped.1 + time;
+        self.elapsed.1 =  self.elapsed.1 + time;
     }
 
     pub fn mut_ref_time_solve(&mut self) -> &mut i64{
-        &mut self.elasped.1
+        &mut self.elapsed.1
     }
 }

@@ -4,7 +4,7 @@ pub mod flow_analysis;
 use rustc_middle::ty::TyCtxt;
 
 use crate::components::context::RapGlobalCtxt;
-use crate::analysis::rcanary::flow_analysis::{IcxSliceFroBlock, IntroFlowContext};
+use crate::analysis::rcanary::flow_analysis::{IcxSliceFroBlock, IntraFlowContext};
 
 pub trait Tcx<'tcx, 'o, 'a> {
     fn tcx(&'o self) -> TyCtxt<'tcx>;
@@ -25,9 +25,9 @@ pub trait RcxMut<'tcx, 'o, 'a> {
 }
 
 pub trait IcxMut<'tcx, 'ctx, 'o> {
-    fn icx(&'o self) -> &'o IntroFlowContext<'tcx, 'ctx>;
+    fn icx(&'o self) -> &'o IntraFlowContext<'tcx, 'ctx>;
 
-    fn icx_mut(&'o mut self) -> &'o mut IntroFlowContext<'tcx, 'ctx>;
+    fn icx_mut(&'o mut self) -> &'o mut IntraFlowContext<'tcx, 'ctx>;
 }
 
 pub trait IcxSliceMut<'tcx, 'ctx, 'o> {
