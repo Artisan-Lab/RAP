@@ -168,20 +168,6 @@ struct InterFlowAnalysis<'tcx, 'a> {
     rcx:&'a RapGlobalCtxt<'tcx>,
 }
 
-impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'a> {
-    pub fn new(
-        rcx: &'a RapGlobalCtxt<'tcx>,
-        did: DefId,
-        unique: &'a mut Unique,
-    ) -> Self
-    {
-        Self {
-            rcx,
-        }
-    }
-
-}
-
 impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
     #[inline(always)]
     fn rcx(&'o self) -> &'a RapGlobalCtxt<'tcx> {
@@ -208,7 +194,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     pub fn new(
         rcx: &'a RapGlobalCtxt<'tcx>,
         did: DefId,
-        unique: &'a mut Unique,
+        //unique: &'a mut Unique,
     ) -> Self
     {
         let body = mir_body(rcx.tcx(), did);

@@ -1,8 +1,6 @@
 use crate::analysis::rcanary::RcxMut;
-use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, InterFlowAnalysis};
-use crate::analysis::rcanary::type_analysis::{mir_body, Unique};
-
-use stopwatch::Stopwatch;
+use crate::analysis::rcanary::flow_analysis::FlowAnalysis;
+use crate::analysis::rcanary::type_analysis::mir_body;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
     pub fn inter_run(&mut self) {
@@ -10,8 +8,7 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
         let mir_keys = tcx.mir_keys(());
 
         for each_mir in mir_keys {
-            let mut unique = Unique::new();
-            let sw = Stopwatch::start_new();
+            //let sw = Stopwatch::start_new();
             let def_id = each_mir.to_def_id();
             let body = mir_body(tcx, def_id);
 
@@ -21,11 +18,10 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
             cfg.set_model_generation(true);
             cfg.set_timeout_msec(1000);
 
-            let ctx = z3::Context::new(&cfg);
-            let goal = z3::Goal::new(&ctx, true, false, false);
-            let solver = z3::Solver::new(&ctx);
-
-            let inter_visitor = InterFlowAnalysis::new(self.rcx, def_id, &mut unique);
+            //let ctx = z3::Context::new(&cfg);
+            //let goal = z3::Goal::new(&ctx, true, false, false);
+            //let solver = z3::Solver::new(&ctx);
+            //let inter_visitor = InterFlowAnalysis::new(self.rcx);
 
         }
     }

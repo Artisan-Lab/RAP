@@ -6,7 +6,6 @@
 use rap::{RapPhase, rap_info, RAP_ROOT};
 use rap::components::log::{Verbosity, rap_error_and_exit};
 use rap::components::fs::rap_remove_dir;
-
 use std::env;
 use std::iter::TakeWhile;
 use std::process::Command;
@@ -14,15 +13,13 @@ use std::path::{PathBuf, Path};
 use std::time::Duration;
 use std::fmt::{Display, Formatter};
 use std::process;
-
 use rustc_version::VersionMeta;
 use wait_timeout::ChildExt;
 
 const CARGO_RAP_HELP: &str = r#"Run RAP to test and check Rust crates
 
 Usage:
-    cargo rap [<cargo options>...] [--] [<rustc/rap options>...]
-
+    cargo rap [options...]
 
 Use-After-Free/Double Free detection.
     -F or -uaf     Command: "cargo rap -uaf"
