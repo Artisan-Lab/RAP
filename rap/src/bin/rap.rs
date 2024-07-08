@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use rap::{RapConfig, compile_time_sysroot, RAP_DEFAULT_ARGS, start_analyzer};
 use rap::analysis::rcanary::flow_analysis::{IcxSliceDisplay, Z3GoalDisplay};
 use rap::analysis::rcanary::type_analysis::AdtOwnerDisplay;
-use rap::components::{display::MirDisplay, grain::RapGrain, log::Verbosity};
+use rap::components::{display::MirDisplay, log::Verbosity};
 use rap::rap_info;
 
 #[derive(Copy, Clone)]
@@ -40,11 +40,7 @@ impl Default for RapCompilerCalls {
 
 impl Display for RapCompilerCalls {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.rap_config.grain(),
-        )
+        write!(f,"{}", 0,)
     }
 }
 
@@ -109,25 +105,12 @@ impl Display for RapArgs {
 }
 
 impl RapArgs {
-    pub fn set_config_low(&mut self) { self.rap_cc.rap_config.set_grain(RapGrain::Low); }
 
-    pub fn set_config_medium(&mut self) { self.rap_cc.rap_config.set_grain(RapGrain::Medium); }
+    pub fn set_mir_display(&mut self) {self.rap_cc.rap_config.set_mir_display(MirDisplay::Simple); }
 
-    pub fn set_config_high(&mut self) { self.rap_cc.rap_config.set_grain(RapGrain::High); }
-
-    pub fn set_config_ultra(&mut self) { self.rap_cc.rap_config.set_grain(RapGrain::Ultra); }
-
-    pub fn set_mir_display_verbose(&mut self) {self.rap_cc.rap_config.set_mir_display(MirDisplay::Verbose); }
-
-    pub fn set_mir_display_very_verbose(&mut self) { self.rap_cc.rap_config.set_mir_display(MirDisplay::VeryVerobse); }
-
-    pub fn enable_safedrop(&mut self) { self.rap_cc.rap_config.enable_safedrop(); }
+    pub fn set_mir_display_verbose(&mut self) { self.rap_cc.rap_config.set_mir_display(MirDisplay::Verobse); }
 
     pub fn enable_rcanary(&mut self) { self.rap_cc.rap_config.enable_rcanary(); }
-
-    pub fn enable_example_frontend(&mut self) { self.rap_cc.rap_config.enable_example_frontend(); }
-
-    pub fn enable_example_backend(&mut self)  { self.rap_cc.rap_config.enable_example_backend(); }
 
     pub fn set_adt_display_verbose(&mut self) {
         if self.rap_cc.rap_config.is_rcanary_enabled() {
@@ -165,7 +148,8 @@ fn config_parse() -> RapArgs {
             "-adt" => rap_args.set_adt_display_verbose(),
             "-z3" => rap_args.set_z3_goal_display_verbose(),
             "-meta" => rap_args.set_icx_slice_display(),
-            "-mir" => rap_args.set_mir_display_verbose(),
+            "-mir" => rap_args.set_mir_display(),
+            "-mir=verbose" => rap_args.set_mir_display_verbose(),
             _ => rap_args.push_args(arg),
         }
     }
@@ -196,7 +180,7 @@ fn run_complier(rap_args: &mut RapArgs) -> i32 {
     let run_compiler = rustc_driver::RunCompiler::new(&rap_args.args, &mut rap_args.rap_cc);
     let exit_code = rustc_driver::catch_with_exit_code(move || run_compiler.run());
 
-    if option_env!("RAP_VERBOSE").is_some() {
+    if option_env!("RAP_DEBUG").is_some() {
         rap_info!("The arg for compilation is {:?}", rap_final_args);
     }
 

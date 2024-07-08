@@ -110,30 +110,19 @@ impl<'tcx, 'o, 'a> RcxMut<'tcx, 'o, 'a> for TypeAnalysis<'tcx, 'a> {
 }
 
 #[derive(Clone)]
-struct RawGeneric<'tcx> {
-    tcx: TyCtxt<'tcx>,
+struct RawGeneric {
     record: Vec<bool>,
 }
 
-impl<'tcx> RawGeneric<'tcx> {
+impl RawGeneric {
 
     pub fn new(
-        tcx: TyCtxt<'tcx>,
         len: usize
     ) -> Self
     {
         Self {
-            tcx,
             record: vec![false ; len],
         }
-    }
-
-    pub fn tcx(&self) -> TyCtxt<'tcx> {
-        self.tcx
-    }
-
-    pub fn record(&self) -> &Vec<bool> {
-        &self.record
     }
 
     pub fn record_mut(&mut self) -> &mut Vec<bool> {
@@ -142,20 +131,15 @@ impl<'tcx> RawGeneric<'tcx> {
 }
 
 #[derive(Clone)]
-struct RawGenericFieldSubst<'tcx> {
-    tcx: TyCtxt<'tcx>,
+struct RawGenericFieldSubst {
     parameters: Parameters,
 }
 
-impl<'tcx> RawGenericFieldSubst<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
+impl<'tcx> RawGenericFieldSubst {
+    pub fn new() -> Self {
         Self {
-            tcx,
             parameters: HashSet::new(),
         }
-    }
-    pub fn tcx(&self) -> TyCtxt<'tcx> {
-        self.tcx
     }
 
     pub fn parameters(&self) -> &Parameters {
@@ -203,16 +187,8 @@ impl<'tcx, 'a> RawGenericPropagation<'tcx, 'a> {
         self.tcx
     }
 
-    pub fn record(&self) -> &Vec<bool> {
-        &self.record
-    }
-
     pub fn record_mut(&mut self) -> &mut Vec<bool> {
         &mut self.record
-    }
-
-    pub fn unique(&self) -> &Unique {
-        &self.unique
     }
 
     pub fn unique_mut(&mut self) -> &mut Unique {
@@ -258,10 +234,6 @@ impl<'tcx, 'a> OwnerPropagation<'tcx, 'a> {
 
     pub fn ownership(&self) -> RawTypeOwner {
         self.ownership
-    }
-
-    pub fn unique(&self) -> &Unique {
-        &self.unique
     }
 
     pub fn unique_mut(&mut self) -> &mut Unique {

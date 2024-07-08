@@ -65,14 +65,6 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
 }
 
 impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
-    pub(crate) fn type_layout_prep(&mut self) {
-        let locals = &self.body().local_decls;
-        let mut tys:Vec<Ty> = Vec::default();
-        for (cnt ,local) in locals.iter().enumerate() {
-            if cnt == 0 { tys = Vec::with_capacity(cnt); }
-            tys.push(local.ty);
-        }
-    }
 
     pub(crate) fn visit_body(
         &mut self,
@@ -2660,10 +2652,6 @@ impl<'tcx> ProjectionSupport<'tcx> {
         self.pf_vec.push((index, ty));
     }
 
-    pub fn is_deref(&self) -> bool {
-        self.deref
-    }
-
     pub fn is_unsupported(&self) -> bool {
         self.unsupport == true
     }
@@ -2674,10 +2662,6 @@ impl<'tcx> ProjectionSupport<'tcx> {
 
     pub fn has_downcast(&self) -> bool {
         self.downcast.is_some()
-    }
-
-    pub fn downcast_needed(&self) -> VariantIdx {
-        self.downcast.unwrap()
     }
 
     pub fn downcast(&self) -> Disc {
@@ -2724,15 +2708,6 @@ fn extract_projection<'tcx>(place: &Place<'tcx>) -> ProjectionSupport<'tcx> {
         }
     }
     ans
-}
-
-fn projection_field_to_string(local: usize, pf: &ProjectionSupport) -> String {
-    let mut s = local.to_string();
-    for field in pf.pf_vec.iter() {
-        s.push_str(".");
-        s.push_str(field.0.to_string().as_str());
-    }
-    s
 }
 
 fn ownership_layout_to_rustbv(layout: &OwnershipLayout) -> RustBV {
@@ -2803,10 +2778,3 @@ fn help_debug_goal_term<'tcx, 'ctx>(
 }
 
 type Disc = Option<VariantIdx>;
-
-#[inline(always)]
-fn debug_icx_slice(icxs: &IcxSliceFroBlock) {
-    for index in 0..icxs.len().len() {
-        println!("index:{} {:?} {:?} {:?}", index, icxs.len[index], icxs.var[index], icxs.ty[index]);
-    }
-}

@@ -135,7 +135,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         let mut v_res = Vec::new();
 
         for variant in adt_def.variants().iter() {
-            let mut raw_generic = RawGeneric::new(self.tcx(), substs.len());
+            let mut raw_generic = RawGeneric::new(substs.len());
 
             for field in &variant.fields {
                 let field_ty = field.ty(self.tcx(), substs);
@@ -242,7 +242,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                             for generic_arg in *field_substs {
                                 match generic_arg.unpack() {
                                     GenericArgKind::Type( g_ty ) => {
-                                        let mut raw_generic_field_subst = RawGenericFieldSubst::new(self.tcx());
+                                        let mut raw_generic_field_subst = RawGenericFieldSubst::new();
                                         g_ty.visit_with(&mut raw_generic_field_subst);
                                         if raw_generic_field_subst.contains_param() {
 
@@ -397,13 +397,9 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
 
 }
 
-impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric<'tcx>  {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric {
 
     type BreakTy = ();
-
-    // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
-    //     Some(self.tcx)
-    // }
 
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
         match ty.kind() {
@@ -424,13 +420,8 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric<'tcx>  {
     }
 }
 
-impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGenericFieldSubst<'tcx> {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGenericFieldSubst {
     type BreakTy = ();
-
-    // #[inline(always)]
-    // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
-    //     Some(self.tcx)
-    // }
 
     #[inline(always)]
     fn visit_ty(&mut self, ty:Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
@@ -481,7 +472,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for RawGenericPropagation<'tcx, 'a>  {
                         GenericArgKind::Lifetime( .. ) => continue,
                         GenericArgKind::Const( .. ) => continue,
                         GenericArgKind::Type(g_ty) => {
-                            let mut raw_generic_field_subst = RawGenericFieldSubst::new(self.tcx());
+                            let mut raw_generic_field_subst = RawGenericFieldSubst::new();
                             g_ty.visit_with(&mut raw_generic_field_subst);
                             if !raw_generic_field_subst.contains_param() { continue; }
                             map_raw_generic_field_subst.insert(index as usize, raw_generic_field_subst);

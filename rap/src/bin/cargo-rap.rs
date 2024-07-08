@@ -3,10 +3,9 @@
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
 
-use rap::{RapPhase, rap_info,
-          RAP_DEFAULT_ARGS, RAP_ROOT, RAP_LLVM_CACHE, RAP_LLVM_IR};
+use rap::{RapPhase, rap_info, RAP_ROOT};
 use rap::components::log::{Verbosity, rap_error_and_exit};
-use rap::components::fs::{rap_create_dir, rap_remove_dir, rap_copy_file, rap_can_read_dir};
+use rap::components::fs::rap_remove_dir;
 
 use std::env;
 use std::iter::TakeWhile;
@@ -19,7 +18,7 @@ use std::process;
 use rustc_version::VersionMeta;
 use wait_timeout::ChildExt;
 
-const CARGO_RAP_HELP: &str = r#"Runs RAP to test and check Rust crates
+const CARGO_RAP_HELP: &str = r#"Run RAP to test and check Rust crates
 
 Usage:
     cargo rap [<cargo options>...] [--] [<rustc/rap options>...]
@@ -36,26 +35,18 @@ Memory leakage detection.
     	-z3          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
     	-meta        Set Verbose to print the middle metadate for RCANAY debug.
 
-General cargo command: 
+General command: 
     -H or -help:     Show help information
     -V or -version:  show the version of RAP
 
 Debugging options:
-    -mir             Set Verbose to print Rust MIR of each function
+    -mir             print the MIR of each function
+    -mir=verbose     print more detailed MIR
 
 "#;
 
-
-// Determines whether a `--flag` is present.
 fn has_arg_flag(name: &str) -> bool {
-    // Stop searching at `--`.
-    let mut args = env::args().take_while(|val| val != "--");
-    args.any(|val| val == name)
-}
-
-fn has_rap_arg_flag(name: &str) -> bool {
-    // Begin searching at `--`
-    let mut args = env::args().skip_while(|val| val == "--");
+    let mut args = env::args().skip(0);
     args.any(|val| val == name)
 }
 
@@ -98,26 +89,19 @@ impl Iterator for ArgFlagValueIter<'_> {
     }
 }
 
-/// Gets the value of a `--flag`.
 fn get_arg_flag_value(name: &str) -> Option<String> {
     ArgFlagValueIter::new(name).next()
 }
 
-/// Returns the path to the `rap` binary
 fn find_rap() -> PathBuf {
-    let mut path = env::current_exe()
-        .expect("current executable path invalid");
+    let mut path = env::current_exe().expect("current executable path invalid");
     path.set_file_name("rap");
     path
 }
 
-fn rap() -> Command {
-    Command::new(find_rap())
-}
-
 fn version_info() -> VersionMeta {
-    VersionMeta::for_command(rap()).
-        expect("failed to determine underlying rustc version of RAP")
+    let rap = Command::new(find_rap());
+    VersionMeta::for_command(rap).expect("failed to determine underlying rustc version of RAP")
 }
 
 fn test_sysroot_consistency() {
@@ -249,7 +233,7 @@ fn is_identified_target(
 }
 
 fn run_cmd(mut cmd: Command, phase: RapPhase) {
-    if env::var_os("RAP_VERBOSE").is_some() && phase != RapPhase::Rustc {
+    if env::var_os("RAP_DEBUG").is_some() && phase != RapPhase::Rustc {
         rap_info!("Command is: {:?}", cmd);
     }
 
@@ -265,19 +249,22 @@ fn run_cmd(mut cmd: Command, phase: RapPhase) {
 
 
 fn rap_add_env(cmd: &mut Command) {
-    if has_rap_arg_flag("-F") || has_rap_arg_flag("-uaf") {
+    if has_arg_flag("-F") || has_arg_flag("-uaf") {
         cmd.env("UAF", "ENABLED");
     }
-    if has_rap_arg_flag("-adt") {
-        cmd.env("ADT_DISPLAY", "");
+    if has_arg_flag("-adt") {
+        cmd.env("ADT_DISPLAY", "ON");
     }
-    if has_rap_arg_flag("-z3") {
-        cmd.env("Z3_GOAL", "");
+    if has_arg_flag("-z3") {
+        cmd.env("Z3_GOAL", "ON");
     }
-    if has_rap_arg_flag("-meta") {
-        cmd.env("ICX_SLICE", "");
+    if has_arg_flag("-meta") {
+        cmd.env("ICX_SLICE", "ON");
     }
-    if has_rap_arg_flag("-mir") {
+    if has_arg_flag("-mir") {
+        cmd.env("MIR_DISPLAY", "SIMPLE");
+    }
+    if has_arg_flag("-mir=verbose") {
         cmd.env("MIR_DISPLAY", "VERBOSE");
     }
 }
@@ -312,7 +299,7 @@ fn phase_cargo_rap() {
     rap_info!("Welcome to run RAP - Rust Analysis Platform");
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
-        rap_info!("expect command: e.g., `cargo rap -- SAFEDROP`");
+        rap_info!("expect command: e.g., `cargo rap -uaf`");
 	return ;
     };
     match arg.as_str() {
@@ -342,7 +329,7 @@ fn phase_cargo_rap() {
         // Serialize the remaining args into a special environment variable.
         // This will be read by `phase_rustc_rap` when we go to invoke
         // our actual target crate (the binary or the test we are running).
-        let mut args = env::args().skip(2);
+        let args = env::args().skip(2);
         let args_vec: Vec<String> = args.collect();
         cmd.env(
             "RAP_ARGS",
@@ -360,25 +347,15 @@ fn phase_cargo_rap() {
         }
 
         // Invoke actual cargo for the job, but with different flags.
-        // We re-use `cargo test` and `cargo run`, which makes target and binary handling very easy but
-        // requires some extra work to make the build check-only (see all the `--emit` hacks below).
-        // <https://github.com/rust-lang/miri/pull/1540#issuecomment-693553191> describes an alternative
-        // approach that uses `cargo check`, making that part easier but target and binary handling
-        // harder.
         let cargo_rap_path = env::current_exe().expect("current executable path invalid");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
-        /*
+
         if has_arg_flag("-v") {
-            cmd.env("RAP_VERBOSE", "VERBOSE"); // this makes `inside_cargo_rustc` verbose.
+            cmd.env("RAP_DEBUG", "ON"); // this makes `inside_cargo_rustc` verbose.
         }
-        if has_arg_flag("-vv") {
-            cmd.env("RAP_VERBOSE", "VERY VERBOSE"); // this makes `inside_cargo_rustc` verbose.
-        }
-        */
+
         rap_info!("Command is: {:?}", cmd);
-
         rap_add_env(&mut cmd);
-
         rap_info!("Running RAP for target {}:{}", TargetKind::from(&target), &target.name);
 
         let mut child = cmd

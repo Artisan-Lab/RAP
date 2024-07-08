@@ -18,17 +18,17 @@ const EXPLAIN:&str = " @ ";
 #[derive(Debug, Copy, Clone, Hash)]
 pub enum MirDisplay {
     // Basic MIR information for Debug
-    Verbose,
+    Simple,
     // MIR associated with the type of statements and terminators, and the types of variables
-    VeryVerobse,
+    Verobse,
     Disabled,
 }
 
 pub fn is_display_verbose() -> bool {
     match env::var_os("MIR_DISPLAY") {
         Some(verbose)  => match verbose.as_os_str().to_str().unwrap() {
+            "SIMPLE" => true,
             "VERBOSE" => true,
-            "VERY VERBOSE" => true,
             _ => false,
         },
         _ => false,
@@ -38,7 +38,7 @@ pub fn is_display_verbose() -> bool {
 pub fn is_display_very_verbose() -> bool {
     match env::var_os("MIR_DISPLAY") {
         Some(verbose)  => match verbose.as_os_str().to_str().unwrap() {
-            "VERY VERBOSE" => true,
+            "VERBOSE" => true,
             _ => false,
         },
         _ => false,

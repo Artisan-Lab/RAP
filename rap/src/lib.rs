@@ -15,13 +15,11 @@ extern crate rustc_abi;
 extern crate serde;
 extern crate serde_json;
 
-#[macro_use]
 extern crate serde_derive;
 extern crate core;
 
 use rustc_middle::ty::TyCtxt;
 
-use crate::components::grain::RapGrain;
 use crate::components::log::Verbosity;
 use crate::components::context::RapGlobalCtxt;
 use crate::components::display::MirDisplay;
@@ -33,9 +31,6 @@ use crate::analysis::rcanary::type_analysis::{TypeAnalysis, AdtOwnerDisplay};
 pub static RAP_DEFAULT_ARGS: &[&str] =
     &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
 pub static RAP_ROOT:&str = "/tmp/rap";
-pub static RAP_LLVM_CACHE:&str = "/tmp/rap/llvm-cache";
-pub static RAP_LLVM_IR:&str = "/tmp/rap/llvm-ir";
-pub static RAP_LLVM_RES:&str = "/tmp/rap/llvm-res";
 
 pub type Elapsed = (i64, i64);
 
@@ -69,49 +64,24 @@ impl Default for RCanary {
 
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapConfig {
-    grain: RapGrain,
     verbose: Verbosity,
     mir_display: MirDisplay,
     rcanary: RCanary,
     safedrop: SafeDrop,
-    hello_world: HelloWorld,
 }
 
 impl Default for RapConfig {
     fn default() -> Self {
         Self {
-            grain: RapGrain::Low,
             verbose: Verbosity::Info,
             mir_display: MirDisplay::Disabled,
             rcanary: RCanary::default(),
             safedrop: SafeDrop::default(),
-            hello_world: HelloWorld::default(),
         }
     }
 }
 
 impl RapConfig {
-    pub fn new(
-        grain: RapGrain,
-        verbose: Verbosity,
-        mir_display: MirDisplay,
-        rcanary: RCanary,
-        safedrop: SafeDrop,
-        hello_world: HelloWorld,
-    ) -> Self {
-        Self {
-            grain,
-            verbose,
-            mir_display,
-            rcanary,
-            safedrop,
-            hello_world,
-        }
-    }
-
-    pub fn grain(&self) -> RapGrain { self.grain }
-
-    pub fn set_grain(&mut self, grain: RapGrain) { self.grain = grain;}
 
     pub fn verbose(&self) -> Verbosity { self.verbose }
 
@@ -130,14 +100,6 @@ impl RapConfig {
     pub fn enable_rcanary(&mut self) { self.rcanary.enable = true; }
 
     pub fn is_rcanary_enabled(&self) -> bool { self.rcanary.enable }
-
-    pub fn enable_example_frontend(&mut self) { self.hello_world.front = true; }
-
-    pub fn enable_example_backend(&mut self) { self.hello_world.back = true; }
-
-    pub fn is_example_front_enabled(&self) -> bool { self.hello_world.front }
-
-    pub fn is_example_back_enabled(&self) -> bool { self.hello_world.back }
 
     pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.rcanary.adt_display = adt_display; }
 

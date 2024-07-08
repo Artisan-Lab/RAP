@@ -164,14 +164,11 @@ impl<'tcx> NodeOrder<'tcx> {
 
 }
 
-struct InterFlowAnalysis<'tcx, 'ctx, 'a> {
+struct InterFlowAnalysis<'tcx, 'a> {
     rcx:&'a RapGlobalCtxt<'tcx>,
-    ifa: IntraFlowAnalysis<'tcx, 'ctx, 'a>,
-    root_did: DefId,
-    root_body: &'a Body<'tcx>,
 }
 
-impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'a> {
     pub fn new(
         rcx: &'a RapGlobalCtxt<'tcx>,
         did: DefId,
@@ -180,15 +177,12 @@ impl<'tcx, 'ctx, 'a> InterFlowAnalysis<'tcx, 'ctx, 'a> {
     {
         Self {
             rcx,
-            ifa: IntraFlowAnalysis::new(rcx, did, unique),
-            root_did: did,
-            root_body: mir_body(rcx.tcx(), did)
         }
     }
 
 }
 
-impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'ctx, 'a> {
+impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
     #[inline(always)]
     fn rcx(&'o self) -> &'a RapGlobalCtxt<'tcx> {
         self.rcx
@@ -205,7 +199,6 @@ struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     did: DefId,
     body: &'a Body<'tcx>,
     graph: &'a Graph,
-    ref_fn_unique: &'a mut Unique,
     elasped: Elapsed,
     taint_flag: bool,
     taint_source: Vec<Terminator<'tcx>>,
@@ -230,7 +223,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             did,
             body,
             graph,
-            ref_fn_unique: unique,
             elasped: (0, 0),
             taint_flag: false,
             taint_source: Vec::default(),
@@ -245,14 +237,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.body
     }
 
-    pub fn unique(&self) -> &Unique {
-        self.ref_fn_unique
-    }
-
-    pub fn unique_mut(&mut self) -> &mut Unique {
-        self.ref_fn_unique
-    }
-
     pub fn owner(&self) -> &AdtOwner {
         self.rcx().adt_owner()
     }
@@ -261,16 +245,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.graph
     }
 
-    pub fn add_time_build(&mut self, time: i64) {
-        self.elasped.0 = self.elasped.0 + time;
-    }
-
     pub fn get_time_build(&self) -> i64 {
         self.elasped.0
-    }
-
-    pub fn add_time_solve(&mut self, time: i64) {
-        self.elasped.1 =  self.elasped.1 + time;
     }
 
     pub fn get_time_solve(&self) -> i64 {
