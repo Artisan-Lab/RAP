@@ -9,9 +9,8 @@ The project is still under heavy development.
 git clone https://github.com/Artisan-Lab/RAP.git
 cd rap
 git submodule update --init --recursive
-./00-install-rap-rust.sh
-./01-install-rap-cargo.sh
-./02-install-rap-llvm.sh
+./0-install-rap-rust.sh
+./1-install-rap-cargo.sh
 ```
 
 ## Usage
@@ -25,7 +24,9 @@ cargo rap -uaf
 ```
 
 The feature is based on our SafeDrop paper published in TOSEM.  
-Cui, Mohan, Chengjun Chen, Hui Xu, and Yangfan Zhou. "SafeDrop: Detecting memory deallocation bugs of rust programs via static data-flow analysis." ACM Transactions on Software Engineering and Methodology 32, no. 4 (2023): 1-21
+```
+Mohan Cui, Chengjun Chen, Hui Xu, and Yangfan Zhou. "SafeDrop: Detecting memory deallocation bugs of rust programs via static data-flow analysis." ACM Transactions on Software Engineering and Methodology 32, no. 4 (2023): 1-21
+```
 
 ### Memory Leakage Detection 
 ```
