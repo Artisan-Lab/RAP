@@ -31,19 +31,17 @@ Use-After-Free/Double Free detection.
 Memory leakage detection.
     -M or -mleak      Command: "cargo rap -mleak"
 
-    More options: 
-    	-ADT=V              Print the pair of the result of type analysis, including the type definition and the analysis result.
-    	-Z3-GOAL=V          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
-    	-GRAN=LOW           Default grain set for RCANAY, use MEDIUM/HIGH/ULTRA to overwrite.
-    	-ICX-SLICE=V        Set Verbose to print the middle metadate for RCANAY debug.
+    More sub options for logging: 
+    	-adt         Print the pair of the result of type analysis, including the type definition and the analysis result.
+    	-z3          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
+    	-meta        Set Verbose to print the middle metadate for RCANAY debug.
 
 General cargo command: 
-    -H: help information
-    -V: version of RAP
+    -H or -help:     Show help information
+    -V or -version:  show the version of RAP
 
-General rustc/rap options:
-    -MIR=V             Set Verbose to print Rust MIR of each function
-    -MIR=VV            Print more information than -MIR=V. Note that it will overwite -MIR=V.
+Debugging options:
+    -mir             Set Verbose to print Rust MIR of each function
 
 "#;
 
@@ -267,28 +265,20 @@ fn run_cmd(mut cmd: Command, phase: RapPhase) {
 
 
 fn rap_add_env(cmd: &mut Command) {
-    if has_rap_arg_flag("-MIR=V") {
-        cmd.env("MIR_DISPLAY", "VERBOSE");
-    }
-    if has_rap_arg_flag("-MIR=VV") {
-        cmd.env("MIR_DISPLAY", "VERY VERBOSE");
-    }
-    /*
-    if has_rap_arg_flag("-RCANARY") {
-        cmd.env("RCANARY", "ENABLED");
-        if has_rap_arg_flag("-ADT=V") {
-            cmd.env("ADT_DISPLAY", "");
-        }
-        if has_rap_arg_flag("-Z3-GOAL=V") {
-            cmd.env("Z3_GOAL", "");
-        }
-        if has_rap_arg_flag("-ICX-SLICE=V") {
-            cmd.env("ICX_SLICE", "");
-        }
-    }
-    */
     if has_rap_arg_flag("-F") || has_rap_arg_flag("-uaf") {
         cmd.env("UAF", "ENABLED");
+    }
+    if has_rap_arg_flag("-adt") {
+        cmd.env("ADT_DISPLAY", "");
+    }
+    if has_rap_arg_flag("-z3") {
+        cmd.env("Z3_GOAL", "");
+    }
+    if has_rap_arg_flag("-meta") {
+        cmd.env("ICX_SLICE", "");
+    }
+    if has_rap_arg_flag("-mir") {
+        cmd.env("MIR_DISPLAY", "VERBOSE");
     }
 }
 

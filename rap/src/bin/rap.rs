@@ -162,17 +162,10 @@ fn config_parse() -> RapArgs {
         match arg.as_str() {
             "-F" | "-uaf" => {}, //FIXME: println!("dummy front end for safedrop; this will be captured by the compiler."),
             "-M" | "-mleak" => rap_args.enable_rcanary(),
-            "-GRAIN=LOW" => rap_args.set_config_low(),
-            "-GRAIN=MEDIUM" => rap_args.set_config_medium(),
-            "-GRAIN=HIGH" => rap_args.set_config_high(),
-            "-GRAIN=ULTRA" => rap_args.set_config_ultra(),
-            "-MIR=V" => rap_args.set_mir_display_verbose(),
-            "-MIR=VV" => rap_args.set_mir_display_very_verbose(),
-            "-HELLOWORLD=BACK" => rap_args.enable_example_backend(),
-            "-HELLOWORLD=FRONT" => rap_args.enable_example_frontend(),
-            "-ADT=V" => rap_args.set_adt_display_verbose(),
-            "-Z3-GOAL=V" => rap_args.set_z3_goal_display_verbose(),
-            "-ICX-SLICE=V" => rap_args.set_icx_slice_display(),
+            "-adt" => rap_args.set_adt_display_verbose(),
+            "-z3" => rap_args.set_z3_goal_display_verbose(),
+            "-meta" => rap_args.set_icx_slice_display(),
+            "-mir" => rap_args.set_mir_display_verbose(),
             _ => rap_args.push_args(arg),
         }
     }
