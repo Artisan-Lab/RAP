@@ -25,7 +25,7 @@ chrono = "0.4.19"
 serde = "1.0.130"
 serde_derive = "1.0.130"
 serde_json = "1.0.72"
-z3 = "0.11.2"
+z3 = "0.12.1"
 log = "0.4.14"
 fern = {version = "0.6.2", features = ["colored"]}
 wait-timeout = "0.2.0"

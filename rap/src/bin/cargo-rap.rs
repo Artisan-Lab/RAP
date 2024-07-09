@@ -56,7 +56,6 @@ struct ArgFlagValueIter<'a> {
 impl<'a> ArgFlagValueIter<'a> {
     fn new(name: &'a str) -> Self {
         Self {
-            // Stop searching at `--`.
             args: env::args().take_while(|val| val != "--"),
             name,
         }
@@ -132,11 +131,8 @@ fn test_sysroot_consistency() {
     assert_eq!(
         rustc_sysroot,
         rap_sysroot,
-        "rap was built for a different sysroot than the rustc in your current toolchain.\n\
-             Please use the same toolchain to run rap that you used to build it!\n\
-             rustc sysroot: `{}`\nrap sysroot: `{}`",
-        rustc_sysroot.display(),
-        rap_sysroot.display()
+        "Inconsistent toolchain! You may switch the default toolchain via !\n\
+         `rustup default rap-rust`"
     );
 }
 
@@ -180,47 +176,25 @@ fn make_package() -> cargo_metadata::Package {
     metadata.packages.remove(package_index)
 }
 
-fn make_package_with_sorted_target() -> (cargo_metadata::Package, Vec<cargo_metadata::Target>) {
+fn make_package_with_sorted_target() -> Vec<cargo_metadata::Target> {
     // Ensure `lib` is compiled before `bin`
     let package = make_package();
     let mut targets: Vec<_> = package.targets.clone().into_iter().collect();
     targets.sort_by_key(|target| TargetKind::from(target) as u8);
-    (package, targets)
-}
-
-fn clean_package(package_name: &str) {
-    let mut cmd = Command::new("cargo");
-    cmd.arg("clean")
-        .arg("-p")
-        .arg(package_name)
-        .arg("--target")
-        .arg(version_info().host);
-
-    if !cmd
-        .spawn()
-        .expect("Cannot run cargo clean")
-        .wait()
-        .expect("Failed to wait for cargo")
-        .success() {
-        rap_error_and_exit("Cargo clean failed");
-    }
+    targets
 }
 
 fn is_identified_target(
-    package: &cargo_metadata::Package,
     target: &cargo_metadata::Target,
     cmd: &mut Command
 ) -> bool {
     match TargetKind::from(target) {
         TargetKind::Library => {
             cmd.arg("--lib");
-            clean_package(&package.name);
             true
         },
         TargetKind::Bin => {
-            cmd.arg("--bin")
-                .arg(&target.name);
-            clean_package(&package.name);
+            cmd.arg("--bin").arg(&target.name);
             true
         },
         TargetKind::Unspecified => {
@@ -296,23 +270,23 @@ fn phase_cargo_rap() {
     rap_info!("Welcome to run RAP - Rust Analysis Platform");
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
-        rap_info!("expect command: e.g., `cargo rap -uaf`");
+        rap_info!("expect command: e.g., `cargo rap -help`");
 	return ;
     };
     match arg.as_str() {
-        "-V" | "--version" => { rap_info!("The RAP version: {}", "0.1"); return; },
-        "-H" | "--help" => { rap_info!("{}", CARGO_RAP_HELP); return; },
+        "-V" | "-version" => { rap_info!("The RAP version: {}", "0.1"); return; },
+        "-H" | "-help" | "--help" => { rap_info!("{}", CARGO_RAP_HELP); return; },
 	_ => {},
     }
 
-    let (package, targets) = make_package_with_sorted_target();
+    let targets = make_package_with_sorted_target();
     for target in targets {
 	/*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
         let mut cmd = Command::new("cargo");
         cmd.arg("check"); 
 
 	/* We only process bin and lib targets, and ignore others */
-        if !is_identified_target(&package, &target, &mut cmd) {
+        if !is_identified_target(&target, &mut cmd) {
             continue;
         }
 
@@ -326,13 +300,13 @@ fn phase_cargo_rap() {
         // Serialize the remaining args into a special environment variable.
         // This will be read by `phase_rustc_rap` when we go to invoke
         // our actual target crate (the binary or the test we are running).
+
         let args = env::args().skip(2);
         let args_vec: Vec<String> = args.collect();
         cmd.env(
             "RAP_ARGS",
             serde_json::to_string(&args_vec).expect("failed to serialize args"),
         );
-
 
         // Set `RUSTC_WRAPPER` to ourselves.  Cargo will prepend that binary to its usual invocation,
         // i.e., the first argument is `rustc` -- which is what we use in `main` to distinguish
@@ -377,17 +351,6 @@ fn phase_cargo_rap() {
 }
 
 fn phase_rustc_rap() {
-    // Determines if we are being invoked (as rustc) to build a crate for
-    // the "target" architecture, in contrast to the "host" architecture.
-    // Host crates are for build scripts and proc macros and still need to
-    // be built like normal; target crates need to be built for or interpreted
-    // by RAP.
-    //
-    // Currently, we detect this by checking for "--target=", which is
-    // never set for host crates. This matches what rustc bootstrap does,
-    // which hopefully makes it "reliable enough". This relies on us always
-    // invoking cargo itself with `--target`, which `phase_cargo_rap` ensures.
-    //rap_info!("Dispatch to rustc_rap()");
     fn is_target_crate() -> bool {
         get_arg_flag_value("--target").is_some()
     }
@@ -552,10 +515,8 @@ fn main() {
         // it will lead to error: 'failed to run `rustc` to learn about target-specific information'
         // cargo will invoke /Users/xx/.cargo/bin/cargo-rap /Users/xx/.rustup/toolchains/stage2/bin/rustc
         // instead of /Users/xx/.cargo/bin/cargo-rap rustc (it is not a dir but is valid in the older version)
-	//rap_info!("arg_string.ends_with 'rustcx'.");
         phase_rustc_rap();
     } else {
         rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.");
     }
-
 }
