@@ -498,25 +498,10 @@ fn main() {
     // Init the log_system for RAP
     Verbosity::init_rap_log_system_with_verbosity(Verbosity::Info).expect("Failed to set up RAP log system");
 
-    let arg_string = env::args().nth(1).unwrap_or_else(
-        || rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.")
-    );
-
-    if arg_string == String::from("rap") {
-        // `cargo rap`: call `cargo rustc` for each applicable target,
-        // but with the `RUSTC` env var set to the `cargo-rap` binary so that we come back in the other branch,
-        // and dispatch the invocations to `rustc` and `rap`, respectively.
-        enter_cargo_rap(); 
-    } else if arg_string.ends_with("rustc") {
-        // `cargo rap`: `RUSTC_WRAPPER` env var:
-        // dependencies get dispatched to `rustc`, the final test/binary to `rap`.
-
-        // this branch is considering the current rust compiler is not directly using bin rustc
-        // it will lead to error: 'failed to run `rustc` to learn about target-specific information'
-        // cargo will invoke /Users/xx/.cargo/bin/cargo-rap /Users/xx/.rustup/toolchains/stage2/bin/rustc
-        // instead of /Users/xx/.cargo/bin/cargo-rap rustc (it is not a dir but is valid in the older version)
-        phase_rustc_rap();
-    } else {
-        rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.");
+    let first_arg = env::args().nth(1);
+    match first_arg.unwrap() {
+       s if s.ends_with("rap") => enter_cargo_rap(),
+       s if s.ends_with("rustc") => phase_rustc_rap(),
+       _ => rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument."),
     }
 }
