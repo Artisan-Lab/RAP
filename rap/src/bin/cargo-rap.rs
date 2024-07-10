@@ -363,21 +363,6 @@ fn phase_rustc_rap() {
         entry_path.is_relative()
     }
 
-    // Determines if the crate being compiled is in the RAP_ADDITIONAL
-    // environment variable.
-    fn is_additional_compile_crate() -> bool {
-        if let (Ok(cargo_pkg_name), Ok(rap_additional)) =
-        (env::var("CARGO_PKG_NAME"), env::var("RAP_ADDITIONAL"))
-        {
-            if rap_additional
-                .split(',')
-                .any(|s| s.to_lowercase() == cargo_pkg_name.to_lowercase()) {
-                return true
-            }
-        }
-        false
-    }
-
     fn is_crate_type_lib() -> bool {
         fn any_arg_flag<F>(name: &str, mut check: F) -> bool
             where
@@ -420,18 +405,10 @@ fn phase_rustc_rap() {
     }
 
     let is_direct = is_current_compile_crate() && is_target_crate();
-    let is_additional = is_additional_compile_crate();
 
-    if is_direct || is_additional {
+    if is_direct {
         let mut cmd = Command::new(find_rap());
         cmd.args(env::args().skip(2));
-
-        // This is the local crate that we want to analyze with RAP.
-        // (Testing `target_crate` is needed to exclude build scripts.)
-        // We deserialize the arguments that are meant for RAP from the special
-        // environment variable "RAP_ARGS", and feed them to the 'RAP' binary.
-        //
-        // `env::var` is okay here, well-formed JSON is always UTF-8.
         let magic = env::var("RAP_ARGS").expect("missing RAP_ARGS");
         let rap_args: Vec<String> =
             serde_json::from_str(&magic).expect("failed to deserialize RAP_ARGS");
@@ -498,7 +475,7 @@ fn main() {
     let first_arg = env::args().nth(1);
 
     /* Fixme: we have to fix the logging systems */
-    eprintln!("{:?}", first_arg);
+    eprintln!("{:?}", env::args());
 
     match first_arg.unwrap() {
        s if s.ends_with("rap") => enter_cargo_rap(),
