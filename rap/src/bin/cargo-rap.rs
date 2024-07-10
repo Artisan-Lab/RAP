@@ -308,15 +308,6 @@ fn phase_cargo_rap() {
             serde_json::to_string(&args_vec).expect("failed to serialize args"),
         );
 
-        // Set `RUSTC_WRAPPER` to ourselves.  Cargo will prepend that binary to its usual invocation,
-        // i.e., the first argument is `rustc` -- which is what we use in `main` to distinguish
-        // the two codepaths. (That extra argument is why we prefer this over setting `RUSTC`.)
-        if env::var_os("RUSTC_WRAPPER").is_some() {
-            rap_info!(
-                "WARNING: Ignoring `RUSTC_WRAPPER` environment variable, RAP does not support wrapping."
-            );
-        }
-
         // Invoke actual cargo for the job, but with different flags.
         let cargo_rap_path = env::current_exe().expect("current executable path invalid");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
@@ -495,10 +486,20 @@ impl TargetKind {
 }
 
 fn main() {
+    /* This function will be enteredd twice:
+       1. When we run `cargo rap ...`, cargo dispatches the execution to cargo-rap.
+	  In this step, we set RUSTC_WRAPPER to cargo-rap, and execute `cargo check ...` command;
+       2. Cargo check actually triggers `path/cargo-rap path/rustc` according to RUSTC_WRAPPER.
+          Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
+    */
     // Init the log_system for RAP
     Verbosity::init_rap_log_system_with_verbosity(Verbosity::Info).expect("Failed to set up RAP log system");
 
     let first_arg = env::args().nth(1);
+
+    /* Fixme: we have to fix the logging systems */
+    eprintln!("{:?}", first_arg);
+
     match first_arg.unwrap() {
        s if s.ends_with("rap") => enter_cargo_rap(),
        s if s.ends_with("rustc") => phase_rustc_rap(),
