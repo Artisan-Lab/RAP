@@ -3,7 +3,7 @@
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
 
-use rap::{RapPhase, rap_info, RAP_ROOT};
+use rap::{RAP_ROOT, rap_info, rap_debug, rap_error};
 use rap::components::log::{Verbosity, rap_error_and_exit};
 use rap::components::fs::rap_remove_dir;
 use std::env;
@@ -203,10 +203,8 @@ fn is_identified_target(
     }
 }
 
-fn run_cmd(mut cmd: Command, phase: RapPhase) {
-    if env::var_os("RAP_DEBUG").is_some() && phase != RapPhase::Rustc {
-        rap_info!("Command is: {:?}", cmd);
-    }
+fn run_cmd(mut cmd: Command) {
+    rap_debug!("Command is: {:?}", cmd);
 
     match cmd.status() {
         Ok(status) => {
@@ -243,34 +241,17 @@ fn rap_add_env(cmd: &mut Command) {
 fn cleanup(){ 
     let mut cmd = Command::new("cargo");
     cmd.arg("clean");
-    run_cmd(cmd, RapPhase::Cleanup);
+    run_cmd(cmd);
     rap_info!("Running cargo clean for local package");
     rap_remove_dir(RAP_ROOT, "Failed to init RAP root dir");
 }
 
-fn enter_cargo_rap() {
-    let mut args = env::args();
-    /* format of args: "cargo rap ..."*/
-    args.next().unwrap(); //skip the rap arg: "cargo"
-    let Some(arg) = args.next() else {
-        rap_info!("expect command: `cargo rap ...`");
-	return ;
-    };
-    match arg.as_str() {
-        "rap" => { 
-    		test_sysroot_consistency();// Make sure that the `rap` and `rustc` binary are from the same sysroot.
-    		cleanup(); // clean up the directory before building.
-		phase_cargo_rap(); 
-	},
-	_ => { rap_info!("{:#?}", env::args()); },
-    }
-}
-
 fn phase_cargo_rap() {
-    rap_info!("Welcome to run RAP - Rust Analysis Platform");
+    test_sysroot_consistency();
+    cleanup(); // clean up the directory before building.
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
-        rap_info!("expect command: e.g., `cargo rap -help`");
+        rap_error!("expect command: e.g., `cargo rap -help`");
 	return ;
     };
     match arg.as_str() {
@@ -312,13 +293,9 @@ fn phase_cargo_rap() {
         let cargo_rap_path = env::current_exe().expect("current executable path invalid");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
 
-        if has_arg_flag("-v") {
-            cmd.env("RAP_DEBUG", "ON"); // this makes `inside_cargo_rustc` verbose.
-        }
-
-        rap_info!("Command is: {:?}", cmd);
+        rap_debug!("Command is: {:?}", cmd);
         rap_add_env(&mut cmd);
-        rap_info!("Running RAP for target {}:{}", TargetKind::from(&target), &target.name);
+        rap_info!("Running rap for target {}:{}", TargetKind::from(&target), &target.name);
 
         let mut child = cmd
             .spawn()
@@ -341,7 +318,7 @@ fn phase_cargo_rap() {
     rap_info!("Phase-Cargo-RAP has been done");
 }
 
-fn phase_rustc_rap() {
+fn phase_rustc_wrapper() {
     fn is_target_crate() -> bool {
         get_arg_flag_value("--target").is_some()
     }
@@ -413,12 +390,12 @@ fn phase_rustc_rap() {
         let rap_args: Vec<String> =
             serde_json::from_str(&magic).expect("failed to deserialize RAP_ARGS");
         cmd.args(rap_args);
-        run_cmd(cmd, RapPhase::Rustc);
+        run_cmd(cmd);
     }
     if !is_direct || is_crate_type_lib() {
         let mut cmd = Command::new("rustc");
         cmd.args(env::args().skip(2));
-        run_cmd(cmd, RapPhase::Rustc);
+        run_cmd(cmd);
     };
 
 }
@@ -470,16 +447,16 @@ fn main() {
           Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
     */
     // Init the log_system for RAP
-    Verbosity::init_rap_log_system_with_verbosity(Verbosity::Info).expect("Failed to set up RAP log system");
+    Verbosity::init_log(Verbosity::Info).expect("Failed to init log");
+    //Verbosity::init_log(Verbosity::Debug).expect("Failed to init log");
+
+    rap_info!("Enter cargo-rap...");
+    rap_debug!("Received args: {:?}", env::args());
 
     let first_arg = env::args().nth(1);
-
-    /* Fixme: we have to fix the logging systems */
-    eprintln!("{:?}", env::args());
-
     match first_arg.unwrap() {
-       s if s.ends_with("rap") => enter_cargo_rap(),
-       s if s.ends_with("rustc") => phase_rustc_rap(),
+       s if s.ends_with("rap") => phase_cargo_rap(),
+       s if s.ends_with("rustc") => phase_rustc_wrapper(),
        _ => rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument."),
     }
 }

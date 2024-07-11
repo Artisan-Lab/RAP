@@ -7,7 +7,6 @@ extern crate rustc_metadata;
 extern crate rustc_data_structures;
 extern crate rustc_session;
 
-#[macro_use]
 extern crate log as rust_log;
 
 use rustc_driver::{Compilation, Callbacks};
@@ -27,7 +26,7 @@ use rap::{RapConfig, compile_time_sysroot, RAP_DEFAULT_ARGS, start_analyzer};
 use rap::analysis::rcanary::flow_analysis::{IcxSliceDisplay, Z3GoalDisplay};
 use rap::analysis::rcanary::type_analysis::AdtOwnerDisplay;
 use rap::components::{display::MirDisplay, log::Verbosity};
-use rap::rap_info;
+use rap::{rap_info, rap_debug};
 
 #[derive(Copy, Clone)]
 struct RapCompilerCalls {
@@ -66,13 +65,12 @@ impl Callbacks for RapCompilerCalls {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         compiler.session().abort_if_errors();
-        Verbosity::init_rap_log_system_with_verbosity(self.rap_config.verbose()).expect("Failed to set up RAP log system");
 
-        rap_info!("Start RAP with the after_analysis function of Callbacks");
+        rap_info!("Execute after_analysis() of compiler callbacks");
         queries.global_ctxt().unwrap().enter(
             |tcx| start_analyzer(tcx, self.rap_config)
         );
-        rap_info!("Stop RAP");
+        rap_info!("analysis done");
 
         compiler.session().abort_if_errors();
         Compilation::Continue
@@ -137,24 +135,6 @@ impl RapArgs {
     }
 }
 
-fn config_parse() -> RapArgs {
-    let mut rap_args = RapArgs::default();
-    //FIXME: logging doesn't work here;
-    //rap_info!("rap received arguments{:#?}", env::args());
-    for arg in env::args() {
-        match arg.as_str() {
-            "-F" | "-uaf" => {}, //FIXME: println!("dummy front end for safedrop; this will be captured by the compiler."),
-            "-M" | "-mleak" => rap_args.enable_rcanary(),
-            "-adt" => rap_args.set_adt_display_verbose(),
-            "-z3" => rap_args.set_z3_goal_display_verbose(),
-            "-meta" => rap_args.set_icx_slice_display(),
-            "-mir" => rap_args.set_mir_display(),
-            "-mir=verbose" => rap_args.set_mir_display_verbose(),
-            _ => rap_args.push_args(arg),
-        }
-    }
-    rap_args
-}
 
 /// Execute a compiler with the given CLI arguments and callbacks.
 fn run_complier(rap_args: &mut RapArgs) -> i32 {
@@ -177,29 +157,41 @@ fn run_complier(rap_args: &mut RapArgs) -> i32 {
 
     let rap_final_args = rap_args.args.clone();
 
+    let handler = EarlyErrorHandler::new(ErrorOutputType::default());
+    rustc_driver::init_rustc_env_logger(&handler);
+    rustc_driver::install_ice_hook("bug_report_url", |_|());
+
     let run_compiler = rustc_driver::RunCompiler::new(&rap_args.args, &mut rap_args.rap_cc);
     let exit_code = rustc_driver::catch_with_exit_code(move || run_compiler.run());
 
-    if option_env!("RAP_DEBUG").is_some() {
-        rap_info!("The arg for compilation is {:?}", rap_final_args);
-    }
+    //if option_env!("RAP_DEBUG").is_some() {
+    rap_debug!("The arg for compilation is {:?}", rap_final_args);
+    //}
 
     exit_code
 }
 
-const BUG_REPORT_URL: &str = "https://github.com/";
-
 fn main() {
-    rap_info!("Enter RAP main.");
-    // Instals a panic hook that will print the ICE message on unexpected panics.
-    let handler = EarlyErrorHandler::new(ErrorOutputType::default());
-    rustc_driver::init_rustc_env_logger(&handler);
-    rustc_driver::install_ice_hook(BUG_REPORT_URL, |_| ());
+    //Verbosity::init_log(Verbosity::Debug).expect("Failed to init log");
+    Verbosity::init_log(Verbosity::Info).expect("Failed to init log");
+    rap_info!("Enter rap.");
 
-    // Parse the config and arguments from env.
-    let mut rap_args = config_parse();
-
-    debug!("RAP-Args: {}", &rap_args);
+    // Parse the arguments from env.
+    let mut rap_args = RapArgs::default();
+    rap_debug!("rap received arguments{:#?}", env::args());
+    for arg in env::args() {
+        match arg.as_str() {
+            "-F" | "-uaf" => {}, //FIXME: println!("dummy front end for safedrop; this will be captured by the compiler."),
+            "-M" | "-mleak" => rap_args.enable_rcanary(),
+            "-adt" => rap_args.set_adt_display_verbose(),
+            "-z3" => rap_args.set_z3_goal_display_verbose(),
+            "-meta" => rap_args.set_icx_slice_display(),
+            "-mir" => rap_args.set_mir_display(),
+            "-mir=verbose" => rap_args.set_mir_display_verbose(),
+            _ => rap_args.push_args(arg),
+        }
+    }
+    rap_debug!("RAP-Args: {}", &rap_args);
 
     let exit_code = run_complier(&mut rap_args);
     std::process::exit(exit_code)

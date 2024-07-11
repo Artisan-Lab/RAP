@@ -1,5 +1,3 @@
-use std::env;
-
 use chrono::{Datelike, Local, Timelike};
 use fern::{self, Dispatch};
 use fern::colors::{Color, ColoredLevelConfig};
@@ -13,7 +11,7 @@ pub enum Verbosity {
 }
 
 impl Verbosity {
-    pub fn init_rap_log_system_with_verbosity(verbose: Verbosity) -> Result<(), fern::InitError> {
+    pub fn init_log(verbose: Verbosity) -> Result<(), fern::InitError> {
         let mut dispatch = Dispatch::new();
 
         let color_line = ColoredLevelConfig::new()
@@ -29,27 +27,9 @@ impl Verbosity {
             Verbosity::Info => dispatch.level(LevelFilter::Info),
             Verbosity::Debug => dispatch.level(LevelFilter::Debug),
             Verbosity::Trace => dispatch.level(LevelFilter::Trace),
-        }.level_for(
-            "rap",
-            if cfg!(debug_assertion) {LevelFilter::Debug} else {LevelFilter::Info}
-        );
+        };//.level_for("rap", LevelFilter::Debug);
 
-        if let Some(log_file_path) = env::var_os("RAP_LOG_FILE_PATH") {
-            let file_dispatch = Dispatch::new()
-                .filter(|metadata| metadata.target() == "=RAP=")
-                .format(|callback, args, record| {
-                    callback.finish(format_args!(
-                        "{} |RAP OUTPUT-{:5}| {}",
-                        Local::now().date_naive(),
-                        record.level(),
-                        args,
-                    ))
-                })
-                .chain(fern::log_file(log_file_path)?);
-            dispatch = dispatch.chain(file_dispatch);
-        }
-
-        let stdout_dispatch = Dispatch::new()
+        let stderr_dispatch = Dispatch::new()
             .format(move |callback, args, record| {
                 let time_now = Local::now();
                 callback.finish(format_args!(
@@ -72,12 +52,20 @@ impl Verbosity {
                     args
                 ))
             })
-            .level(log::LevelFilter::Info)
-            .chain(std::io::stdout());
+            .chain(std::io::stderr());
 
-        dispatch.chain(stdout_dispatch).apply()?;
+        /* Note that we cannot dispatch to stdout due to some bugs */
+        dispatch.chain(stderr_dispatch).apply()?;
         Ok(())
     }
+}
+
+
+#[macro_export]
+macro_rules! rap_debug {
+    ($($arg:tt)+) => (
+        ::log::debug!(target: "RAP", $($arg)+)
+    );
 }
 
 #[macro_export]
