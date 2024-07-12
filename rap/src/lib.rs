@@ -32,35 +32,18 @@ use std::path::PathBuf;
 // set per default, for maximal validation power.
 pub static RAP_DEFAULT_ARGS: &[&str] =
     &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
-//pub static RAP_ROOT:&str = "/tmp/rap";
 
 pub type Elapsed = (i64, i64);
 
-#[derive(Debug, Copy, Clone, Hash, Default)]
-struct SafeDrop(bool);
-
-#[derive(Debug, Copy, Clone, Hash)]
-struct RCanary {
-    enable: bool,
-}
-
-impl Default for RCanary {
-    fn default() -> Self {
-        Self {
-            enable: false,
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapConfig {
-    rcanary: RCanary,
+    rcanary: bool,
 }
 
 impl Default for RapConfig {
     fn default() -> Self {
         Self {
-            rcanary: RCanary::default(),
+            rcanary: false,
         }
     }
 }
@@ -101,11 +84,11 @@ impl Callbacks for RapConfig {
 
 impl RapConfig {
     pub fn enable_rcanary(&mut self) { 
-	self.rcanary.enable = true; 
+	self.rcanary = true; 
     }
 
     pub fn is_rcanary_enabled(&self) -> bool { 
-	self.rcanary.enable 
+	self.rcanary 
     }
 }
 
