@@ -38,31 +38,33 @@ impl Display for RapArgs {
 
 impl RapArgs {
 
-    pub fn set_mir_display(&mut self) {self.config.set_mir_display(MirDisplay::Simple); }
-
-    pub fn set_mir_display_verbose(&mut self) { self.config.set_mir_display(MirDisplay::Verobse); }
-
-    pub fn enable_rcanary(&mut self) { self.config.enable_rcanary(); }
-
-    pub fn set_adt_display_verbose(&mut self) {
-        if self.config.is_rcanary_enabled() {
-            self.config.set_adt_display(AdtOwnerDisplay::Verbose);
-        }
+    pub fn set_mir_display(&mut self) {
+	self.config.set_mir_display(MirDisplay::Simple); 
     }
 
-    pub fn set_z3_goal_display_verbose(&mut self) {
-        if self.config.is_rcanary_enabled() {
-            self.config.set_z3_goal_display(Z3GoalDisplay::Verbose);
-        }
+    pub fn set_mir_display_verbose(&mut self) { 
+	self.config.set_mir_display(MirDisplay::Verobse); 
+    }
+
+    pub fn enable_rcanary(&mut self) { 
+	self.config.enable_rcanary(); 
+    }
+
+    pub fn set_adt_display(&mut self) {
+        self.config.set_adt_display(AdtOwnerDisplay::Verbose);
+    }
+
+    pub fn set_z3_display(&mut self) {
+        self.config.set_z3_display(Z3GoalDisplay::Verbose);
     }
 
     pub fn set_icx_slice_display(&mut self) {
-        if self.config.is_rcanary_enabled() {
-            self.config.set_icx_slice_display(IcxSliceDisplay::Verbose);
-        }
+        self.config.set_icx_slice_display(IcxSliceDisplay::Verbose);
     }
 
-    pub fn push_args(&mut self, arg: String) { self.args.push(arg); }
+    pub fn push_args(&mut self, arg: String) { 
+	self.args.push(arg); 
+    }
 
     pub fn splice_args(&mut self) {
         self.args.splice(1..1, RAP_DEFAULT_ARGS.iter().map(ToString::to_string));
@@ -108,8 +110,8 @@ fn main() {
         match arg.as_str() {
             "-F" | "-uaf" => {}, //FIXME: println!("dummy front end for safedrop; this will be captured by the compiler."),
             "-M" | "-mleak" => rap_args.enable_rcanary(),
-            "-adt" => rap_args.set_adt_display_verbose(),
-            "-z3" => rap_args.set_z3_goal_display_verbose(),
+            "-adt" => rap_args.set_adt_display(),
+            "-z3" => rap_args.set_z3_display(),
             "-meta" => rap_args.set_icx_slice_display(),
             "-mir" => rap_args.set_mir_display(),
             "-mir=verbose" => rap_args.set_mir_display_verbose(),

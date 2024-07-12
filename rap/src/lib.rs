@@ -22,7 +22,6 @@ use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 
-use crate::components::log::Verbosity;
 use crate::components::context::RapGlobalCtxt;
 use crate::components::display::MirDisplay;
 use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, IcxSliceDisplay, Z3GoalDisplay};
@@ -62,19 +61,15 @@ impl Default for RCanary {
 
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapConfig {
-    verbose: Verbosity,
     mir_display: MirDisplay,
     rcanary: RCanary,
-    safedrop: SafeDrop,
 }
 
 impl Default for RapConfig {
     fn default() -> Self {
         Self {
-            verbose: Verbosity::Info,
             mir_display: MirDisplay::Disabled,
             rcanary: RCanary::default(),
-            safedrop: SafeDrop::default(),
         }
     }
 }
@@ -112,11 +107,8 @@ impl Callbacks for RapConfig {
         Compilation::Continue
     }
 }
+
 impl RapConfig {
-
-    pub fn verbose(&self) -> Verbosity { self.verbose }
-
-    pub fn set_verbose(&mut self, verbose: Verbosity) { self.verbose = verbose; }
 
     pub fn mir_display(&self) -> MirDisplay { self.mir_display }
 
@@ -124,19 +116,15 @@ impl RapConfig {
 
     pub fn adt_display(&self) -> AdtOwnerDisplay { self.rcanary.adt_display }
 
-    pub fn enable_safedrop(&mut self) { self.safedrop.0 = true; }
-
-    pub fn is_safedrop_enabled(&self) -> bool { self.safedrop.0 }
-
     pub fn enable_rcanary(&mut self) { self.rcanary.enable = true; }
 
     pub fn is_rcanary_enabled(&self) -> bool { self.rcanary.enable }
 
     pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.rcanary.adt_display = adt_display; }
 
-    pub fn z3_goal_display(&self) -> Z3GoalDisplay { self.rcanary.z3_goal_display }
+    pub fn z3_display(&self) -> Z3GoalDisplay { self.rcanary.z3_goal_display }
 
-    pub fn set_z3_goal_display(&mut self, z3_goal_display: Z3GoalDisplay) { self.rcanary.z3_goal_display = z3_goal_display; }
+    pub fn set_z3_display(&mut self, z3_goal_display: Z3GoalDisplay) { self.rcanary.z3_goal_display = z3_goal_display; }
 
     pub fn icx_slice_display(&self) -> IcxSliceDisplay { self.rcanary.icx_slice_display }
 
@@ -179,30 +167,12 @@ pub fn compile_time_sysroot() -> Option<String> {
     Some(env)
 }
 
-fn run_analyzer<F, R>(name: &str, func: F) -> R
-    where F: FnOnce() -> R
-{
-    rap_info!("{} Start", name);
-    let res = func();
-    rap_info!("{} Done", name);
-    res
-}
-
 pub fn start_analyzer(tcx: TyCtxt, config: RapConfig) {
     let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, config));
     let rcx = Box::leak(rcx_boxed);
 
     if config.is_rcanary_enabled() {
-        run_analyzer(
-            "Type Analysis",
-            ||
-                TypeAnalysis::new(rcx).start()
-        );
-
-        run_analyzer(
-            "Flow Analysis",
-            ||
-                FlowAnalysis::new(rcx).start()
-        );
+        TypeAnalysis::new(rcx).start();
+        FlowAnalysis::new(rcx).start();
     }
 }
