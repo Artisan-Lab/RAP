@@ -3,9 +3,8 @@
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
 
-use rap::{RAP_ROOT, rap_info, rap_debug, rap_error};
+use rap::{rap_info, rap_debug, rap_error};
 use rap::components::log::{Verbosity, rap_error_and_exit};
-use rap::components::fs::rap_remove_dir;
 use std::env;
 use std::iter::TakeWhile;
 use std::process::Command;
@@ -242,8 +241,7 @@ fn cleanup(){
     let mut cmd = Command::new("cargo");
     cmd.arg("clean");
     run_cmd(cmd);
-    rap_info!("Running cargo clean for local package");
-    rap_remove_dir(RAP_ROOT, "Failed to init RAP root dir");
+    rap_info!("Execute cargo clean.");
 }
 
 fn phase_cargo_rap() {

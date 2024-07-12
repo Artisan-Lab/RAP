@@ -1,10 +1,6 @@
 #![feature(rustc_private)]
 
 extern crate rustc_driver;
-extern crate rustc_interface;
-extern crate rustc_middle;
-extern crate rustc_metadata;
-extern crate rustc_data_structures;
 extern crate rustc_session;
 
 use rustc_session::config::ErrorOutputType;

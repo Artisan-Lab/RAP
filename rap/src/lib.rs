@@ -11,17 +11,8 @@ extern crate rustc_middle;
 extern crate rustc_metadata;
 extern crate rustc_data_structures;
 extern crate rustc_session;
-extern crate rustc_hir;
 extern crate rustc_span;
-extern crate rustc_index;
 extern crate rustc_target;
-extern crate rustc_abi;
-
-extern crate serde;
-extern crate serde_json;
-
-extern crate serde_derive;
-extern crate core;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_driver::{Compilation, Callbacks};
@@ -31,7 +22,6 @@ use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 
-//use std::fmt::{Display, Formatter};
 use crate::components::log::Verbosity;
 use crate::components::context::RapGlobalCtxt;
 use crate::components::display::MirDisplay;
@@ -44,7 +34,7 @@ use std::path::PathBuf;
 // set per default, for maximal validation power.
 pub static RAP_DEFAULT_ARGS: &[&str] =
     &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
-pub static RAP_ROOT:&str = "/tmp/rap";
+//pub static RAP_ROOT:&str = "/tmp/rap";
 
 pub type Elapsed = (i64, i64);
 
