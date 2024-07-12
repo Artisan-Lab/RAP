@@ -1,11 +1,16 @@
 #![feature(rustc_private)]
 #![feature(control_flow_enum)]
 #![feature(box_patterns)]
+
 pub mod analysis;
 pub mod components;
 
 extern crate rustc_driver;
+extern crate rustc_interface;
 extern crate rustc_middle;
+extern crate rustc_metadata;
+extern crate rustc_data_structures;
+extern crate rustc_session;
 extern crate rustc_hir;
 extern crate rustc_span;
 extern crate rustc_index;
@@ -19,12 +24,21 @@ extern crate serde_derive;
 extern crate core;
 
 use rustc_middle::ty::TyCtxt;
+use rustc_driver::{Compilation, Callbacks};
+use rustc_interface::{interface::Compiler, Queries};
+use rustc_middle::util::Providers;
+use rustc_interface::Config;
+use rustc_session::search_paths::PathKind;
+use rustc_data_structures::sync::Lrc;
 
+//use std::fmt::{Display, Formatter};
 use crate::components::log::Verbosity;
 use crate::components::context::RapGlobalCtxt;
 use crate::components::display::MirDisplay;
 use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, IcxSliceDisplay, Z3GoalDisplay};
 use crate::analysis::rcanary::type_analysis::{TypeAnalysis, AdtOwnerDisplay};
+
+use std::path::PathBuf;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -43,12 +57,6 @@ struct RCanary {
     adt_display: AdtOwnerDisplay,
     z3_goal_display: Z3GoalDisplay,
     icx_slice_display: IcxSliceDisplay,
-}
-
-#[derive(Debug, Copy, Clone, Hash, Default)]
-struct HelloWorld {
-    front: bool,
-    back: bool,
 }
 
 impl Default for RCanary {
@@ -81,6 +89,39 @@ impl Default for RapConfig {
     }
 }
 
+impl Callbacks for RapConfig {
+    fn config(&mut self, config: &mut Config) {
+        config.override_queries = Some(|_, providers| {
+            providers.extern_queries.used_crate_source = |tcx, cnum| {
+                let mut providers = Providers::default();
+                rustc_metadata::provide(&mut providers);
+                let mut crate_source = (providers.extern_queries.used_crate_source)(tcx, cnum);
+                // HACK: rustc will emit "crate ... required to be available in rlib format, but
+                // was not found in this form" errors once we use `tcx.dependency_formats()` if
+                // there's no rlib provided, so setting a dummy path here to workaround those errors.
+                Lrc::make_mut(&mut crate_source).rlib = Some((PathBuf::new(), PathKind::All));
+                crate_source
+            };
+        });
+    }
+
+    fn after_analysis<'tcx>(
+        &mut self,
+        compiler: &Compiler,
+        queries: &'tcx Queries<'tcx>,
+    ) -> Compilation {
+        compiler.session().abort_if_errors();
+
+        rap_info!("Execute after_analysis() of compiler callbacks");
+        queries.global_ctxt().unwrap().enter(
+            |tcx| start_analyzer(tcx, *self)
+        );
+        rap_info!("analysis done");
+
+        compiler.session().abort_if_errors();
+        Compilation::Continue
+    }
+}
 impl RapConfig {
 
     pub fn verbose(&self) -> Verbosity { self.verbose }
