@@ -23,9 +23,8 @@ use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 
 use crate::components::context::RapGlobalCtxt;
-use crate::components::display::MirDisplay;
-use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, IcxSliceDisplay, Z3GoalDisplay};
-use crate::analysis::rcanary::type_analysis::{TypeAnalysis, AdtOwnerDisplay};
+use crate::analysis::rcanary::flow_analysis::{FlowAnalysis};
+use crate::analysis::rcanary::type_analysis::{TypeAnalysis};
 
 use std::path::PathBuf;
 
@@ -43,32 +42,24 @@ struct SafeDrop(bool);
 #[derive(Debug, Copy, Clone, Hash)]
 struct RCanary {
     enable: bool,
-    adt_display: AdtOwnerDisplay,
-    z3_goal_display: Z3GoalDisplay,
-    icx_slice_display: IcxSliceDisplay,
 }
 
 impl Default for RCanary {
     fn default() -> Self {
         Self {
             enable: false,
-            adt_display: AdtOwnerDisplay::Disabled,
-            z3_goal_display: Z3GoalDisplay::Disabled,
-            icx_slice_display: IcxSliceDisplay::Disabled,
         }
     }
 }
 
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapConfig {
-    mir_display: MirDisplay,
     rcanary: RCanary,
 }
 
 impl Default for RapConfig {
     fn default() -> Self {
         Self {
-            mir_display: MirDisplay::Disabled,
             rcanary: RCanary::default(),
         }
     }
@@ -109,27 +100,13 @@ impl Callbacks for RapConfig {
 }
 
 impl RapConfig {
+    pub fn enable_rcanary(&mut self) { 
+	self.rcanary.enable = true; 
+    }
 
-    pub fn mir_display(&self) -> MirDisplay { self.mir_display }
-
-    pub fn set_mir_display(&mut self, mir_display: MirDisplay) { self.mir_display = mir_display; }
-
-    pub fn adt_display(&self) -> AdtOwnerDisplay { self.rcanary.adt_display }
-
-    pub fn enable_rcanary(&mut self) { self.rcanary.enable = true; }
-
-    pub fn is_rcanary_enabled(&self) -> bool { self.rcanary.enable }
-
-    pub fn set_adt_display(&mut self, adt_display: AdtOwnerDisplay) { self.rcanary.adt_display = adt_display; }
-
-    pub fn z3_display(&self) -> Z3GoalDisplay { self.rcanary.z3_goal_display }
-
-    pub fn set_z3_display(&mut self, z3_goal_display: Z3GoalDisplay) { self.rcanary.z3_goal_display = z3_goal_display; }
-
-    pub fn icx_slice_display(&self) -> IcxSliceDisplay { self.rcanary.icx_slice_display }
-
-    pub fn set_icx_slice_display(&mut self, icx_slice_display: IcxSliceDisplay) { self.rcanary.icx_slice_display = icx_slice_display; }
-
+    pub fn is_rcanary_enabled(&self) -> bool { 
+	self.rcanary.enable 
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]

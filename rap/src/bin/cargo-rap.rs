@@ -37,7 +37,6 @@ General command:
 
 Debugging options:
     -mir             print the MIR of each function
-    -mir=verbose     print more detailed MIR
 
 "#;
 
@@ -224,16 +223,13 @@ fn rap_add_env(cmd: &mut Command) {
         cmd.env("ADT_DISPLAY", "ON");
     }
     if has_arg_flag("-z3") {
-        cmd.env("Z3_GOAL", "ON");
+        cmd.env("Z3", "ON");
     }
     if has_arg_flag("-meta") {
         cmd.env("ICX_SLICE", "ON");
     }
     if has_arg_flag("-mir") {
-        cmd.env("MIR_DISPLAY", "SIMPLE");
-    }
-    if has_arg_flag("-mir=verbose") {
-        cmd.env("MIR_DISPLAY", "VERBOSE");
+        cmd.env("MIR_DISPLAY", "ON");
     }
 }
 

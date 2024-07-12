@@ -71,7 +71,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         #[inline(always)]
         fn show_mir_if_needed(did: DefId, body: &Body) {
             // Display the mir body if is Display MIR Verbose / Very Verbose
-            if !display::is_display_verbose() { return; }
+            if !display::is_display() { return; }
             println!("{}", did.display().color(Color::LightRed));
             println!("{}", body.local_decls.display().color(Color::Green));
             println!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
