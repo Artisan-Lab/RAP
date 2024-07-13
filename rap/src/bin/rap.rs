@@ -5,15 +5,12 @@ extern crate rustc_session;
 
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyErrorHandler;
-
 use std::env;
-
-use rap::{RapConfig, compile_time_sysroot, RAP_DEFAULT_ARGS};
+use rap::{RapCallback, compile_time_sysroot, RAP_DEFAULT_ARGS};
 use rap::components::{log::Verbosity};
 use rap::{rap_info, rap_debug};
 
-
-fn run_complier(args: &mut Vec<String>, config: &mut RapConfig) -> i32 {
+fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
     if let Some(sysroot) = compile_time_sysroot() {
         let sysroot_flag = "--sysroot";
         if !args.iter().any(|e| e == sysroot_flag) {
@@ -29,9 +26,8 @@ fn run_complier(args: &mut Vec<String>, config: &mut RapConfig) -> i32 {
     rustc_driver::init_rustc_env_logger(&handler);
     rustc_driver::install_ice_hook("bug_report_url", |_|());
 
-    let run_compiler = rustc_driver::RunCompiler::new(&args, config);
+    let run_compiler = rustc_driver::RunCompiler::new(&args, callback);
     let exit_code = rustc_driver::catch_with_exit_code(move || run_compiler.run());
-
     rap_debug!("The arg for compilation is {:?}", args);
 
     exit_code
@@ -44,12 +40,12 @@ fn main() {
 
     // Parse the arguments from env.
     let mut args = vec![];
-    let mut config = RapConfig::default();
+    let mut compiler = RapCallback::default();
     rap_debug!("rap received arguments{:#?}", env::args());
     for arg in env::args() {
         match arg.as_str() {
             "-F" | "-uaf" => {},
-            "-M" | "-mleak" => config.enable_rcanary(),
+            "-M" | "-mleak" => compiler.enable_rcanary(),
             "-adt" => {},
             "-z3" => {},
             "-meta" => {},
@@ -58,7 +54,6 @@ fn main() {
         }
     }
     rap_debug!("Arguments: {:?}", &args);
-
-    let exit_code = run_complier(&mut args, &mut config);
+    let exit_code = run_complier(&mut args, &mut compiler);
     std::process::exit(exit_code)
 }

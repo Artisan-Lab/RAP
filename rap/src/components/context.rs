@@ -1,25 +1,24 @@
 use rustc_middle::ty::TyCtxt;
 
-use crate::{RapConfig, Elapsed};
+use crate::{RapCallback, Elapsed};
 use crate::analysis::rcanary::flow_analysis::MirGraph;
 use crate::analysis::rcanary::type_analysis::AdtOwner;
-
 use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct RapGlobalCtxt<'tcx> {
     tcx: TyCtxt<'tcx>,
-    config: RapConfig,
+    callback: RapCallback,
     adt_owner: AdtOwner,
     mir_graph: MirGraph,
     elapsed: Elapsed,
 }
 
 impl<'tcx> RapGlobalCtxt<'tcx> {
-    pub fn new(tcx:TyCtxt<'tcx>, config: RapConfig) -> Self {
+    pub fn new(tcx:TyCtxt<'tcx>, callback: RapCallback) -> Self {
         Self {
             tcx,
-            config,
+            callback,
             adt_owner: HashMap::default(),
             mir_graph: HashMap::default(),
             elapsed: (0, 0),
@@ -30,8 +29,8 @@ impl<'tcx> RapGlobalCtxt<'tcx> {
         self.tcx
     }
 
-    pub fn config(&self) -> RapConfig {
-        self.config
+    pub fn callback(&self) -> RapCallback {
+        self.callback
     }
 
     pub fn adt_owner(&self) -> &AdtOwner {

@@ -21,12 +21,10 @@ use rustc_middle::util::Providers;
 use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
-
+use std::path::PathBuf;
 use crate::components::context::RapGlobalCtxt;
 use crate::analysis::rcanary::flow_analysis::{FlowAnalysis};
 use crate::analysis::rcanary::type_analysis::{TypeAnalysis};
-
-use std::path::PathBuf;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -36,11 +34,11 @@ pub static RAP_DEFAULT_ARGS: &[&str] =
 pub type Elapsed = (i64, i64);
 
 #[derive(Debug, Copy, Clone, Hash)]
-pub struct RapConfig {
+pub struct RapCallback {
     rcanary: bool,
 }
 
-impl Default for RapConfig {
+impl Default for RapCallback {
     fn default() -> Self {
         Self {
             rcanary: false,
@@ -48,7 +46,7 @@ impl Default for RapConfig {
     }
 }
 
-impl Callbacks for RapConfig {
+impl Callbacks for RapCallback {
     fn config(&mut self, config: &mut Config) {
         config.override_queries = Some(|_, providers| {
             providers.extern_queries.used_crate_source = |tcx, cnum| {
@@ -82,7 +80,7 @@ impl Callbacks for RapConfig {
     }
 }
 
-impl RapConfig {
+impl RapCallback {
     pub fn enable_rcanary(&mut self) { 
 	self.rcanary = true; 
     }
@@ -109,7 +107,6 @@ pub fn compile_time_sysroot() -> Option<String> {
         // We can rely on the sysroot computation in rustc.
         return None;
     }
-
     // For builds outside rustc, we need to ensure that we got a sysroot
     // that gets used as a default.  The sysroot computation in librustc_session would
     // end up somewhere in the build dir (see `get_or_default_sysroot`).
@@ -123,16 +120,16 @@ pub fn compile_time_sysroot() -> Option<String> {
             .expect("To build RAP without rustup, set the `RUST_SYSROOT` env var at build time")
             .to_string()
     };
-
     Some(env)
 }
 
-pub fn start_analyzer(tcx: TyCtxt, config: RapConfig) {
-    let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, config));
+pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
+    let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, callback));
     let rcx = Box::leak(rcx_boxed);
 
-    if config.is_rcanary_enabled() {
+    if callback.is_rcanary_enabled() {
         TypeAnalysis::new(rcx).start();
         FlowAnalysis::new(rcx).start();
     }
 }
+
