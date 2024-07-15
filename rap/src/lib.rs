@@ -13,6 +13,7 @@ extern crate rustc_data_structures;
 extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
+extern crate rustc_hir;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_driver::{Compilation, Callbacks};
@@ -25,6 +26,7 @@ use std::path::PathBuf;
 use crate::components::context::RapGlobalCtxt;
 use crate::analysis::rcanary::flow_analysis::{FlowAnalysis};
 use crate::analysis::rcanary::type_analysis::{TypeAnalysis};
+use crate::analysis::unsafety_isolation::UnsafetyIsolationCheck;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -36,12 +38,14 @@ pub type Elapsed = (i64, i64);
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapCallback {
     rcanary: bool,
+    unsafety_isolation: bool,
 }
 
 impl Default for RapCallback {
     fn default() -> Self {
         Self {
             rcanary: false,
+            unsafety_isolation: false,
         }
     }
 }
@@ -82,11 +86,19 @@ impl Callbacks for RapCallback {
 
 impl RapCallback {
     pub fn enable_rcanary(&mut self) { 
-	self.rcanary = true; 
+	    self.rcanary = true; 
     }
 
     pub fn is_rcanary_enabled(&self) -> bool { 
-	self.rcanary 
+	    self.rcanary 
+    }
+
+    pub fn enable_unsafety_isolation(&mut self) { 
+        self.unsafety_isolation = true; 
+    }
+    
+    pub fn is_unsafety_isolation_enabled(&self) -> bool { 
+        self.unsafety_isolation 
     }
 }
 
@@ -130,6 +142,10 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
         TypeAnalysis::new(rcx).start();
         FlowAnalysis::new(rcx).start();
+    }
+
+    if callback.is_unsafety_isolation_enabled() {
+        UnsafetyIsolationCheck::new(tcx).start();
     }
 }
 
