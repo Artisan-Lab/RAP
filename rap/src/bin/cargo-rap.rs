@@ -4,7 +4,7 @@
 */
 
 use rap::{rap_info, rap_debug, rap_error};
-use rap::components::log::{Verbosity, rap_error_and_exit};
+use rap::utils::log::{Verbosity, rap_error_and_exit};
 use std::env;
 use std::iter::TakeWhile;
 use std::process::Command;

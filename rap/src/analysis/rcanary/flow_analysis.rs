@@ -7,10 +7,9 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 use rustc_middle::mir::{Body, Terminator};
 
-use crate::{Elapsed, RapGlobalCtxt};
-use crate::analysis::rcanary::{IcxMut, IcxSliceMut, Rcx, RcxMut};
-use crate::analysis::rcanary::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique,
-                                              type_visitor::TyWithIndex};
+use crate::Elapsed;
+use crate::analysis::rcanary::{RcanaryGlobalCtxt,IcxMut, IcxSliceMut, Rcx, RcxMut};
+use crate::analysis::rcanary::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
 use crate::analysis::rcanary::flow_analysis::ownership::{IntraVar, Taint};
 
 use std::collections::{HashMap, HashSet};
@@ -73,12 +72,12 @@ impl Graph {
 }
 
 pub struct FlowAnalysis<'tcx, 'a> {
-    rcx: &'a mut RapGlobalCtxt<'tcx>,
+    rcx: &'a mut RcanaryGlobalCtxt<'tcx>,
     fn_set: Unique,
 }
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
-    pub fn new(rcx: &'a mut RapGlobalCtxt<'tcx>) -> Self {
+    pub fn new(rcx: &'a mut RcanaryGlobalCtxt<'tcx>) -> Self {
         Self {
             rcx,
             fn_set: HashSet::new(),
@@ -117,12 +116,12 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
 
 impl<'tcx, 'o, 'a> RcxMut<'tcx, 'o, 'a> for FlowAnalysis<'tcx, 'a> {
     #[inline(always)]
-    fn rcx(&'o self) -> &'o RapGlobalCtxt<'tcx> {
+    fn rcx(&'o self) -> &'o RcanaryGlobalCtxt<'tcx> {
         self.rcx
     }
 
     #[inline(always)]
-    fn rcx_mut(&'o mut self) -> &'o mut RapGlobalCtxt<'tcx> {
+    fn rcx_mut(&'o mut self) -> &'o mut RcanaryGlobalCtxt<'tcx> {
         &mut self.rcx
     }
 
@@ -165,12 +164,12 @@ impl<'tcx> NodeOrder<'tcx> {
 }
 
 struct InterFlowAnalysis<'tcx, 'a> {
-    rcx:&'a RapGlobalCtxt<'tcx>,
+    rcx:&'a RcanaryGlobalCtxt<'tcx>,
 }
 
 impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
     #[inline(always)]
-    fn rcx(&'o self) -> &'a RapGlobalCtxt<'tcx> {
+    fn rcx(&'o self) -> &'a RcanaryGlobalCtxt<'tcx> {
         self.rcx
     }
 
@@ -179,7 +178,7 @@ impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
 }
 
 struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
-    rcx: &'a RapGlobalCtxt<'tcx>,
+    rcx: &'a RcanaryGlobalCtxt<'tcx>,
     icx: IntraFlowContext<'tcx, 'ctx>,
     icx_slice: IcxSliceFroBlock<'tcx, 'ctx>,
     did: DefId,
@@ -192,7 +191,7 @@ struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
 impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     pub fn new(
-        rcx: &'a RapGlobalCtxt<'tcx>,
+        rcx: &'a RcanaryGlobalCtxt<'tcx>,
         did: DefId,
         //unique: &'a mut Unique,
     ) -> Self
@@ -247,7 +246,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
 impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     #[inline(always)]
-    fn rcx(&'o self) -> &'a RapGlobalCtxt<'tcx> {
+    fn rcx(&'o self) -> &'a RcanaryGlobalCtxt<'tcx> {
         self.rcx
     }
 

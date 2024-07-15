@@ -7,7 +7,7 @@ use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyErrorHandler;
 use std::env;
 use rap::{RapCallback, compile_time_sysroot, RAP_DEFAULT_ARGS};
-use rap::components::{log::Verbosity};
+use rap::utils::log::Verbosity;
 use rap::{rap_info, rap_debug};
 
 fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {

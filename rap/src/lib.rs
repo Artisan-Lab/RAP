@@ -3,7 +3,7 @@
 #![feature(box_patterns)]
 
 pub mod analysis;
-pub mod components;
+pub mod utils;
 
 extern crate rustc_driver;
 extern crate rustc_interface;
@@ -22,9 +22,10 @@ use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
-use crate::components::context::RapGlobalCtxt;
-use crate::analysis::rcanary::flow_analysis::{FlowAnalysis};
-use crate::analysis::rcanary::type_analysis::{TypeAnalysis};
+
+use analysis::rcanary::RcanaryGlobalCtxt;
+use analysis::rcanary::flow_analysis::{FlowAnalysis};
+use analysis::rcanary::type_analysis::{TypeAnalysis};
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -124,10 +125,9 @@ pub fn compile_time_sysroot() -> Option<String> {
 }
 
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
-    let rcx_boxed = Box::new(RapGlobalCtxt::new(tcx, callback));
-    let rcx = Box::leak(rcx_boxed);
-
     if callback.is_rcanary_enabled() {
+        let rcx_boxed = Box::new(RcanaryGlobalCtxt::new(tcx));
+        let rcx = Box::leak(rcx_boxed);
         TypeAnalysis::new(rcx).start();
         FlowAnalysis::new(rcx).start();
     }

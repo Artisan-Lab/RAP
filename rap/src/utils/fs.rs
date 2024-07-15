@@ -1,4 +1,4 @@
-use crate::components::log::rap_error_and_exit;
+use crate::utils::log::rap_error_and_exit;
 
 use std::fs::{self, File};
 use std::io::Write;
