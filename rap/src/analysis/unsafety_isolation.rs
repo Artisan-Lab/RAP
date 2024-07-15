@@ -1,6 +1,5 @@
 pub mod isolation_graph;
 pub mod hir_visitor;
-pub mod contexts;
 pub mod generate_dot;
 pub mod draw_dot;
 
