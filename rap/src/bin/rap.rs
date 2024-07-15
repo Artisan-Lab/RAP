@@ -46,6 +46,7 @@ fn main() {
         match arg.as_str() {
             "-F" | "-uaf" => {},
             "-M" | "-mleak" => compiler.enable_rcanary(),
+            "-UI" => compiler.enable_unsafety_isolation(),
             "-adt" => {},
             "-z3" => {},
             "-meta" => {},
