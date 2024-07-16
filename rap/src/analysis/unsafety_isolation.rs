@@ -51,7 +51,7 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                     let name = self.get_name(body_did);
                     let mut new_node = IsolationGraphNode::new(body_did, node_type, name, function_unsafe, true);
                     if node_type == 1 {
-                        new_node.constructor_id = self.search_constructor(body_did);
+                        new_node.constructors = self.search_constructor(body_did);
                     }
                     self.nodes.push(new_node);
                     self.related_func_def_id.push(body_did);
@@ -78,12 +78,10 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
     }
 
     pub fn check_if_node_exists(&self, body_did: DefId) -> bool {
-        for node in &self.nodes {
-            if node.node_id == body_did {
-                return true
-            }
+        if let Some(_node) = self.nodes.iter().find(|n| n.node_id == body_did) {
+            return true;
         }
-        return false
+        return false;
     }
 
     pub fn check_safety(&self, body_did: DefId) -> bool {
@@ -105,7 +103,6 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                 let method_name = tcx.def_path(body_did).to_string_no_crate_verbose();
                 let method_name = method_name.split("::").last().unwrap_or("");
                 name = format!("{}.{}", type_name, method_name);
-                // println!("{:?}",format!("{}.{}", type_name, method_name));
             }
             //TODO: handle trait method
         }
@@ -144,7 +141,7 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
         return node_type;
     }
 
-    pub fn search_constructor(&mut self,def_id: DefId) -> Option<Vec<DefId>> {
+    pub fn search_constructor(&mut self,def_id: DefId) -> Vec<DefId> {
         let tcx = self.tcx;
         let mut constructors = Vec::new();
         if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
@@ -160,8 +157,9 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                             if let ty::AssocKind::Fn = item.kind {
                                 let item_def_id = item.def_id;
                                 if self.get_type(item_def_id) == 0{
-                                    constructors.push(item_def_id.clone());
-                                    self.insert_node(item_def_id);
+                                    constructors.push(item_def_id);
+                                    self.check_and_insert_node(item_def_id);
+                                    self.set_method_for_constructor(item_def_id, def_id);
                                 }
                             }
                         }
@@ -169,11 +167,7 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                 }
             }
         }
-        if constructors.is_empty() {
-            None
-        } else {
-            Some(constructors)
-        }
+        constructors
     }
 
     pub fn get_impls_for_struct(&self, struct_def_id: DefId) -> Vec<DefId> {
@@ -211,7 +205,8 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                                     if !callees.contains(callee_def_id) {
                                         callees.push(*callee_def_id);
                                         if !self.check_if_node_exists(*callee_def_id) {
-                                            self.insert_node(*callee_def_id);                           
+                                            self.check_and_insert_node(*callee_def_id);  
+                                            self.set_caller_for_callee(def_id,*callee_def_id);                        
                                         }
                                     }
                                 }
@@ -230,25 +225,38 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
     }
 
     pub fn is_crate_api_node(&self, body_did: DefId) -> bool {
-        if let Some(node) = self.nodes.iter().find(|n| n.node_id == body_did) {
-            return node.is_crate_api
-        }
-        false
+        return self.related_func_def_id.contains(&body_did);
     }
 
-    pub fn insert_node(&mut self,body_did: DefId){
-        if self.check_if_node_exists(body_did){
+    pub fn check_and_insert_node(&mut self,body_did: DefId){
+        if self.check_if_node_exists(body_did) {
             return
         }
         let node_type = self.get_type(body_did);
         let name = self.get_name(body_did);
-        let is_crate_api = self.related_func_def_id.contains(&body_did);
+        let is_crate_api = self.is_crate_api_node(body_did);
         let mut new_node = IsolationGraphNode::new(body_did, node_type, name, true, is_crate_api);
         if node_type == 1 {
-            new_node.constructor_id = self.search_constructor(body_did);
+            new_node.constructors = self.search_constructor(body_did);
         }
         new_node.visited_tag = false;
         self.nodes.push(new_node);
+    }
+
+    pub fn set_method_for_constructor(&mut self, constructor_did: DefId, method_did: DefId) {
+        if let Some(node) = self.nodes.iter_mut().find(|node| node.node_id == constructor_did) {
+            if !node.methods.contains(&method_did) {
+                node.methods.push(method_did);
+            }
+        }
+    }
+
+    pub fn set_caller_for_callee(&mut self, caller_did: DefId, callee_did: DefId) {
+        if let Some(node) = self.nodes.iter_mut().find(|node| node.node_id == callee_did) {
+            if !node.callers.contains(&caller_did) {
+                node.callers.push(caller_did);
+            }
+        }
     }
 
     pub fn show_nodes(&self) {

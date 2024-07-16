@@ -20,19 +20,10 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                         continue;
                     }
                     subgraph_nodes.insert(current);
-                    for callee in self.get_callees_by_def_id(current) {
-                        if !subgraph_nodes.contains(&callee) {
-                            stack.push(callee.clone());
+                    for adjacent_node in self.get_adjacent_nodes_by_def_id(current) {
+                        if !subgraph_nodes.contains(&adjacent_node) {
+                            stack.push(adjacent_node.clone());
                         }
-                        subgraph_nodes.insert(callee.clone());
-                        // visited.insert(callee.clone());
-                    }
-                    for constructor in self.get_constructors_by_def_id(current) {
-                        if !subgraph_nodes.contains(&constructor) {
-                            stack.push(constructor.clone());
-                        }
-                        subgraph_nodes.insert(constructor.clone());
-                        // visited.insert(constructor.clone());
                     }
                 }
                 let graph = self.generate_dot_desc(subgraph_nodes);
@@ -79,11 +70,9 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                     edges.push((node.node_name.clone(), callee.node_name.clone(), "solid"));
                 }
             }
-            if let Some(constructor_ids) = node.constructor_id.clone() {
-                for cons in constructor_ids {
-                    if let Some(constructor) = self.nodes.iter().find(|n| n.node_id == cons) {
-                        edges.push(( constructor.node_name.clone(), node.node_name.clone(), "dashed"));
-                    }
+            for &cons in &node.constructors {
+                if let Some(constructor) = self.nodes.iter().find(|n| n.node_id == cons) {
+                    edges.push(( constructor.node_name.clone(), node.node_name.clone(), "dashed"));
                 }
             }
         }
@@ -117,19 +106,14 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
         String::new()
     }
 
-    pub fn get_callees_by_def_id(&self, def_id: DefId) -> Vec<DefId>{
+    pub fn get_adjacent_nodes_by_def_id(&self, def_id: DefId) -> Vec<DefId>{
+        let mut nodes = Vec::new();
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
-            return node.callees.clone();
+            nodes.extend(node.callees.clone());
+            nodes.extend(node.methods.clone());
+            nodes.extend(node.callers.clone());
+            nodes.extend(node.constructors.clone());
         }
-        Vec::new()
-    }
-
-    pub fn get_constructors_by_def_id(&self, def_id: DefId) -> Vec<DefId>{
-        if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
-            if let Some(constructors) = &node.constructor_id{
-                return constructors.clone();    
-            }
-        }
-        Vec::new()
+        nodes
     }
 }
