@@ -4,7 +4,7 @@ pub mod type_visitor;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 
-use crate::analysis::rcanary::{RcanaryGlobalCtxt,RcxMut};
+use crate::analysis::rcanary::{rCanary,RcxMut};
 use ownership::RawTypeOwner;
 
 use std::collections::{HashMap, HashSet};
@@ -25,14 +25,14 @@ pub type RustBV = Vec<bool>;
 // The struct TypeAnalysis implements mir::Visitor to simulate as the type collector.
 // Note: the type in this phase is Ty::ty rather of Hir::ty.
 pub struct TypeAnalysis<'tcx, 'a> {
-    rcx: &'a mut RcanaryGlobalCtxt<'tcx>,
+    rcx: &'a mut rCanary<'tcx>,
     fn_set: Unique,
     ty_map: TyMap<'tcx>,
     adt_recorder: Unique,
 }
 
 impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
-    pub fn new(rcx: &'a mut RcanaryGlobalCtxt<'tcx>) -> Self {
+    pub fn new(rcx: &'a mut rCanary<'tcx>) -> Self {
         Self {
             rcx,
             fn_set: HashSet::new(),
@@ -93,12 +93,12 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
 
 impl<'tcx, 'o, 'a> RcxMut<'tcx, 'o, 'a> for TypeAnalysis<'tcx, 'a> {
     #[inline(always)]
-    fn rcx(&'o self) -> &'o RcanaryGlobalCtxt<'tcx> {
+    fn rcx(&'o self) -> &'o rCanary<'tcx> {
         self.rcx
     }
 
     #[inline(always)]
-    fn rcx_mut(&'o mut self) -> &'o mut RcanaryGlobalCtxt<'tcx> {
+    fn rcx_mut(&'o mut self) -> &'o mut rCanary<'tcx> {
         &mut self.rcx
     }
 

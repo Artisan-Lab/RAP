@@ -3,20 +3,20 @@ pub mod flow_analysis;
 
 use rustc_middle::ty::TyCtxt;
 use crate::{Elapsed};
-use crate::analysis::rcanary::flow_analysis::MirGraph;
-use crate::analysis::rcanary::type_analysis::AdtOwner;
-use crate::analysis::rcanary::flow_analysis::{IcxSliceFroBlock, IntraFlowContext};
+use flow_analysis::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
+use type_analysis::{TypeAnalysis,AdtOwner};
 use std::collections::HashMap;
 
+#[allow(non_camel_case_types)]
 #[derive(Clone)]
-pub struct RcanaryGlobalCtxt<'tcx> {
+pub struct rCanary<'tcx> {
     tcx: TyCtxt<'tcx>,
     adt_owner: AdtOwner,
     mir_graph: MirGraph,
     elapsed: Elapsed,
 }
 
-impl<'tcx> RcanaryGlobalCtxt<'tcx> {
+impl<'tcx> rCanary<'tcx> {
     pub fn new(tcx:TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
@@ -24,6 +24,13 @@ impl<'tcx> RcanaryGlobalCtxt<'tcx> {
             mir_graph: HashMap::default(),
             elapsed: (0, 0),
         }
+    }
+
+    pub fn start(&mut self) {
+        let rcx_boxed = Box::new(rCanary::new(self.tcx));
+        let rcx = Box::leak(rcx_boxed);
+        TypeAnalysis::new(rcx).start();
+        FlowAnalysis::new(rcx).start();
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -71,20 +78,21 @@ impl<'tcx> RcanaryGlobalCtxt<'tcx> {
     }
 }
 
+
 pub trait Tcx<'tcx, 'o, 'a> {
     fn tcx(&'o self) -> TyCtxt<'tcx>;
 }
 
 pub trait Rcx<'tcx, 'o, 'a> {
-    fn rcx(&'o self) -> &'a RcanaryGlobalCtxt<'tcx>;
+    fn rcx(&'o self) -> &'a rCanary<'tcx>;
 
     fn tcx(&'o self) -> TyCtxt<'tcx>;
 }
 
 pub trait RcxMut<'tcx, 'o, 'a> {
-    fn rcx(&'o self) -> &'o RcanaryGlobalCtxt<'tcx>;
+    fn rcx(&'o self) -> &'o rCanary<'tcx>;
 
-    fn rcx_mut(&'o mut self) -> &'o mut RcanaryGlobalCtxt<'tcx>;
+    fn rcx_mut(&'o mut self) -> &'o mut rCanary<'tcx>;
 
     fn tcx(&'o self) -> TyCtxt<'tcx>;
 }

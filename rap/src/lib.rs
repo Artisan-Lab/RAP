@@ -23,9 +23,7 @@ use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
-use analysis::rcanary::RcanaryGlobalCtxt;
-use analysis::rcanary::flow_analysis::{FlowAnalysis};
-use analysis::rcanary::type_analysis::{TypeAnalysis};
+use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
@@ -137,10 +135,7 @@ pub fn compile_time_sysroot() -> Option<String> {
 
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
-        let rcx_boxed = Box::new(RcanaryGlobalCtxt::new(tcx));
-        let rcx = Box::leak(rcx_boxed);
-        TypeAnalysis::new(rcx).start();
-        FlowAnalysis::new(rcx).start();
+	rCanary::new(tcx).start()
     }
 
     if callback.is_unsafety_isolation_enabled() {
