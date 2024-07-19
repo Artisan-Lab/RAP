@@ -25,6 +25,7 @@ use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
 use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
+use analysis::callgraph::CallGraph;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -37,6 +38,7 @@ pub type Elapsed = (i64, i64);
 pub struct RapCallback {
     rcanary: bool,
     unsafety_isolation: bool,
+    callgraph: bool,
 }
 
 impl Default for RapCallback {
@@ -44,6 +46,7 @@ impl Default for RapCallback {
         Self {
             rcanary: false,
             unsafety_isolation: false,
+            callgraph: false,
         }
     }
 }
@@ -98,6 +101,14 @@ impl RapCallback {
     pub fn is_unsafety_isolation_enabled(&self) -> bool { 
         self.unsafety_isolation 
     }
+
+    pub fn enable_callgraph(&mut self) { 
+	self.callgraph = true; 
+    }
+
+    pub fn is_callgraph_enabled(&self) -> bool { 
+	self.callgraph 
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -140,6 +151,10 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_unsafety_isolation_enabled() {
         UnsafetyIsolationCheck::new(tcx).start();
+    }
+
+    if callback.is_callgraph_enabled() {
+        CallGraph::new(tcx).start();
     }
 }
 
