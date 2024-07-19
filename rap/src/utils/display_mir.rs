@@ -14,16 +14,8 @@ const EXPLAIN:&str = " @ ";
 // If you want output these messages that makes debug easily, please add -v or -vv to rap
 // that makes entire rap verbose.
 
-// MirDisplay is the controller in rap to determine if the Display trait should be derived.
-#[derive(Debug, Copy, Clone, Hash)]
-pub enum MirDisplay {
-    // Basic MIR information for Debug
-    On,
-    Off,
-}
-
-pub fn is_display() -> bool {
-    match env::var_os("MIR_DISPLAY") {
+pub fn is_on() -> bool {
+    match env::var_os("MIR_SHOW") {
         Some(_)  => true, 
         _ => false,
     }

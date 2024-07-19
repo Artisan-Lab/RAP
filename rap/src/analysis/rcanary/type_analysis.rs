@@ -365,19 +365,12 @@ impl<'tcx> FindPtr<'tcx> {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash)]
-pub enum AdtOwnerDisplay {
-    Verbose,
-    Disabled,
-}
-
 pub fn is_display_verbose() -> bool {
     match env::var_os("ADT_DISPLAY") {
         Some(_)  => true,
         _ => false,
     }
 }
-
 pub fn mir_body(tcx: TyCtxt<'_>, def_id: DefId) -> &rustc_middle::mir::Body<'_> {
     let def = ty::InstanceDef::Item(def_id);
     tcx.instance_mir(def)

@@ -1,15 +1,15 @@
-use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
-use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
-                        Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
+use rustc_middle::ty::{self,Ty,TyKind,TypeVisitable};
+use rustc_middle::mir::{Body,BasicBlock,BasicBlockData,Statement,StatementKind,
+                        Terminator,Place,Rvalue,Local,Operand,ProjectionElem,TerminatorKind};
 use rustc_target::abi::VariantIdx;
 
-use crate::{rap_error, rap_warn};
-use crate::analysis::rcanary::{Rcx, RcxMut, IcxMut, IcxSliceMut};
-use crate::analysis::rcanary::type_analysis::{DefaultOwnership, mir_body, OwnershipLayout, RustBV,
-                                              ownership::{OwnershipLayoutResult, RawTypeOwner},
+use crate::{rap_debug,rap_error,rap_warn};
+use crate::analysis::rcanary::{Rcx,RcxMut,IcxMut,IcxSliceMut};
+use crate::analysis::rcanary::type_analysis::{DefaultOwnership,mir_body,OwnershipLayout,RustBV,
+                                              ownership::{OwnershipLayoutResult,RawTypeOwner},
                                               type_visitor::TyWithIndex};
-use crate::analysis::rcanary::flow_analysis::{IntraFlowAnalysis, FlowAnalysis, IcxSliceFroBlock,
-                                              is_icx_slice_verbose, ownership::IntraVar};
+use crate::analysis::rcanary::flow_analysis::{IntraFlowAnalysis,FlowAnalysis,IcxSliceFroBlock,
+                                              ownership::IntraVar};
 
 use z3::ast::{self, Ast};
 use std::ops::Add;
@@ -230,7 +230,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             self.icx_slice = IcxSliceFroBlock::new_in(self.icx_mut(), bidx);
         }
 
-        // println!("{:?} in {}", self.icx_slice(), bidx);
+        // rap_debug!("{:?} in {}", self.icx_slice(), bidx);
     }
 
     pub(crate) fn reprocess_for_basic_block(
@@ -286,10 +286,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 // }
 
                 self.visit_assign(ctx, goal, solver, place, rvalue, disc, bidx, sidx);
-
-                if is_icx_slice_verbose() {
-                    println!("IcxSlice in Assign: {} {}: {:?}\n{:?}\n", bidx, sidx, stmt.kind, self.icx_slice());
-                }
+                rap_debug!("IcxSlice in Assign: {} {}: {:?}\n{:?}\n", bidx, sidx, stmt.kind, self.icx_slice());
             },
             StatementKind::StorageLive(_local) => { },
             StatementKind::StorageDead(_local) => { },
@@ -321,9 +318,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             _ => (),
         }
 
-        if is_icx_slice_verbose() {
-            println!("IcxSlice in Terminator: {}: {:?}\n{:?}\n", bidx, term.kind, self.icx_slice());
-        }
+        rap_debug!("IcxSlice in Terminator: {}: {:?}\n{:?}\n", bidx, term.kind, self.icx_slice());
     }
 
 
@@ -1795,8 +1790,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             Operand::Constant(constant) => {
                 match constant.ty().kind() {
                     ty::FnDef(id, ..) => {
-                        //println!("{:?}", id);
-                        //println!("{:?}", mir_body(self.tcx(), *id));
+                        //rap_debug!("{:?}", id);
+                        //rap_debug!("{:?}", mir_body(self.tcx(), *id));
                         match id.index.as_usize() {
                             2171 => {
                                 // this for calling std::mem::drop(TY)
@@ -2219,16 +2214,16 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
         if is_z3_goal_verbose() {
             let g = format!("{}", goal);
-            println!("{}\n", g.color(Color::LightGray).bold());
+            rap_debug!("{}\n", g.color(Color::LightGray).bold());
             if model.is_some() {
-                println!("{}", format!("{}", model.unwrap()).color(Color::LightCyan).bold());
+                rap_debug!("{}", format!("{}", model.unwrap()).color(Color::LightCyan).bold());
             }
         }
 
-        // println!("{}", self.body().local_decls.display());
-        // println!("{}", self.body().basic_blocks.display());
+        // rap_debug!("{}", self.body().local_decls.display());
+        // rap_debug!("{}", self.body().basic_blocks.display());
         // let g = format!("{}", goal);
-        // println!("{}\n", g.color(Color::LightGray).bold());
+        // rap_debug!("{}\n", g.color(Color::LightGray).bold());
 
 
         if result == z3::SatResult::Unsat && self.taint_flag {
