@@ -3,7 +3,7 @@ use rustc_middle::ty::{self,TyCtxt};
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::{def_id::DefId,intravisit::Visitor,Block, BodyId, Body, HirId, Impl, ItemKind};
 use rustc_span::Span;
-//use rap::utils::log::{rap_info, rap_debug};
+use crate::{rap_info,rap_debug};
 
 #[derive(Debug, Clone)]
 pub struct FnNode {
@@ -52,9 +52,9 @@ impl<'tcx> CallGraph<'tcx>{
     }
 
     pub fn start(&mut self) {
-	println!("start callgraph");
+	rap_info!("start callgraph analysis");
         let fn_items = FnCollector::collect(self.tcx);
-	println!("{:?}", fn_items);
+	rap_debug!("{:?}", fn_items);
     }
 
     pub fn visit_node_callees(&mut self,def_id: DefId) -> Vec<DefId> {

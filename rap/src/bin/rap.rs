@@ -34,14 +34,10 @@ fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
 }
 
 fn main() {
-    //Verbosity::init_log(Verbosity::Debug).expect("Failed to init log");
-    Verbosity::init_log(Verbosity::Info).expect("Failed to init log");
-    rap_info!("Enter rap.");
-
     // Parse the arguments from env.
+    let mut debug = false;
     let mut args = vec![];
     let mut compiler = RapCallback::default();
-    rap_debug!("rap received arguments{:#?}", env::args());
     for arg in env::args() {
         match arg.as_str() {
             "-F" | "-uaf" => {},
@@ -52,10 +48,18 @@ fn main() {
             "-UI" => compiler.enable_unsafety_isolation(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => {},
+            "-debug" => debug = true,
             _ => args.push(arg),
         }
     }
-    rap_debug!("Arguments: {:?}", &args);
+    if debug == true {
+	Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
+    } else {
+	Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
+    }
+    rap_debug!("rap received arguments{:#?}", env::args());
+    rap_debug!("arguments to rustc: {:?}", &args);
+
     let exit_code = run_complier(&mut args, &mut compiler);
     std::process::exit(exit_code)
 }

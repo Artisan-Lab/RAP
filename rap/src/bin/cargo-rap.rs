@@ -24,18 +24,17 @@ Use-After-Free/Double Free detection.
     -F or -uaf     Command: "cargo rap -uaf"
 
 Memory leakage detection.
-    -M or -mleak      Command: "cargo rap -mleak"
+    -M or -mleak     Command: "cargo rap -mleak"
 
-    More sub options for logging: 
-    	-adt         Print the pair of the result of type analysis, including the type definition and the analysis result.
-    	-z3          Emit the Z3 formula of the given function, it is in the SMT-Lib format.
-    	-meta        Set Verbose to print the middle metadate for RCANAY debug.
+Unsafe code tracing
+    -UI or -uig      generate unsafe code isolation graph
 
 General command: 
-    -H or -help:     Show help information
+    -H or -help:     show help information
     -V or -version:  show the version of RAP
 
 Debugging options:
+    -debug	     show the debug-level logs
     -mir             print the MIR of each function
 
 "#;
@@ -219,17 +218,8 @@ fn rap_add_env(cmd: &mut Command) {
     if has_arg_flag("-F") || has_arg_flag("-uaf") {
         cmd.env("UAF", "ENABLED");
     }
-    if has_arg_flag("-adt") {
-        cmd.env("ADT_DISPLAY", "ON");
-    }
-    if has_arg_flag("-z3") {
-        cmd.env("Z3", "ON");
-    }
-    if has_arg_flag("-meta") {
-        cmd.env("ICX_SLICE", "ON");
-    }
     if has_arg_flag("-mir") {
-        cmd.env("MIR_DISPLAY", "ON");
+        cmd.env("MIR_SHOW", "ON");
     }
 }
 

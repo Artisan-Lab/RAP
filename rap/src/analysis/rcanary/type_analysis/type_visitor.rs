@@ -7,11 +7,12 @@ use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, LocalDecl, Operand, Te
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
-use crate::utils::display::{self, Display};
+use crate::utils::display_mir::{self, Display};
 use crate::analysis::rcanary::RcxMut;
 use crate::analysis::rcanary::type_analysis::{self, TypeAnalysis, OwnerPropagation, RawGeneric,
                                      RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
                                      DefaultOwnership, FindPtr, mir_body};
+use crate::{rap_info,rap_debug};
 
 use std::collections::HashMap;
 use std::ops::ControlFlow;
@@ -60,21 +61,20 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
 
         #[inline(always)]
         fn show_owner_if_needed(ref_type_analysis: &mut TypeAnalysis) {
-            if !type_analysis::is_display_verbose() { return; }
             for elem in ref_type_analysis.adt_owner() {
                 let name = format!("{:?}", EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0)));
                 let owning = format!("{:?}", elem.1);
-                println!("{} {}", name.color(Color::Orange1), owning.color(Color::Yellow3a));
+                rap_debug!("{} {}", name.color(Color::Orange1), owning.color(Color::Yellow3a));
             }
         }
 
         #[inline(always)]
         fn show_mir_if_needed(did: DefId, body: &Body) {
             // Display the mir body if is Display MIR Verbose / Very Verbose
-            if !display::is_display() { return; }
-            println!("{}", did.display().color(Color::LightRed));
-            println!("{}", body.local_decls.display().color(Color::Green));
-            println!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
+            if !display_mir::is_on() { return; }
+            rap_info!("{}", did.display().color(Color::LightRed));
+            rap_info!("{}", body.local_decls.display().color(Color::Green));
+            rap_info!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
         }
 
         // Get the Global TyCtxt from rustc
