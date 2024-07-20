@@ -1,11 +1,17 @@
 use rustc_middle::{mir::{TerminatorKind, Operand}};
 use rustc_middle::ty::{self,TyCtxt};
-use rustc_hir::{def_id::DefId,intravisit::Visitor,Block, BodyId, Body, HirId, Impl, ItemKind};
+use rustc_hir::{def_id::DefId,intravisit::Visitor,BodyId,HirId,ItemKind};
 use rustc_span::Span;
 use rustc_data_structures::fx::FxHashMap;
 use std::collections::HashSet;
 use crate::{rap_info,rap_debug};
 
+/* 
+   The graph simply records all pairs of callers and callees; 
+   TODO: it can be extended, e.g.,
+     1) to manage the graph as a linked list of function nodes
+     2) to record all attributes of each function
+*/
 pub struct CallGraph<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub edges: HashSet<(DefId, DefId)>,
@@ -20,7 +26,7 @@ impl<'tcx> CallGraph<'tcx>{
     }
 
     pub fn start(&mut self) {
-	rap_info!("start callgraph analysis");
+	rap_info!("Start callgraph analysis");
         let fn_items = FnCollector::collect(self.tcx);
  	rap_debug!("{:?}", fn_items);
 	for (_, &ref vec) in & fn_items {
@@ -29,6 +35,10 @@ impl<'tcx> CallGraph<'tcx>{
  		self.find_callees(body_did);
 	    }
 	}
+	rap_info!("Show all edges of the call graph:");
+        for (caller, callee) in &self.edges {
+            rap_info!("  {} -> {}", self.tcx.def_path_str(*caller), self.tcx.def_path_str(*callee));
+        }
     }
 
     pub fn find_callees(&mut self,def_id: DefId) {
@@ -53,31 +63,28 @@ impl<'tcx> CallGraph<'tcx>{
 
 
 /// Maps `HirId` of a type to `BodyId` of related impls.
-pub type FnItemMap = FxHashMap<Option<HirId>, Vec<(BodyId, Span)>>;
+pub type FnMap = FxHashMap<Option<HirId>, Vec<(BodyId, Span)>>;
 
-pub struct FnCollector<'tcx> {
-    tcx: TyCtxt<'tcx>,
-    hash_map: FnItemMap,
+pub struct FnCollector {
+    fn_map: FnMap,
 }
 
-impl<'tcx> FnCollector<'tcx> {
-    pub fn collect(tcx: TyCtxt<'tcx>) -> FnItemMap {
+impl FnCollector {
+    pub fn collect<'tcx>(tcx: TyCtxt<'tcx>) -> FnMap {
         let mut collector = FnCollector {
-            tcx,
-            hash_map: FnItemMap::default(),
+            fn_map: FnMap::default(),
         };
         tcx.hir().visit_all_item_likes_in_crate(&mut collector);
-        collector.hash_map
+        collector.fn_map
     }
 }
 
-impl<'tcx> Visitor<'tcx> for FnCollector<'tcx> {
+impl<'tcx> Visitor<'tcx> for FnCollector {
     fn visit_item(&mut self, item: &'tcx rustc_hir::Item<'tcx>) {
-        let hir_map = self.tcx.hir();
         match &item.kind {
             ItemKind::Fn(_fn_sig, _generics, body_id) => {
                 let key = Some(body_id.hir_id);
-                let entry = self.hash_map.entry(key).or_insert(Vec::new());
+                let entry = self.fn_map.entry(key).or_insert(Vec::new());
                 entry.push((*body_id, item.span));
             }
             _ => (),
