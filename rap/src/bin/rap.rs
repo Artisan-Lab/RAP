@@ -45,7 +45,7 @@ fn main() {
             "-adt" => {},
             "-z3" => {},
             "-meta" => {},
-            "-UI" => compiler.enable_unsafety_isolation(),
+            "-UI" | "-uig" => compiler.enable_unsafety_isolation(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => {},
             "-debug" => debug = true,
