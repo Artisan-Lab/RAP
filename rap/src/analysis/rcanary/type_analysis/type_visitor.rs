@@ -9,7 +9,7 @@ use rustc_target::abi::VariantIdx;
 
 use crate::utils::display_mir::{self, Display};
 use crate::analysis::rcanary::RcxMut;
-use crate::analysis::rcanary::type_analysis::{self, TypeAnalysis, OwnerPropagation, RawGeneric,
+use crate::analysis::rcanary::type_analysis::{TypeAnalysis, OwnerPropagation, RawGeneric,
                                      RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
                                      DefaultOwnership, FindPtr, mir_body};
 use crate::{rap_info,rap_debug};

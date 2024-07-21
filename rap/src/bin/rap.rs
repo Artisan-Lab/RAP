@@ -8,7 +8,7 @@ use rustc_session::EarlyErrorHandler;
 use std::env;
 use rap::{RapCallback, compile_time_sysroot, RAP_DEFAULT_ARGS};
 use rap::utils::log::Verbosity;
-use rap::{rap_info, rap_debug};
+use rap::{rap_debug};
 
 fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
     if let Some(sysroot) = compile_time_sysroot() {
@@ -45,7 +45,7 @@ fn main() {
             "-adt" => {},
             "-z3" => {},
             "-meta" => {},
-            "-UI" => compiler.enable_unsafety_isolation(),
+            "-UI" | "-uig" => compiler.enable_unsafety_isolation(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => {},
             "-debug" => debug = true,
