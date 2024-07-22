@@ -7,12 +7,11 @@ use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, LocalDecl, Operand, Te
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
-use crate::utils::display_mir::{self, Display};
 use crate::analysis::rcanary::RcxMut;
 use crate::analysis::rcanary::type_analysis::{TypeAnalysis, OwnerPropagation, RawGeneric,
                                      RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
                                      DefaultOwnership, FindPtr, mir_body};
-use crate::{rap_info,rap_debug};
+use crate::rap_debug;
 
 use std::collections::HashMap;
 use std::ops::ControlFlow;
@@ -60,7 +59,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         }
 
         #[inline(always)]
-        fn show_owner_if_needed(ref_type_analysis: &mut TypeAnalysis) {
+        fn show_owner(ref_type_analysis: &mut TypeAnalysis) {
             for elem in ref_type_analysis.adt_owner() {
                 let name = format!("{:?}", EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0)));
                 let owning = format!("{:?}", elem.1);
@@ -68,14 +67,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
             }
         }
 
-        #[inline(always)]
-        fn show_mir_if_needed(did: DefId, body: &Body) {
-            // Display the mir body if is Display MIR Verbose / Very Verbose
-            if !display_mir::is_on() { return; }
-            rap_info!("{}", did.display().color(Color::LightRed));
-            rap_info!("{}", body.local_decls.display().color(Color::Green));
-            rap_info!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
-        }
 
         // Get the Global TyCtxt from rustc
         // Grasp all mir Keys defined in current crate
@@ -86,7 +77,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
             // Get the defid of current crate and get mir Body through this id
             let def_id = each_mir.to_def_id();
             let body = mir_body(tcx, def_id);
-            show_mir_if_needed(def_id, body);
 
             // Insert the defid to hashset if is not existed and visit the body
             if self.fn_set_mut().insert(def_id) {
@@ -103,7 +93,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         start_channel(|did| self.extract_phantom_unit(did), &dids);
         start_channel(|did| self.extract_owner_prop(did), &dids);
 
-        show_owner_if_needed(self);
+        show_owner(self);
     }
 
     // Extract params in adt types, the 'param' means one generic parameter acting like 'T', 'A', etc...
