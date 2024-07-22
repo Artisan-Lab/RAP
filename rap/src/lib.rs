@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use analysis::callgraph::CallGraph;
+use analysis::show_mir::ShowMir;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -39,6 +40,7 @@ pub struct RapCallback {
     rcanary: bool,
     unsafety_isolation: bool,
     callgraph: bool,
+    show_mir: bool,
 }
 
 impl Default for RapCallback {
@@ -47,6 +49,7 @@ impl Default for RapCallback {
             rcanary: false,
             unsafety_isolation: false,
             callgraph: false,
+            show_mir: false,
         }
     }
 }
@@ -109,6 +112,14 @@ impl RapCallback {
     pub fn is_callgraph_enabled(&self) -> bool { 
 	self.callgraph 
     }
+
+    pub fn enable_show_mir(&mut self) { 
+	self.show_mir = true; 
+    }
+
+    pub fn is_show_mir_enabled(&self) -> bool { 
+	self.show_mir 
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -155,6 +166,10 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_callgraph_enabled() {
         CallGraph::new(tcx).start();
+    }
+
+    if callback.is_show_mir_enabled() {
+        ShowMir::new(tcx).start();
     }
 }
 

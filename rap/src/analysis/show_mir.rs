@@ -1,25 +1,15 @@
-use rustc_middle::mir::{Operand, Rvalue, Statement, StatementKind, TerminatorKind, BasicBlocks,
-                        BasicBlockData, Body, LocalDecl, LocalDecls, Terminator};
-use rustc_middle::ty::{self, TyKind};
-use rustc_span::def_id::DefId;
-
-use std::env;
+use rustc_middle::ty::{self,TyCtxt,TyKind};
+use rustc_hir::{def_id::DefId,intravisit::Visitor,BodyId,HirId,ItemKind};
+use rustc_span::Span;
+use rustc_data_structures::fx::FxHashMap;
+use crate::rap_info;
+use rustc_middle::mir::{Operand,Rvalue,Statement,StatementKind,TerminatorKind,BasicBlocks,
+                        BasicBlockData,Body,LocalDecl,LocalDecls,Terminator};
+use colorful::{Color, Colorful};
 
 const NEXT_LINE:&str = "\n";
 const PADDING:&str = "    ";
 const EXPLAIN:&str = " @ ";
-
-// In this crate we will costume the display information for Compiler-Metadata by implementing
-// rap::Display for target data structure.
-// If you want output these messages that makes debug easily, please add -v or -vv to rap
-// that makes entire rap verbose.
-
-pub fn is_on() -> bool {
-    match env::var_os("MIR_SHOW") {
-        Some(_)  => true, 
-        _ => false,
-    }
-}
 
 // This trait is a wrapper towards std::Display or std::Debug, and is to resolve orphan restrictions.
 pub trait Display {
@@ -227,5 +217,66 @@ impl<'tcx> Display for TyKind<'tcx> {
 impl Display for DefId {
     fn display(&self) -> String {
         format!("{:?}", self)
+    }
+}
+
+
+pub struct ShowMir<'tcx> {
+    pub tcx: TyCtxt<'tcx>,
+}
+
+#[inline(always)]
+fn display_mir(did: DefId, body: &Body) {
+    rap_info!("{}", did.display().color(Color::LightRed));
+    rap_info!("{}", body.local_decls.display().color(Color::Green));
+    rap_info!("{}", body.basic_blocks.display().color(Color::LightGoldenrod2a));
+}
+
+impl<'tcx> ShowMir<'tcx>{
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self{
+        Self{
+            tcx,
+        }
+    }
+
+    pub fn start(&mut self) {
+	rap_info!("Show MIR");
+       	let mir_keys = self.tcx.mir_keys(());
+       	for each_mir in mir_keys {
+            let def_id = each_mir.to_def_id();
+            let body = self.tcx.instance_mir(ty::InstanceDef::Item(def_id));
+            display_mir(def_id, body);
+	}
+    }
+}
+
+
+/// Maps `HirId` of a type to `BodyId` of related impls.
+pub type FnMap = FxHashMap<Option<HirId>, Vec<(BodyId, Span)>>;
+
+pub struct FnCollector {
+    fn_map: FnMap,
+}
+
+impl FnCollector {
+    pub fn collect<'tcx>(tcx: TyCtxt<'tcx>) -> FnMap {
+        let mut collector = FnCollector {
+            fn_map: FnMap::default(),
+        };
+        tcx.hir().visit_all_item_likes_in_crate(&mut collector);
+        collector.fn_map
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for FnCollector {
+    fn visit_item(&mut self, item: &'tcx rustc_hir::Item<'tcx>) {
+        match &item.kind {
+            ItemKind::Fn(_fn_sig, _generics, body_id) => {
+                let key = Some(body_id.hir_id);
+                let entry = self.fn_map.entry(key).or_insert(Vec::new());
+                entry.push((*body_id, item.span));
+            }
+            _ => (),
+        }
     }
 }

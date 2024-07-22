@@ -47,7 +47,7 @@ fn main() {
             "-meta" => {},
             "-UI" | "-uig" => compiler.enable_unsafety_isolation(),
             "-callgraph" => compiler.enable_callgraph(),
-            "-mir" => {},
+            "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
             _ => args.push(arg),
         }
