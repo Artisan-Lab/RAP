@@ -198,9 +198,6 @@ fn rap_add_env(cmd: &mut Command) {
     if has_arg_flag("-F") || has_arg_flag("-uaf") {
         cmd.env("UAF", "ENABLED");
     }
-    if has_arg_flag("-mir") {
-        cmd.env("MIR_SHOW", "ON");
-    }
 }
 
 fn cleanup(){ 
