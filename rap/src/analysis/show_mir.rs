@@ -1,11 +1,9 @@
 use rustc_middle::ty::{self,TyCtxt,TyKind};
-use rustc_hir::{def_id::DefId,intravisit::Visitor,BodyId,HirId,ItemKind};
-use rustc_span::Span;
-use rustc_data_structures::fx::FxHashMap;
+use rustc_hir::def_id::DefId;
 use crate::rap_info;
 use rustc_middle::mir::{Operand,Rvalue,Statement,StatementKind,TerminatorKind,BasicBlocks,
                         BasicBlockData,Body,LocalDecl,LocalDecls,Terminator};
-use colorful::{Color, Colorful};
+use colorful::{Color,Colorful};
 
 const NEXT_LINE:&str = "\n";
 const PADDING:&str = "    ";
@@ -247,36 +245,5 @@ impl<'tcx> ShowMir<'tcx>{
             let body = self.tcx.instance_mir(ty::InstanceDef::Item(def_id));
             display_mir(def_id, body);
 	}
-    }
-}
-
-
-/// Maps `HirId` of a type to `BodyId` of related impls.
-pub type FnMap = FxHashMap<Option<HirId>, Vec<(BodyId, Span)>>;
-
-pub struct FnCollector {
-    fn_map: FnMap,
-}
-
-impl FnCollector {
-    pub fn collect<'tcx>(tcx: TyCtxt<'tcx>) -> FnMap {
-        let mut collector = FnCollector {
-            fn_map: FnMap::default(),
-        };
-        tcx.hir().visit_all_item_likes_in_crate(&mut collector);
-        collector.fn_map
-    }
-}
-
-impl<'tcx> Visitor<'tcx> for FnCollector {
-    fn visit_item(&mut self, item: &'tcx rustc_hir::Item<'tcx>) {
-        match &item.kind {
-            ItemKind::Fn(_fn_sig, _generics, body_id) => {
-                let key = Some(body_id.hir_id);
-                let entry = self.fn_map.entry(key).or_insert(Vec::new());
-                entry.push((*body_id, item.span));
-            }
-            _ => (),
-        }
     }
 }
