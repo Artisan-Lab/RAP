@@ -218,7 +218,6 @@ impl Display for DefId {
     }
 }
 
-
 pub struct ShowMir<'tcx> {
     pub tcx: TyCtxt<'tcx>,
 }
