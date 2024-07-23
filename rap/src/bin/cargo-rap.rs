@@ -2,42 +2,44 @@
     This is a cargo program to start RAP.
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
-
-use rap::{rap_info, rap_debug, rap_error};
-use rap::utils::log::{Verbosity, rap_error_and_exit};
+use rap::{rap_info,rap_debug,rap_error};
+use rap::utils::log::{Verbosity,rap_error_and_exit};
 use std::env;
+use std::process::{self,Command};
 use std::iter::TakeWhile;
-use std::process::Command;
-use std::path::{PathBuf, Path};
+use std::path::{PathBuf,Path};
 use std::time::Duration;
-use std::fmt::{Display, Formatter};
-use std::process;
+use std::fmt::{Display,Formatter};
 use rustc_version::VersionMeta;
 use wait_timeout::ChildExt;
-use cargo_metadata::{Metadata,Package,MetadataCommand};
+use cargo_metadata::{Metadata,MetadataCommand};
 
-const RAP_HELP_MSG: &str = r#"Run RAP to test and check Rust crates
-
+const RAP_HELP: &str = r#"
 Usage:
     cargo rap [options...]
 
-Use-After-Free/Double Free detection.
-    -F or -uaf     Command: "cargo rap -uaf"
+Use-After-Free/double free detection.
+    -F or -uaf       command: "cargo rap -uaf"
 
 Memory leakage detection.
-    -M or -mleak     Command: "cargo rap -mleak"
+    -M or -mleak     command: "cargo rap -mleak"
 
 Unsafe code tracing
-    -UI or -uig      generate unsafe code isolation graph
+    -UI or -uig      generate unsafe code isolation graphs
 
 General command: 
     -H or -help:     show help information
     -V or -version:  show the version of RAP
 
 Debugging options:
-    -debug	     show the debug-level logs
+    -debug	         show the debug-level logs
     -mir             print the MIR of each function
+"#;
 
+const RAP_VERSION: &str = r#"
+rap version 0.1
+released at 2024-07-23
+developped by artisan-lab @ Fudan university 
 "#;
 
 fn has_arg_flag(name: &str) -> bool {
@@ -88,22 +90,19 @@ fn get_arg_flag_value(name: &str) -> Option<String> {
 }
 
 fn find_rap() -> PathBuf {
-    let mut path = env::current_exe().expect("current executable path invalid");
+    let mut path = env::current_exe().expect("Current executable path invalid.");
     path.set_file_name("rap");
     path
 }
 
 fn version_info() -> VersionMeta {
     let rap = Command::new(find_rap());
-    VersionMeta::for_command(rap).expect("failed to determine underlying rustc version of RAP")
+    VersionMeta::for_command(rap).expect("Failed to determine underlying rustc version of rap.")
 }
 
 fn test_sysroot_consistency() {
     fn get_sysroot(mut cmd: Command) -> PathBuf {
-        let output = cmd
-            .arg("--print")
-            .arg("sysroot")
-            .output()
+        let output = cmd.arg("--print").arg("sysroot").output()
             .expect("Failed to run rustc to get sysroot.");
         let stdout = String::from_utf8(output.stdout)
             .expect("Invalid UTF-8: stdout.");
@@ -118,17 +117,14 @@ fn test_sysroot_consistency() {
             stderr,
         );
 
-        PathBuf::from(stdout)
-            .canonicalize()
+        PathBuf::from(stdout).canonicalize()
             .unwrap_or_else(|_| panic!("Failed to canonicalize sysroot:{}", stdout))
     }
 
     let rustc_sysroot = get_sysroot(Command::new("rustc"));
     let rap_sysroot = get_sysroot(Command::new(find_rap()));
 
-    assert_eq!(
-        rustc_sysroot,
-        rap_sysroot,
+    assert_eq!(rustc_sysroot, rap_sysroot,
         "Inconsistent toolchain! You may switch the default toolchain via !\n\
          `rustup default rap-rust`"
     );
@@ -137,27 +133,25 @@ fn test_sysroot_consistency() {
 /*
     The function finds a package under the current directory.
 */
-fn find_package(metadata:&mut Metadata) -> Package {
+fn find_targets(metadata:&mut Metadata) -> Vec<cargo_metadata::Target> {
+   	rap_info!("Search local targets for analysis.");
     let current_dir = env::current_dir();
     let current_dir = current_dir.as_ref().expect("Cannot read current dir.");
-    let package_index = metadata.packages.iter().position(|package| {
+    let mut pkg_iter = metadata.packages.iter().filter(|package| {
         let package_dir = Path::new(&package.manifest_path).parent()
             .expect("Failed to find parent directory.");
-    	rap_info!("current_dir {:?}", current_dir);
-    	rap_info!("package_dir: {:?}", package_dir);
-        package_dir == current_dir || package_dir.starts_with(&current_dir.to_str().unwrap())
+    	rap_debug!("Package_dir: {:?}.", package_dir);
         //FIXME: do we need to handle sub directories? 
-    }).unwrap_or_else(|| {
-        rap_error_and_exit("Workspace is not supported.");
+        package_dir == current_dir || package_dir.starts_with(&current_dir.to_str().unwrap())
     });
-    metadata.packages.remove(package_index)
-}
-
-fn find_targets(metadata:&mut Metadata) -> Vec<cargo_metadata::Target> {
-    // Ensure `lib` is compiled before `bin`
-    let package = find_package(metadata);
-    let mut targets: Vec<_> = package.targets.clone().into_iter().collect();
-    targets.sort_by_key(|target| TargetKind::from(target) as u8);
+    let mut targets = Vec::new();
+    while let Some(pkg) = pkg_iter.next(){
+        rap_info!("Find a new pakage: {:?}.", pkg.name);
+        let mut pkg_targets: Vec<_> = pkg.targets.clone().into_iter().collect();
+        // Ensure `lib` is compiled before `bin`
+        pkg_targets.sort_by_key(|target| TargetKind::from(target) as u8);
+        targets.extend(pkg_targets);
+    }
     targets
 }
 
@@ -181,15 +175,14 @@ fn is_identified_target(
 }
 
 fn run_cmd(mut cmd: Command) {
-    rap_debug!("Command is: {:?}", cmd);
-
+    rap_debug!("Command is: {:?}.", cmd);
     match cmd.status() {
         Ok(status) => {
             if !status.success() {
                 process::exit(status.code().unwrap());
             }
         },
-        Err(err) => panic!("error in running {:?} {}", cmd, err),
+        Err(err) => panic!("Error in running {:?} {}.", cmd, err),
     }
 }
 
@@ -207,29 +200,26 @@ fn cleanup(){
 }
 
 fn phase_cargo_rap() {
+    rap_info!("Start cargo-rap");
     test_sysroot_consistency();
-    cleanup(); // clean up the directory before building.
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
-        rap_error!("expect command: e.g., `cargo rap -help`");
+        rap_error!("Expect command: e.g., `cargo rap -help`.");
 	return ;
     };
     match arg.as_str() {
-        "-V" | "-version" => { rap_info!("The RAP version: {}", "0.1"); return; },
-        "-H" | "-help" | "--help" => { rap_info!("{}", RAP_HELP_MSG); return; },
-	_ => {},
+        "-V" | "-version" => { rap_info!("{}", RAP_VERSION); return; },
+        "-H" | "-help" | "--help" => { rap_info!("{}", RAP_HELP); return; },
+	    _ => {},
     }
+    cleanup(); // clean up the directory before building.
 
     let cmd = MetadataCommand::new();
     let mut metadata = match cmd.exec() {
         Ok(metadata) => metadata,
-        Err(e) => rap_error_and_exit(format!("Cannot obtain Cargo metadata: {}", e)),
+        Err(e) => rap_error_and_exit(format!("Cannot obtain cargo metadata: {}.", e)),
     };
-    let members = &metadata.workspace_members;
-    for member in members {
-        rap_error!("member: {:?}", member.repr);
-    }
-    // FIXME: we have to handle different workspace members iteratively here.
+
     let targets = find_targets(&mut metadata);
     for target in targets {
 	/*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
@@ -238,6 +228,7 @@ fn phase_cargo_rap() {
 
 	/* We only process bin and lib targets, and ignore others */
         if !is_identified_target(&target, &mut cmd) {
+            rap_debug!("Ignore the target because it is neither bin or lib.");
             continue;
         }
 
@@ -256,39 +247,39 @@ fn phase_cargo_rap() {
         let args_vec: Vec<String> = args.collect();
         cmd.env(
             "RAP_ARGS",
-            serde_json::to_string(&args_vec).expect("failed to serialize args"),
+            serde_json::to_string(&args_vec).expect("Failed to serialize args."),
         );
 
         // Invoke actual cargo for the job, but with different flags.
-        let cargo_rap_path = env::current_exe().expect("current executable path invalid");
+        let cargo_rap_path = env::current_exe().expect("Current executable path is invalid.");
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
 
-        rap_debug!("Command is: {:?}", cmd);
+        rap_debug!("Command is: {:?}.", cmd);
         rap_add_env(&mut cmd);
         rap_info!("Running rap for target {}:{}", TargetKind::from(&target), &target.name);
 
         let mut child = cmd
             .spawn()
-            .expect("could not run cargo check");
+            .expect("Could not run cargo check.");
         match child.wait_timeout(Duration::from_secs(60 * 60)) // 1 hour timeout
-            .expect("failed to wait for subprocess") {
+            .expect("Failed to wait for subprocess.") {
             Some(status) => {
                 if !status.success() {
-                    rap_error_and_exit("Finished with non-zero exit code");
+                    rap_error_and_exit("Finished with non-zero exit code.");
                 }
             }
             None => {
-                child.kill().expect("failed to kill subprocess");
-                child.wait().expect("failed to wait for subprocess");
-                rap_error_and_exit("Killed due to timeout");
+                child.kill().expect("Failed to kill subprocess.");
+                child.wait().expect("Failed to wait for subprocess.");
+                rap_error_and_exit("Process killed due to timeout.");
             }
         };
 
     }
-    rap_info!("Phase-Cargo-RAP has been done");
 }
 
 fn phase_rustc_wrapper() {
+    rap_debug!("Launch cargo-rap again triggered by cargo check.");
     fn is_target_crate() -> bool {
         get_arg_flag_value("--target").is_some()
     }
@@ -296,12 +287,10 @@ fn phase_rustc_wrapper() {
     // Determines if we are being invoked to build crate for local crate.
     // Cargo passes the file name as a relative address when building the local crate,
     fn is_current_compile_crate() -> bool {
-
         fn find_arg_with_rs_suffix() -> Option<String> {
             let mut args = env::args().take_while(|s| s != "--");
             args.find(|s| s.ends_with(".rs"))
         }
-
         let arg_path = match find_arg_with_rs_suffix() {
             Some(path) => path,
             None => return false,
@@ -312,8 +301,7 @@ fn phase_rustc_wrapper() {
 
     fn is_crate_type_lib() -> bool {
         fn any_arg_flag<F>(name: &str, mut check: F) -> bool
-            where
-                F: FnMut(&str) -> bool,
+            where F: FnMut(&str) -> bool,
         {
             // Stop searching at `--`.
             let mut args = std::env::args().take_while(|val| val != "--");
@@ -352,13 +340,12 @@ fn phase_rustc_wrapper() {
     }
 
     let is_direct = is_current_compile_crate() && is_target_crate();
-
     if is_direct {
         let mut cmd = Command::new(find_rap());
         cmd.args(env::args().skip(2));
-        let magic = env::var("RAP_ARGS").expect("missing RAP_ARGS");
+        let magic = env::var("RAP_ARGS").expect("Missing RAP_ARGS.");
         let rap_args: Vec<String> =
-            serde_json::from_str(&magic).expect("failed to deserialize RAP_ARGS");
+            serde_json::from_str(&magic).expect("Failed to deserialize RAP_ARGS.");
         cmd.args(rap_args);
         run_cmd(cmd);
     }
@@ -367,22 +354,18 @@ fn phase_rustc_wrapper() {
         cmd.args(env::args().skip(2));
         run_cmd(cmd);
     };
-
 }
 
 #[repr(u8)]
 enum TargetKind {
-    Library = 0,
+    Library,
     Bin,
     Unspecified,
 }
 
 impl Display for TargetKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
+        write!(f, "{}", match self {
                 TargetKind::Library => "lib",
                 TargetKind::Bin => "bin",
                 TargetKind::Unspecified => "unspecified",
@@ -416,12 +399,9 @@ fn main() {
        2. Cargo check actually triggers `path/cargo-rap path/rustc` according to RUSTC_WRAPPER.
           Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
     */
-    // Init the log_system for RAP
-    Verbosity::init_log(Verbosity::Info).expect("Failed to init log");
-    //Verbosity::init_log(Verbosity::Debug).expect("Failed to init log");
-
-    rap_info!("Enter cargo-rap...");
-    rap_debug!("Received args: {:?}", env::args());
+    // Init the log_system; Use Verbosity::Debug for printing debugging messages.
+    Verbosity::init_log(Verbosity::Info).expect("Failed to init log.");
+    rap_debug!("Enter cargo-rap; Received args: {:?}", env::args());
 
     let first_arg = env::args().nth(1);
     match first_arg.unwrap() {
