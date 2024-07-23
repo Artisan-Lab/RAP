@@ -14,8 +14,9 @@ use std::fmt::{Display, Formatter};
 use std::process;
 use rustc_version::VersionMeta;
 use wait_timeout::ChildExt;
+use cargo_metadata::{Metadata,Package,MetadataCommand};
 
-const CARGO_RAP_HELP: &str = r#"Run RAP to test and check Rust crates
+const RAP_HELP_MSG: &str = r#"Run RAP to test and check Rust crates
 
 Usage:
     cargo rap [options...]
@@ -133,44 +134,28 @@ fn test_sysroot_consistency() {
     );
 }
 
-fn make_package() -> cargo_metadata::Package {
-    // We need to get the manifest, and then the metadata, to enumerate targets.
-    let manifest_path = get_arg_flag_value("--manifest-path")
-            .map(|s| Path::new(&s).canonicalize().unwrap());
-
-    let mut cmd = cargo_metadata::MetadataCommand::new();
-    if let Some(manifest_path) = &manifest_path {
-        cmd.manifest_path(manifest_path);
-    };
-    let mut metadata = match cmd.exec() {
-        Ok(metadata) => metadata,
-        Err(e) => rap_error_and_exit(format!("Cannot obtain Cargo metadata: {}", e)),
-    };
-
+/*
+    The function finds a package under the current directory.
+*/
+fn find_package(metadata:&mut Metadata) -> Package {
     let current_dir = env::current_dir();
-    let package_index = metadata.packages.iter()
-        .position(|package| {
-            let package_manifest_path = Path::new(&package.manifest_path);
-            if let Some(manifest_path) = &manifest_path {
-                package_manifest_path == manifest_path
-            } else {
-                let current_dir = current_dir.as_ref()
-                    .expect("Cannot read current directory");
-                let package_manifest_dir = package_manifest_path.parent()
-                    .expect("Cannot find parent directory of package manifest");
-                package_manifest_dir == current_dir
-            }
-        })
-        .unwrap_or_else(|| {
-            rap_error_and_exit("Workspace is not supported.");
-        });
-
+    let current_dir = current_dir.as_ref().expect("Cannot read current dir.");
+    let package_index = metadata.packages.iter().position(|package| {
+        let package_dir = Path::new(&package.manifest_path).parent()
+            .expect("Failed to find parent directory.");
+    	rap_info!("current_dir {:?}", current_dir);
+    	rap_info!("package_dir: {:?}", package_dir);
+        package_dir == current_dir || package_dir.starts_with(&current_dir.to_str().unwrap())
+        //FIXME: do we need to handle sub directories? 
+    }).unwrap_or_else(|| {
+        rap_error_and_exit("Workspace is not supported.");
+    });
     metadata.packages.remove(package_index)
 }
 
-fn make_package_with_sorted_target() -> Vec<cargo_metadata::Target> {
+fn find_targets(metadata:&mut Metadata) -> Vec<cargo_metadata::Target> {
     // Ensure `lib` is compiled before `bin`
-    let package = make_package();
+    let package = find_package(metadata);
     let mut targets: Vec<_> = package.targets.clone().into_iter().collect();
     targets.sort_by_key(|target| TargetKind::from(target) as u8);
     targets
@@ -208,7 +193,6 @@ fn run_cmd(mut cmd: Command) {
     }
 }
 
-
 fn rap_add_env(cmd: &mut Command) {
     if has_arg_flag("-F") || has_arg_flag("-uaf") {
         cmd.env("UAF", "ENABLED");
@@ -232,11 +216,21 @@ fn phase_cargo_rap() {
     };
     match arg.as_str() {
         "-V" | "-version" => { rap_info!("The RAP version: {}", "0.1"); return; },
-        "-H" | "-help" | "--help" => { rap_info!("{}", CARGO_RAP_HELP); return; },
+        "-H" | "-help" | "--help" => { rap_info!("{}", RAP_HELP_MSG); return; },
 	_ => {},
     }
 
-    let targets = make_package_with_sorted_target();
+    let cmd = MetadataCommand::new();
+    let mut metadata = match cmd.exec() {
+        Ok(metadata) => metadata,
+        Err(e) => rap_error_and_exit(format!("Cannot obtain Cargo metadata: {}", e)),
+    };
+    let members = &metadata.workspace_members;
+    for member in members {
+        rap_error!("member: {:?}", member.repr);
+    }
+    // FIXME: we have to handle different workspace members iteratively here.
+    let targets = find_targets(&mut metadata);
     for target in targets {
 	/*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
         let mut cmd = Command::new("cargo");
