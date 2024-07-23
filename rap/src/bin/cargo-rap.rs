@@ -135,8 +135,7 @@ fn test_sysroot_consistency() {
 
 fn make_package() -> cargo_metadata::Package {
     // We need to get the manifest, and then the metadata, to enumerate targets.
-    let manifest_path =
-        get_arg_flag_value("--manifest-path")
+    let manifest_path = get_arg_flag_value("--manifest-path")
             .map(|s| Path::new(&s).canonicalize().unwrap());
 
     let mut cmd = cargo_metadata::MetadataCommand::new();
@@ -149,19 +148,15 @@ fn make_package() -> cargo_metadata::Package {
     };
 
     let current_dir = env::current_dir();
-    let package_index = metadata
-        .packages
-        .iter()
+    let package_index = metadata.packages.iter()
         .position(|package| {
             let package_manifest_path = Path::new(&package.manifest_path);
             if let Some(manifest_path) = &manifest_path {
                 package_manifest_path == manifest_path
             } else {
-                let current_dir = current_dir
-                    .as_ref()
+                let current_dir = current_dir.as_ref()
                     .expect("Cannot read current directory");
-                let package_manifest_dir = package_manifest_path
-                    .parent()
+                let package_manifest_dir = package_manifest_path.parent()
                     .expect("Cannot find parent directory of package manifest");
                 package_manifest_dir == current_dir
             }
