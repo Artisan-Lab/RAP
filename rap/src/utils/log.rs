@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, Timelike};
+use chrono::{Local, Timelike};
 use fern::{self, Dispatch};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
@@ -13,7 +13,6 @@ pub enum Verbosity {
 impl Verbosity {
     pub fn init_log(verbose: Verbosity) -> Result<(), fern::InitError> {
         let mut dispatch = Dispatch::new();
-
         let color_line = ColoredLevelConfig::new()
             .info(Color::White)
             .error(Color::Red)
@@ -22,7 +21,6 @@ impl Verbosity {
             .trace(Color::BrightBlack);
 
         let color_level = color_line.info(Color::Green);
-
         dispatch = match verbose {
             Verbosity::Info => dispatch.level(LevelFilter::Info),
             Verbosity::Debug => dispatch.level(LevelFilter::Debug),
@@ -33,33 +31,21 @@ impl Verbosity {
             .format(move |callback, args, record| {
                 let time_now = Local::now();
                 callback.finish(format_args!(
-                    "{}{}-{}:{}:{}:{} |FRONT| |{:5}{}| [{}] {}\x1B[0m",
-                    format_args!(
-                        "\x1B[{}m",
-                        color_line.get_color(&record.level()).to_fg_str()
-                    ),
-                    time_now.month(),
-                    time_now.day(),
+                    "{}{}:{}|RAP-FRONT|{}{}|: {}\x1B[0m",
+                    format_args!("\x1B[{}m",color_line.get_color(&record.level()).to_fg_str()),
                     time_now.hour(),
                     time_now.minute(),
-                    time_now.second(),
                     color_level.color(record.level()),
-                    format_args!(
-                        "\x1B[{}m",
-                        color_line.get_color(&record.level()).to_fg_str()
-                    ),
-                    record.target(),
+                    format_args!("\x1B[{}m",color_line.get_color(&record.level()).to_fg_str()),
                     args
                 ))
-            })
-            .chain(std::io::stderr());
+            }).chain(std::io::stderr());
 
         /* Note that we cannot dispatch to stdout due to some bugs */
         dispatch.chain(stderr_dispatch).apply()?;
         Ok(())
     }
 }
-
 
 #[macro_export]
 macro_rules! rap_debug {
