@@ -31,7 +31,7 @@ impl Verbosity {
             .format(move |callback, args, record| {
                 let time_now = Local::now();
                 callback.finish(format_args!(
-                    "{}{}:{}|RAP-FRONT|{:5}{}|: {}\x1B[0m",
+                    "{}{}:{}|RAP-FRONT|{}{}|: {}\x1B[0m",
                     format_args!("\x1B[{}m",color_line.get_color(&record.level()).to_fg_str()),
                     time_now.hour(),
                     time_now.minute(),
