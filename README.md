@@ -44,7 +44,7 @@ cargo rap -mleak
 
 The feature is based on our rCanary paper published in TSE.  
 ```
-@article{cui2023safedrop,
+@article{cui2024rcanary,
   title={rCanary: Detecting memory leaks across semi-automated memory management boundary in Rust},
   author={Cui, Mohan and Xu, Hui and Tian, Hongliang and and Zhou, Yangfan},
   journal={IEEE Transactions on Software Engineering},
