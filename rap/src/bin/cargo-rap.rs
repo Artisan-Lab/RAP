@@ -215,7 +215,8 @@ fn phase_cargo_rap() {
     cleanup(); // clean up the directory before building.
 
     let cmd = MetadataCommand::new();
-    let mut metadata = match cmd.exec() {
+    rap_debug!("Please run `cargo metadata` if this step takes too long");
+    let mut metadata = match cmd.exec() { // execute command: `cargo metadata'
         Ok(metadata) => metadata,
         Err(e) => rap_error_and_exit(format!("Cannot obtain cargo metadata: {}.", e)),
     };
