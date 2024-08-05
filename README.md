@@ -15,13 +15,15 @@ git submodule update --init --recursive
 
 ## Usage
 
-Enter your Rust project folder and execute the following command based on your needs.
+Enter your Rust project folder and execute the following command based on your needs. If your project contains a `rust-toolchain.toml` file, we recommend disabling or removing it.
 
 ### Use-After-Free Detection
 Detect bugs like use-after-free and double free in Rust crates caused by unsafe code.
 ```
 cargo rap -uaf
 ```
+
+If RAP gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
 
 The feature is based on our SafeDrop paper published in TOSEM.  
 ```
