@@ -1,12 +1,7 @@
-struct MyRef<'a> {
-    a: &'a str,
-}
+use std::env;
 
-impl<'a> MyRef<'a> {
-    fn print(&self) {
-        println!("{}", self.a);
-    }
-}
+#[derive(Debug)]
+struct MyRef<'a> { a: &'a str, }
 
 unsafe fn f<'a>(myref: MyRef<'a>) -> MyRef<'static> {
     unsafe {
@@ -16,9 +11,10 @@ unsafe fn f<'a>(myref: MyRef<'a>) -> MyRef<'static> {
 
 fn main() {
     let string = "Hello World!".to_string();
-    unsafe {
-        let my_ref = f(MyRef { a: &string });
+    let args: Vec<String> = env::args().collect();
+    let my_ref = unsafe { f(MyRef { a: &string })};
+    if args.len() > 2 {
         drop(string);
-        my_ref.print(); // Expected to fail but executes without detection of use-after-free
     }
+    println!("{:?}",my_ref.a);
 }
