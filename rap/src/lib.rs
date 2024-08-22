@@ -38,6 +38,7 @@ pub type Elapsed = (i64, i64);
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapCallback {
     rcanary: bool,
+    safedrop: bool,
     unsafety_isolation: bool,
     callgraph: bool,
     show_mir: bool,
@@ -47,6 +48,7 @@ impl Default for RapCallback {
     fn default() -> Self {
         Self {
             rcanary: false,
+            safedrop: false,
             unsafety_isolation: false,
             callgraph: false,
             show_mir: false,
@@ -95,6 +97,14 @@ impl RapCallback {
 
     pub fn is_rcanary_enabled(&self) -> bool { 
 	    self.rcanary 
+    }
+
+    pub fn enable_safedrop(&mut self) { 
+	    self.safedrop = true; 
+    }
+
+    pub fn is_safedrop_enabled(&self) -> bool { 
+	    self.safedrop
     }
 
     pub fn enable_unsafety_isolation(&mut self) { 
@@ -157,7 +167,12 @@ pub fn compile_time_sysroot() -> Option<String> {
 
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
-	rCanary::new(tcx).start()
+	    rCanary::new(tcx).start()
+    }
+
+    if callback.is_safedrop_enabled() {
+        // call SafeDrop backend in frontend;
+        tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
     }
 
     if callback.is_unsafety_isolation_enabled() {
