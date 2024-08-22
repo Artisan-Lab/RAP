@@ -42,11 +42,6 @@ released at 2024-07-23
 developped by artisan-lab @ Fudan university 
 "#;
 
-fn has_arg_flag(name: &str) -> bool {
-    let mut args = env::args().skip(0);
-    args.any(|val| val == name)
-}
-
 /// Yields all values of command line flag `name`.
 struct ArgFlagValueIter<'a> {
     args: TakeWhile<env::Args, fn(&String) -> bool>,
@@ -186,12 +181,6 @@ fn run_cmd(mut cmd: Command) {
     }
 }
 
-fn rap_add_env(cmd: &mut Command) {
-    if has_arg_flag("-F") || has_arg_flag("-uaf") {
-        cmd.env("UAF", "ENABLED");
-    }
-}
-
 fn cleanup(){ 
     let mut cmd = Command::new("cargo");
     cmd.arg("clean");
@@ -256,7 +245,6 @@ fn phase_cargo_rap() {
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
 
         rap_debug!("Command is: {:?}.", cmd);
-        rap_add_env(&mut cmd);
         rap_info!("Running rap for target {}:{}", TargetKind::from(&target), &target.name);
 
         let mut child = cmd
