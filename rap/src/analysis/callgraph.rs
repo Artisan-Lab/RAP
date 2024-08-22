@@ -26,16 +26,16 @@ impl<'tcx> CallGraph<'tcx>{
     }
 
     pub fn start(&mut self) {
-	rap_info!("Start callgraph analysis");
+	    rap_info!("Start callgraph analysis");
         let fn_items = FnCollector::collect(self.tcx);
- 	rap_debug!("{:?}", fn_items);
-	for (_, &ref vec) in & fn_items {
+ 	    rap_debug!("{:?}", fn_items);
+	    for (_, &ref vec) in & fn_items {
             for (body_id, _) in vec{
-		let body_did = self.tcx.hir().body_owner_def_id(*body_id).to_def_id();
- 		self.find_callees(body_did);
+		    let body_did = self.tcx.hir().body_owner_def_id(*body_id).to_def_id();
+ 		    self.find_callees(body_did);
+	        }
 	    }
-	}
-	rap_info!("Show all edges of the call graph:");
+	    rap_info!("Show all edges of the call graph:");
         for (caller, callee) in &self.edges {
             rap_info!("  {} -> {}", self.tcx.def_path_str(*caller), self.tcx.def_path_str(*callee));
         }

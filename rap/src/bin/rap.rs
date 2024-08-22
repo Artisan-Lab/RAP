@@ -41,6 +41,7 @@ fn main() {
     for arg in env::args() {
         match arg.as_str() {
             "-F" | "-uaf" => {},
+            "-FF" | "-uaff" => compiler.enable_safedrop(),
             "-M" | "-mleak" => compiler.enable_rcanary(),
             "-adt" => {},
             "-z3" => {},
