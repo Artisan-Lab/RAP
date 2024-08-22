@@ -27,6 +27,8 @@ use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use analysis::callgraph::CallGraph;
 use analysis::show_mir::ShowMir;
+use analysis::safedrop::SafeDropCheck;
+
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -38,7 +40,7 @@ pub type Elapsed = (i64, i64);
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapCallback {
     rcanary: bool,
-    safedrop: bool,
+    safedrop: usize,
     unsafety_isolation: bool,
     callgraph: bool,
     show_mir: bool,
@@ -48,7 +50,7 @@ impl Default for RapCallback {
     fn default() -> Self {
         Self {
             rcanary: false,
-            safedrop: false,
+            safedrop: 0,
             unsafety_isolation: false,
             callgraph: false,
             show_mir: false,
@@ -99,11 +101,11 @@ impl RapCallback {
 	    self.rcanary 
     }
 
-    pub fn enable_safedrop(&mut self) { 
-	    self.safedrop = true; 
+    pub fn enable_safedrop(&mut self, x:usize) { 
+	    self.safedrop = x; // 1: backend version; 2: frontend version 
     }
 
-    pub fn is_safedrop_enabled(&self) -> bool { 
+    pub fn is_safedrop_enabled(&self) -> usize { 
 	    self.safedrop
     }
 
@@ -170,9 +172,14 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 	    rCanary::new(tcx).start()
     }
 
-    if callback.is_safedrop_enabled() {
-        // call SafeDrop backend in frontend;
+    /* legacy: Backend version */
+    if callback.is_safedrop_enabled() == 1 {
         tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
+    }
+
+    /* Frontend Version */
+    if callback.is_safedrop_enabled() == 2 {
+        SafeDropCheck::new(tcx).start();
     }
 
     if callback.is_unsafety_isolation_enabled() {
