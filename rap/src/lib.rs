@@ -171,6 +171,7 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     }
 
     if callback.is_safedrop_enabled() {
+        // call SafeDrop backend in frontend;
         tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
     }
 

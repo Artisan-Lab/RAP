@@ -31,8 +31,8 @@ impl<'tcx> CallGraph<'tcx>{
  	    rap_debug!("{:?}", fn_items);
 	    for (_, &ref vec) in & fn_items {
             for (body_id, _) in vec{
-		    let body_did = self.tcx.hir().body_owner_def_id(*body_id).to_def_id();
- 		    self.find_callees(body_did);
+		        let body_did = self.tcx.hir().body_owner_def_id(*body_id).to_def_id();
+ 		        self.find_callees(body_did);
 	        }
 	    }
 	    rap_info!("Show all edges of the call graph:");
@@ -41,7 +41,7 @@ impl<'tcx> CallGraph<'tcx>{
         }
     }
 
-    pub fn find_callees(&mut self,def_id: DefId) {
+    pub fn find_callees(&mut self, def_id: DefId) {
         let tcx = self.tcx;
         if tcx.is_mir_available(def_id) {
             let body = tcx.optimized_mir(def_id);
