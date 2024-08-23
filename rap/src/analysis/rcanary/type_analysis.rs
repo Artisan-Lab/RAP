@@ -4,7 +4,7 @@ pub mod type_visitor;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 
-use crate::analysis::rcanary::{rCanary,RcxMut};
+use super::{rCanary,RcxMut};
 use ownership::RawTypeOwner;
 
 use std::collections::{HashMap, HashSet};

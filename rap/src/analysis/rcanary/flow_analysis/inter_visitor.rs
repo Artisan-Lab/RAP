@@ -1,6 +1,6 @@
-use crate::analysis::rcanary::RcxMut;
-use crate::analysis::rcanary::flow_analysis::FlowAnalysis;
-use crate::analysis::rcanary::type_analysis::mir_body;
+use super::super::RcxMut;
+use super::super::type_analysis::mir_body;
+use super::FlowAnalysis;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
     pub fn inter_run(&mut self) {

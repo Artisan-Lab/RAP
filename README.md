@@ -20,6 +20,11 @@ Navigate to your Rust project folder containing a `Cargo.toml` file. If your pro
 cargo rap -help
 ```
 
+If the command fails, try setting the default Rust toolchain to `rap-rust`.
+```
+rustup default rap-rust
+```
+
 ### Use-After-Free Detection
 Detect bugs such as use-after-free and double free in Rust crates caused by unsafe code.
 ```shell

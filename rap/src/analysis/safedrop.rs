@@ -13,11 +13,11 @@ use rustc_hir::def_id::DefId;
 use graph::SafeDropGraph;
 use safedrop::*;
 
-pub struct SafeDropCheck<'tcx> {
+pub struct SafeDrop<'tcx> {
         pub tcx: TyCtxt<'tcx>,
 }
 
-impl<'tcx> SafeDropCheck<'tcx> {
+impl<'tcx> SafeDrop<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self{ tcx, }
     }

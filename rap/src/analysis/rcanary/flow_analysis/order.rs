@@ -1,11 +1,9 @@
 use rustc_middle::mir::TerminatorKind;
-
-use crate::analysis::rcanary::RcxMut;
-use crate::analysis::rcanary::flow_analysis::{FlowAnalysis, NodeOrder};
-use crate::analysis::rcanary::type_analysis::mir_body;
-
 use std::collections::BinaryHeap;
 use stopwatch::Stopwatch;
+use super::super::RcxMut;
+use super::super::flow_analysis::{FlowAnalysis, NodeOrder};
+use super::mir_body;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
     pub fn order(&mut self) {

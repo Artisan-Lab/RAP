@@ -1,22 +1,15 @@
-use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, GenericArgKind, TypeVisitor, TypeVisitable,
-                       TypeSuperVisitable};
+use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, GenericArgKind, TypeVisitor, TypeVisitable, TypeSuperVisitable};
 use rustc_middle::ty::EarlyBinder;
 use rustc_middle::mir::visit::{Visitor, TyContext};
-use rustc_middle::mir::Local;
-use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, LocalDecl, Operand, TerminatorKind};
+use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Local, LocalDecl, Operand, TerminatorKind};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
-
-use crate::analysis::rcanary::RcxMut;
-use crate::analysis::rcanary::type_analysis::{TypeAnalysis, OwnerPropagation, RawGeneric,
-                                     RawGenericFieldSubst, RawGenericPropagation, RawTypeOwner,
-                                     DefaultOwnership, FindPtr, mir_body};
-use crate::rap_debug;
-
 use std::collections::HashMap;
 use std::ops::ControlFlow;
-
 use colorful::{Color, Colorful};
+use crate::rap_debug;
+use super::super::RcxMut;
+use super::*;
 
 // This function is aiming at resolving problems due to 'TyContext' not implementing 'Clone' trait,
 // thus we call function 'copy_ty_context' to simulate 'self.clone()'.
