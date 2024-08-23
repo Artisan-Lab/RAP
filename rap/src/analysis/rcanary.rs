@@ -2,7 +2,7 @@ pub mod type_analysis;
 pub mod flow_analysis;
 
 use rustc_middle::ty::TyCtxt;
-use crate::{Elapsed};
+use crate::Elapsed;
 use flow_analysis::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
 use type_analysis::{TypeAnalysis,AdtOwner};
 use std::collections::HashMap;

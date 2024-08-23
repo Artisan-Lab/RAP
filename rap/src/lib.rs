@@ -25,9 +25,9 @@ use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
 use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
-use analysis::callgraph::CallGraph;
-use analysis::show_mir::ShowMir;
-use analysis::safedrop::SafeDropCheck;
+use analysis::safedrop::SafeDrop;
+use analysis::core::control_flow::callgraph::CallGraph;
+use analysis::utils::show_mir::ShowMir;
 
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
@@ -179,7 +179,7 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     /* Frontend Version */
     if callback.is_safedrop_enabled() == 2 {
-        SafeDropCheck::new(tcx).start();
+        SafeDrop::new(tcx).start();
     }
 
     if callback.is_unsafety_isolation_enabled() {

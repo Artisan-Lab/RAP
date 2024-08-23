@@ -1,8 +1,6 @@
 use rustc_middle::ty::Ty;
-
-use crate::analysis::rcanary::type_analysis::{DefaultOwnership, OwnershipLayout};
-
 use std::fmt::Debug;
+use super::{DefaultOwnership, OwnershipLayout};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum RawTypeOwner {

@@ -8,9 +8,9 @@ use rustc_span::def_id::DefId;
 use rustc_middle::mir::{Body, Terminator};
 
 use crate::Elapsed;
-use crate::analysis::rcanary::{rCanary,IcxMut, IcxSliceMut, Rcx, RcxMut};
-use crate::analysis::rcanary::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
-use crate::analysis::rcanary::flow_analysis::ownership::{IntraVar, Taint};
+use super::{rCanary,IcxMut, IcxSliceMut, Rcx, RcxMut};
+use super::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
+use ownership::{IntraVar, Taint};
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
