@@ -17,9 +17,9 @@ extern crate rustc_hir;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_driver::{Compilation, Callbacks};
-use rustc_interface::{interface::Compiler, Queries};
+use rustc_interface::{Config, Queries};
+use rustc_interface::interface::Compiler;
 use rustc_middle::util::Providers;
-use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
