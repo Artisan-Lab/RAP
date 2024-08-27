@@ -2,7 +2,6 @@ use std::vec::Vec;
 use std::cmp::min;
 use rustc_middle::mir::StatementKind;
 use rustc_middle::mir::TerminatorKind;
-use rustc_middle::mir::Body;
 use rustc_middle::mir::BasicBlock;
 use rustc_middle::mir::Terminator;
 use rustc_middle::mir::Place;
@@ -159,8 +158,9 @@ pub struct MopGraph<'tcx>{
 }
 
 impl<'tcx> MopGraph<'tcx> {
-    pub fn new(body: &Body<'tcx>,  tcx: TyCtxt<'tcx>, def_id: DefId) -> MopGraph<'tcx> {  
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> MopGraph<'tcx> {  
         // handle variables
+        let body = tcx.optimized_mir(def_id);
         let locals = &body.local_decls;
         let arg_size = body.arg_count;
         let mut values = Vec::<ValueNode>::new();

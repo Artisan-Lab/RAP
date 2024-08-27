@@ -1,56 +1,50 @@
-use rustc_middle::ty::TyCtxt;
 use rustc_middle::mir::TerminatorKind;
 use rustc_middle::mir::Operand::{Copy, Move, Constant};
-use rustc_data_structures::fx::FxHashMap;
 use super::graph::*;
-use super::alias::*;
+use super::*;
 
 pub const DROP:usize = 1634;
 pub const DROP_IN_PLACE:usize = 2160;
 pub const CALL_MUT:usize = 3022;
 pub const NEXT:usize = 7587;
-pub const VISIT_LIMIT:usize = 10000;
-
-//struct to cache the results for analyzed functions.
-pub type FnMap = FxHashMap<usize, FnRetAlias>;
 
 impl<'tcx> MopGraph<'tcx> {
-    pub fn split_check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, func_map: &mut FnMap) {
+    pub fn split_check(&mut self, bb_index: usize, fn_map: &mut FnMap) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
-        self.check(bb_index, tcx, func_map);
+        self.check(bb_index, fn_map);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
-    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, tcx: TyCtxt<'tcx>, func_map: &mut FnMap) {
+    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, fn_map: &mut FnMap) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
         /* add control-sensitive indicator to the path status */ 
         self.constant.insert(path_discr_id, path_discr_val);
-        self.check(bb_index, tcx, func_map);
+        self.check(bb_index, fn_map);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
 
     // the core function of the safedrop.
-    pub fn check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, func_map: &mut FnMap) {
+    pub fn check(&mut self, bb_index: usize, fn_map: &mut FnMap) {
         self.visit_times += 1;
         if self.visit_times > VISIT_LIMIT {
             return;
         }
         let cur_block = self.blocks[self.scc_indices[bb_index]].clone();
-        self.alias_bb(self.scc_indices[bb_index], tcx);
-        self.alias_bbcall(self.scc_indices[bb_index], tcx, func_map);
+        self.alias_bb(self.scc_indices[bb_index]);
+        self.alias_bbcall(self.scc_indices[bb_index], fn_map);
 
         /* Handle cases if the current block is a merged scc block with sub block */
         if cur_block.scc_sub_blocks.len() > 0{
             for i in cur_block.scc_sub_blocks.clone(){
-                self.alias_bb(i, tcx);
-                self.alias_bbcall(i, tcx, func_map);
+                self.alias_bb(i);
+                self.alias_bbcall(i, fn_map);
             }
         }
 
@@ -67,7 +61,7 @@ impl<'tcx> MopGraph<'tcx> {
                 * We cannot use [0] for FxHashSet.
                 */
                 for next in cur_block.next {
-                    self.check(next, tcx, func_map);
+                    self.check(next, fn_map);
                 }
                 return;
             },
@@ -85,7 +79,7 @@ impl<'tcx> MopGraph<'tcx> {
             if let TerminatorKind::SwitchInt { ref discr, ref targets } = cur_block.switch_stmts[0].clone().kind {
                 match discr {
                     Copy(p) | Move(p) => {
-                        let place = self.projection(tcx, false, p.clone());
+                        let place = self.projection(false, p.clone());
                         if let Some(constant) = self.constant.get(&self.values[place].alias[0]) {
                             single_target = true;
                             sw_val = *constant;
@@ -97,8 +91,8 @@ impl<'tcx> MopGraph<'tcx> {
                     } 
                     Constant(c) => {
                         single_target = true;
-                        let param_env = tcx.param_env(self.def_id);
-                        if let Some(val) = c.const_.try_eval_target_usize(tcx, param_env) {
+                        let param_env = self.tcx.param_env(self.def_id);
+                        if let Some(val) = c.const_.try_eval_target_usize(self.tcx, param_env) {
                             sw_val = val as usize;
                         }
 
@@ -129,7 +123,7 @@ impl<'tcx> MopGraph<'tcx> {
         /* End: finish handling SwitchInt */
         // fixed path since a constant switchInt value
         if single_target {
-            self.check(sw_target, tcx, func_map);
+            self.check(sw_target, fn_map);
         } else {
             // Other cases in switchInt terminators
             if let Some(targets) = sw_targets {
@@ -139,19 +133,19 @@ impl<'tcx> MopGraph<'tcx> {
                     }
                     let next_index = iter.1.as_usize();
                     let path_discr_val = iter.0 as usize;
-                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, func_map);
+                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map);
                 }
                 let all_targets = targets.all_targets();
                 let next_index = all_targets[all_targets.len()-1].as_usize();
                 let path_discr_val = usize::MAX; // to indicate the default path;
-                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, func_map);
+                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map);
             } else {
                 for i in cur_block.next {
                     if self.visit_times > VISIT_LIMIT {
                         continue;
                     }
                     let next_index = i;
-                    self.split_check(next_index, tcx, func_map);
+                    self.split_check(next_index, fn_map);
                 }
             }
         }

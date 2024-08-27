@@ -1,21 +1,21 @@
 use rustc_middle::ty;
-use rustc_middle::ty::TyCtxt;
 use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
 use crate::rap_error;
 use super::graph::*;
 use super::types::*;
 use super::mop::*;
+use super::super::mop::FnMap;
 
 impl<'tcx> MopGraph<'tcx> {
     /* alias analysis for a single block */
-    pub fn alias_bb(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>) {
+    pub fn alias_bb(&mut self, bb_index: usize) {
         for stmt in self.blocks[bb_index].const_value.clone() {
             self.constant.insert(stmt.0, stmt.1);
         }
         let cur_block = self.blocks[bb_index].clone();
         for assign in cur_block.assignments {
-            let mut lv_aliaset_idx = self.projection(tcx, false, assign.lv.clone());
-            let rv_aliaset_idx = self.projection(tcx, true, assign.rv.clone());
+            let mut lv_aliaset_idx = self.projection(false, assign.lv.clone());
+            let rv_aliaset_idx = self.projection(true, assign.rv.clone());
             match assign.atype {
                 AssignType::Variant => {
                     self.values[lv_aliaset_idx].alias[0] = rv_aliaset_idx;
@@ -34,12 +34,12 @@ impl<'tcx> MopGraph<'tcx> {
     }
 
     /* Check the aliases introduced by the terminators (function call) of a scc block */
-    pub fn alias_bbcall(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &mut FnMap){
+    pub fn alias_bbcall(&mut self, bb_index: usize, fn_map: &mut FnMap){
         let cur_block = self.blocks[bb_index].clone();
         for call in cur_block.calls {
             if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
                 if let Operand::Constant(ref constant) = func {
-                    let lv = self.projection(tcx, false, destination.clone());
+                    let lv = self.projection(false, destination.clone());
                     self.values[lv].birth = self.scc_indices[bb_index] as isize;
                     let mut merge_vec = Vec::new();
                     merge_vec.push(lv);
@@ -50,14 +50,14 @@ impl<'tcx> MopGraph<'tcx> {
                     for arg in args {
                         match arg {
                             Operand::Copy(ref p) => {
-                                let rv = self.projection(tcx, true, p.clone());
+                                let rv = self.projection(true, p.clone());
                                 merge_vec.push(rv);
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
                                 }
                             },
                             Operand::Move(ref p) => {
-                                let rv = self.projection(tcx, true, p.clone());
+                                let rv = self.projection(true, p.clone());
                                 merge_vec.push(rv);
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
@@ -71,9 +71,9 @@ impl<'tcx> MopGraph<'tcx> {
                     if let ty::FnDef(ref target_id, _) = constant.const_.ty().kind() {
                         //if may_drop_flag > 1 || Self::should_check(target_id.clone()) == false {
                         if may_drop_flag > 1 {
-                            if tcx.is_mir_available(*target_id) {
-                                if fn_map.contains_key(&target_id.index.as_usize()) {
-                                    let assignments = fn_map.get(&target_id.index.as_usize()).unwrap();
+                            if self.tcx.is_mir_available(*target_id) {
+                                if fn_map.contains_key(&target_id) {
+                                    let assignments = fn_map.get(&target_id).unwrap();
                                     for assign in assignments.alias_vec.iter() {
                                         if !assign.valuable() {
                                             continue;
@@ -82,13 +82,12 @@ impl<'tcx> MopGraph<'tcx> {
                                     }
                                 }
                                 else{
-                                    if fn_map.contains_key(&target_id.index.as_usize()) {
+                                    if fn_map.contains_key(&target_id) {
                                         continue;
                                     }
-                                    let func_body = tcx.optimized_mir(*target_id);
-                                    let mut mop_graph = MopGraph::new(&func_body, tcx, *target_id);
+                                    let mut mop_graph = MopGraph::new(self.tcx, *target_id);
                                     mop_graph.solve_scc();
-                                    mop_graph.check(0, tcx, fn_map);
+                                    mop_graph.check(0, fn_map);
                                     let ret_alias = mop_graph.ret_alias.clone();
                                     for assign in ret_alias.alias_vec.iter() {
                                         if !assign.valuable(){
@@ -96,7 +95,7 @@ impl<'tcx> MopGraph<'tcx> {
                                         }
                                         self.merge(assign, &merge_vec);
                                     }
-                                    fn_map.insert(target_id.index.as_usize(), ret_alias);
+                                    fn_map.insert(*target_id, ret_alias);
                                 }
                             }
                             else {
@@ -144,7 +143,7 @@ impl<'tcx> MopGraph<'tcx> {
      * If the id is not a ref, we further make the id and its first element an alias, i.e., level-insensitive
      *
      */
-    pub fn projection(&mut self, tcx: TyCtxt<'tcx>, is_right: bool, place: Place<'tcx>) -> usize {
+    pub fn projection(&mut self, is_right: bool, place: Place<'tcx>) -> usize {
         let mut local = place.local.as_usize();
         let mut proj_id = local;
         for proj in place.projection {
@@ -163,9 +162,9 @@ impl<'tcx> MopGraph<'tcx> {
                     }
                     let field_idx = field.as_usize();
                     if !self.values[proj_id].fields.contains_key(&field_idx) {
-                        let param_env = tcx.param_env(self.def_id);
-                        let need_drop = ty.needs_drop(tcx, param_env);
-                        let may_drop = !is_not_drop(tcx, ty);
+                        let param_env = self.tcx.param_env(self.def_id);
+                        let need_drop = ty.needs_drop(self.tcx, param_env);
+                        let may_drop = !is_not_drop(self.tcx, ty);
                         let mut node = ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
                         node.kind = kind(ty);
                         node.birth = self.values[proj_id].birth;
@@ -333,8 +332,10 @@ pub struct FnRetAlias {
 
 impl FnRetAlias {
     pub fn new(arg_size: usize) -> FnRetAlias{
-        let alias_vec = Vec::<RetAlias>::new();
-        FnRetAlias { arg_size: arg_size, alias_vec: alias_vec }
+        Self { 
+            arg_size: arg_size, 
+            alias_vec: Vec::<RetAlias>::new(),
+        }
     }
 }
 
