@@ -1,5 +1,6 @@
 use rustc_middle::ty;
 use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
+use std::fmt;
 use crate::rap_error;
 use super::graph::*;
 use super::types::*;
@@ -211,7 +212,7 @@ impl<'tcx> MopGraph<'tcx> {
         let mut right_init = arg_vec[ret_alias.right_index];
         let mut lv = left_init;
         let mut rv = right_init;
-        for index in ret_alias.left.iter() {
+        for index in ret_alias.left_field_seq.iter() {
             if self.values[lv].fields.contains_key(&index) == false {
                 let need_drop = ret_alias.left_need_drop;
                 let may_drop = ret_alias.left_may_drop;
@@ -224,7 +225,7 @@ impl<'tcx> MopGraph<'tcx> {
             }
             lv = *self.values[lv].fields.get(&index).unwrap();
         }
-        for index in ret_alias.right.iter() {
+        for index in ret_alias.right_field_seq.iter() {
             if self.values[rv].alias[0] != rv {
                 rv = self.values[rv].alias[0];
                 right_init = self.values[rv].local;
@@ -249,7 +250,7 @@ impl<'tcx> MopGraph<'tcx> {
         for node in results_nodes.iter() {
             if node.local <= self.arg_size {
                 if node.alias[0] != node.index || node.alias.len() > 1 {
-                    for alias in node.alias.clone(){
+                    for alias in node.alias.clone() {
                         if results_nodes[alias].local <= self.arg_size
                         && !self.return_set.contains(&(node.index, alias))
                         && alias != node.index
@@ -257,12 +258,12 @@ impl<'tcx> MopGraph<'tcx> {
                             self.return_set.insert((node.index, alias));
                             let left_node = node;
                             let right_node = &results_nodes[alias];
-                            let mut new_alias = RetAlias::new(0, 
+                            let mut new_alias = RetAlias::new( 
                                 left_node.local, left_node.may_drop, left_node.need_drop,
                                 right_node.local, right_node.may_drop, right_node.need_drop
 			                );
-                            new_alias.left = self.get_field_seq(left_node); 
-                            new_alias.right = self.get_field_seq(right_node); 
+                            new_alias.left_field_seq = self.get_field_seq(left_node); 
+                            new_alias.right_field_seq = self.get_field_seq(right_node); 
                             self.ret_alias.alias_vec.push(new_alias);
                         }
                     }
@@ -287,31 +288,27 @@ impl<'tcx> MopGraph<'tcx> {
 #[derive(Debug,Clone)]
 pub struct RetAlias{
     pub left_index: usize,
-    pub left: Vec<usize>, //field
+    pub left_field_seq: Vec<usize>, 
     pub left_may_drop: bool, 
     pub left_need_drop: bool,
     pub right_index: usize,
-    pub right: Vec<usize>,
+    pub right_field_seq: Vec<usize>,
     pub right_may_drop: bool, 
     pub right_need_drop: bool,
-    pub atype: usize,
 }
 
 impl RetAlias{
-    pub fn new(atype: usize, left_index: usize, left_may_drop: bool, left_need_drop: bool,
+    pub fn new(left_index: usize, left_may_drop: bool, left_need_drop: bool,
         right_index: usize, right_may_drop: bool, right_need_drop: bool) -> RetAlias{
-        let left = Vec::<usize>::new();
-        let right = Vec::<usize>::new();
-        RetAlias{
+        RetAlias {
             left_index: left_index,
-            left: left,
+            left_field_seq: Vec::<usize>::new(),
             left_may_drop: left_may_drop,
             left_need_drop: left_need_drop,
             right_index: right_index,
-            right: right,
+            right_field_seq: Vec::<usize>::new(),
             right_may_drop: right_may_drop,
             right_need_drop: right_need_drop,
-            atype: atype
         }
     }
 
@@ -320,6 +317,14 @@ impl RetAlias{
     }
 }
 
+impl fmt::Display for RetAlias {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+            "left_index: {} = right_index: {}",
+            self.left_index, self.right_index
+        )
+    }
+}
 /*
  * To store the alias relationships among arguments and return values.
  * Each function may have multiple return instructions, leading to different RetAlias.
@@ -339,4 +344,14 @@ impl FnRetAlias {
     }
 }
 
-
+impl fmt::Display for FnRetAlias {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+             "  alias_vec:[{}]",
+            self.alias_vec.iter()
+                .map(|alias| format!("{},", alias))  // Indentation for nested struct display
+                .collect::<Vec<String>>()
+                .join(",\n")  // Join the strings with a comma and newline
+        )
+    }
+}

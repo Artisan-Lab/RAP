@@ -4,9 +4,9 @@ pub mod types;
 pub mod alias;
 
 use rustc_middle::ty::TyCtxt;
-use rustc_hir::def_id::DefId;
+use rustc_span::def_id::DefId;
 use rustc_data_structures::fx::FxHashMap;
-use crate::utils::utils::*;
+//use crate::utils::source::*;
 use graph::MopGraph;
 use alias::FnRetAlias;
 
@@ -36,9 +36,11 @@ impl<'tcx> MopAlias<'tcx> {
             }
         }
         for (fn_id, fn_alias) in &self.fn_map {
-            let fn_name = get_fn_name(self.tcx, *fn_id);
-            println!("{:?}: {:?}", fn_id, fn_name);
-            println!("{:?}", fn_alias);
+            /* FIXME: This does not work.
+            let fn_name = get_name(self.tcx, *fn_id);
+            */
+            println!("{:?}", fn_id);
+            println!("{}", fn_alias);
         }
     }
 
