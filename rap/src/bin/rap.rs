@@ -49,6 +49,7 @@ fn main() {
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
+            "-t" | "-test" => compiler.enable_test(),
             _ => args.push(arg),
         }
     }

@@ -5,6 +5,7 @@
 pub mod analysis;
 pub mod utils;
 
+extern crate rustc_index;
 extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_middle;
@@ -27,6 +28,7 @@ use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use analysis::callgraph::CallGraph;
 use analysis::show_mir::ShowMir;
+use analysis::core::dataflow;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -41,6 +43,7 @@ pub struct RapCallback {
     unsafety_isolation: bool,
     callgraph: bool,
     show_mir: bool,
+    test: bool,
 }
 
 impl Default for RapCallback {
@@ -50,6 +53,7 @@ impl Default for RapCallback {
             unsafety_isolation: false,
             callgraph: false,
             show_mir: false,
+            test: true,
         }
     }
 }
@@ -120,6 +124,14 @@ impl RapCallback {
     pub fn is_show_mir_enabled(&self) -> bool { 
 	self.show_mir 
     }
+
+    pub fn enable_test(&mut self) {
+        self.test = true;
+    }
+
+    pub fn is_test(self) -> bool {
+        self.test
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -155,6 +167,7 @@ pub fn compile_time_sysroot() -> Option<String> {
     Some(env)
 }
 
+
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
 	rCanary::new(tcx).start()
@@ -170,6 +183,17 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_show_mir_enabled() {
         ShowMir::new(tcx).start();
+    }
+
+    if callback.is_test() {
+        for local_def_id in tcx.iter_local_def_id() {
+            let hir_map = tcx.hir();
+            if hir_map.maybe_body_owned_by(local_def_id).is_some() {
+                let def_id = local_def_id.to_def_id();
+                let graph = dataflow::build_graph(tcx, def_id);
+            }
+        }
+        
     }
 }
 
