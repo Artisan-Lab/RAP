@@ -2,9 +2,8 @@ use rustc_middle::mir::SourceInfo;
 use rustc_span::Span;
 use rustc_span::symbol::Symbol;
 use rustc_data_structures::fx::FxHashSet;
-
+use crate::utils::source::*;
 use super::graph::*;
-use super::utils::*;
 use super::alias::*;
 
 impl<'tcx> SafeDropGraph<'tcx> {
@@ -17,7 +16,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         if self.bug_records.is_bug_free(){
             return;
         }
-        let fn_name = match get_fn_name(self.tcx, self.def_id) {
+        let fn_name = match get_name(self.tcx, self.def_id) {
             Some(name) => name,
             None => Symbol::intern("no symbol available"),
         };

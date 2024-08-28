@@ -5,7 +5,6 @@ pub mod check_bugs;
 pub mod corner_handle;
 pub mod types;
 pub mod alias;
-pub mod utils;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_hir::def_id::DefId;

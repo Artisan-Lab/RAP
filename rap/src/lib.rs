@@ -17,9 +17,9 @@ extern crate rustc_hir;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_driver::{Compilation, Callbacks};
-use rustc_interface::{interface::Compiler, Queries};
+use rustc_interface::{Config, Queries};
+use rustc_interface::interface::Compiler;
 use rustc_middle::util::Providers;
-use rustc_interface::Config;
 use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
@@ -27,6 +27,7 @@ use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use analysis::safedrop::SafeDrop;
 use analysis::core::control_flow::callgraph::CallGraph;
+use analysis::core::alias::mop::MopAlias;
 use analysis::utils::show_mir::ShowMir;
 
 
@@ -42,6 +43,7 @@ pub struct RapCallback {
     rcanary: bool,
     safedrop: usize,
     unsafety_isolation: bool,
+    mop: bool,
     callgraph: bool,
     show_mir: bool,
 }
@@ -52,6 +54,7 @@ impl Default for RapCallback {
             rcanary: false,
             safedrop: 0,
             unsafety_isolation: false,
+            mop: false,
             callgraph: false,
             show_mir: false,
         }
@@ -99,6 +102,14 @@ impl RapCallback {
 
     pub fn is_rcanary_enabled(&self) -> bool { 
 	    self.rcanary 
+    }
+
+    pub fn enable_mop(&mut self) { 
+	    self.mop = true; 
+    }
+
+    pub fn is_mop_enabled(&self) -> bool { 
+	    self.mop 
     }
 
     pub fn enable_safedrop(&mut self, x:usize) { 
@@ -172,6 +183,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 	    rCanary::new(tcx).start()
     }
 
+    if callback.is_mop_enabled() {
+        MopAlias::new(tcx).start();
+    }
     /* legacy: Backend version */
     if callback.is_safedrop_enabled() == 1 {
         tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));

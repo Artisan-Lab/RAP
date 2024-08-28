@@ -50,13 +50,14 @@ fn main() {
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
+            "-mop" => compiler.enable_mop(), 
             _ => args.push(arg),
         }
     }
     if debug == true {
-	Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
+	    Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
     } else {
-	Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
+	    Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
     }
     rap_debug!("rap received arguments{:#?}", env::args());
     rap_debug!("arguments to rustc: {:?}", &args);
