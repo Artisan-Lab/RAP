@@ -27,7 +27,6 @@ impl<'tcx> MopGraph<'tcx> {
                 },
                 _ => { }, // Copy or Move
             }
-            self.fill_birth(lv_aliaset_idx, self.scc_indices[bb_index] as isize);
             if self.values[lv_aliaset_idx].local != self.values[rv_aliaset_idx].local {
                 self.merge_alias(lv_aliaset_idx, rv_aliaset_idx);
             }
@@ -41,7 +40,6 @@ impl<'tcx> MopGraph<'tcx> {
             if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
                 if let Operand::Constant(ref constant) = func {
                     let lv = self.projection(false, destination.clone());
-                    self.values[lv].birth = self.scc_indices[bb_index] as isize;
                     let mut merge_vec = Vec::new();
                     merge_vec.push(lv);
                     let mut may_drop_flag = 0;
@@ -124,20 +122,6 @@ impl<'tcx> MopGraph<'tcx> {
         }
     }
 
-    // assign to the variable _x, we will set the birth of _x and its child self.values a new birth.
-    pub fn fill_birth(&mut self, node: usize, birth: isize) {
-        self.values[node].birth = birth;
-        //TODO: check the correctness.
-        for i in self.values[node].alias.clone() {
-            if self.values[i].birth == -1 {
-                self.values[i].birth = birth;
-            }
-        }
-        for i in self.values[node].fields.clone().into_iter() {
-            self.fill_birth(i.1, birth); //i.1 corresponds to the local field.
-        }
-    }
-
     /*
      * This is the function for field sensitivity
      * If the projection is a deref, we directly return its head alias or alias[0].
@@ -168,7 +152,6 @@ impl<'tcx> MopGraph<'tcx> {
                         let may_drop = !is_not_drop(self.tcx, ty);
                         let mut node = ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
                         node.kind = kind(ty);
-                        node.birth = self.values[proj_id].birth;
                         node.field_id = field_idx;
                         self.values[proj_id].fields.insert(field_idx, node.index);
                         self.values.push(node);
@@ -193,7 +176,6 @@ impl<'tcx> MopGraph<'tcx> {
             if !self.values[lv].fields.contains_key(&field.0) {
                 let mut node = ValueNode::new(self.values.len(), self.values[lv].local, self.values[field.1].need_drop, self.values[field.1].may_drop);
                 node.kind = self.values[field.1].kind;
-                node.birth = self.values[lv].birth;
                 node.field_id = field.0;
                 self.values[lv].fields.insert(field.0, node.index);
                 self.values.push(node);
@@ -218,7 +200,6 @@ impl<'tcx> MopGraph<'tcx> {
                 let may_drop = ret_alias.left_may_drop;
                 let mut node = ValueNode::new(self.values.len(), left_init, need_drop, may_drop);
                 node.kind = TyKind::RawPtr;
-                node.birth = self.values[lv].birth;
                 node.field_id = *index;
                 self.values[lv].fields.insert(*index, node.index);
                 self.values.push(node);
@@ -235,7 +216,6 @@ impl<'tcx> MopGraph<'tcx> {
                 let may_drop = ret_alias.right_may_drop;
                 let mut node = ValueNode::new(self.values.len(), right_init, need_drop, may_drop);
                 node.kind = TyKind::RawPtr;
-                node.birth = self.values[rv].birth;
                 node.field_id = *index;
                 self.values[rv].fields.insert(*index, node.index);
                 self.values.push(node);
@@ -252,10 +232,8 @@ impl<'tcx> MopGraph<'tcx> {
                 if node.alias[0] != node.index || node.alias.len() > 1 {
                     for alias in node.alias.clone() {
                         if results_nodes[alias].local <= self.arg_size
-                        && !self.return_set.contains(&(node.index, alias))
                         && alias != node.index
                         && node.local != results_nodes[alias].local {
-                            self.return_set.insert((node.index, alias));
                             let left_node = node;
                             let right_node = &results_nodes[alias];
                             let mut new_alias = RetAlias::new( 

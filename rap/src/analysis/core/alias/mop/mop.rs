@@ -95,7 +95,6 @@ impl<'tcx> MopGraph<'tcx> {
                         if let Some(val) = c.const_.try_eval_target_usize(self.tcx, param_env) {
                             sw_val = val as usize;
                         }
-
                     }
                 }
                 if single_target {

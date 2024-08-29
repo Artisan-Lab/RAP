@@ -91,7 +91,6 @@ pub struct ValueNode {
     pub father: usize,
     pub field_id: usize, // the field id of its father node.
     pub alias: Vec<usize>,
-    pub birth: isize,
     pub fields: FxHashMap<usize, usize>,
 }
 
@@ -104,19 +103,10 @@ impl ValueNode {
             father: local, 
             field_id: usize::MAX, 
             alias: vec![index], 
-            birth: 0, 
             may_drop: may_drop, 
             kind: TyKind::Adt, 
             fields: FxHashMap::default(), 
         }
-    }
-
-    pub fn dead(&mut self) { 
-        self.birth = -1; 
-    }
-
-    pub fn is_alive(&self) -> bool { 
-        self.birth > -1 
     }
 
     pub fn is_tuple(&self)-> bool { 
@@ -151,8 +141,6 @@ pub struct MopGraph<'tcx>{
     pub constant: FxHashMap<usize, usize>,
     // contains the return results for inter-procedure analysis.
     pub ret_alias: FnRetAlias,
-    // used for filtering duplicate alias assignments in return results.
-    pub return_set: FxHashSet<(usize, usize)>,
     // a threhold to avoid path explosion.
     pub visit_times: usize,
 }
@@ -235,7 +223,6 @@ impl<'tcx> MopGraph<'tcx> {
                              */
                             if !values[lv_local].fields.contains_key(&0) {
                                 let mut lvl0 = ValueNode::new(values.len(), lv_local, false, true);
-                                lvl0.birth = values[lv_local].birth;
                                 lvl0.field_id = 0;
                                 values[lv_local].fields.insert(0, lvl0.index);
                                 values.push(lvl0);
@@ -370,7 +357,6 @@ impl<'tcx> MopGraph<'tcx> {
             scc_indices: scc_indices,
             constant: FxHashMap::default(), 
             ret_alias: FnRetAlias::new(arg_size),
-            return_set: FxHashSet::default(),
             visit_times: 0,
         }
     }
