@@ -1,4 +1,4 @@
-# ![logo](logo.png) -- Rust Analysis Platform 
+# ![logo](logo.png) Rust Analysis Platform 
 RAP is a static Rust analysis platform developed by researchers at [Artisan-Lab](https://hxuhack.github.io), Fudan University. The project aims to provide a foundation for Rust programmers to develop or use advanced static analysis features beyond those offered by the rustc compiler. For further details, please refer to the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
 
 The project is still under heavy development. 
