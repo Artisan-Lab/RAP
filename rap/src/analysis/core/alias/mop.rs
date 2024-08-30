@@ -6,6 +6,7 @@ pub mod alias;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 use rustc_data_structures::fx::FxHashMap;
+use crate::rap_info;
 //use crate::utils::source::*;
 use graph::MopGraph;
 use alias::FnRetAlias;
@@ -35,12 +36,15 @@ impl<'tcx> MopAlias<'tcx> {
                 self.query_mop(local_def_id.to_def_id());
             }
         }
+        rap_info!("Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.");
         for (fn_id, fn_alias) in &self.fn_map {
             /* FIXME: This does not work.
             let fn_name = get_name(self.tcx, *fn_id);
             */
-            println!("{:?}", fn_id);
-            println!("{}", fn_alias);
+            if fn_alias.alias_vec.len() > 0 {
+                rap_info!("{:?}", fn_id);
+                rap_info!("{}", fn_alias);
+            }
         }
     }
 

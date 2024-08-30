@@ -298,7 +298,7 @@ impl RetAlias{
 impl fmt::Display for RetAlias {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-            "left_index: {} = right_index: {}",
+            "({},{})",
             self.left_index, self.right_index
         )
     }
@@ -325,11 +325,11 @@ impl FnRetAlias {
 impl fmt::Display for FnRetAlias {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-             "  alias_vec:[{}]",
+            "[{}]",
             self.alias_vec.iter()
-                .map(|alias| format!("{},", alias))  // Indentation for nested struct display
+                .map(|alias| format!("{}", alias))
                 .collect::<Vec<String>>()
-                .join(",\n")  // Join the strings with a comma and newline
+                .join("")
         )
     }
 }
