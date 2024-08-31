@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use rustc_index::IndexVec;
 use rustc_middle::mir::{Body, Operand, Rvalue, Local, Const};
 use rustc_middle::mir::StatementKind;
@@ -35,14 +37,37 @@ pub enum EdgeOp {
     //Operand
     Move,
     Copy,
-    Constant,
+    Const,
 }
 
 #[derive(Clone)]
-pub struct GraphEdge {
-    src: Local,
-    dst: Local,
-    op: EdgeOp,
+pub enum GraphEdge {
+    NodeEdge{
+        src: Local,
+        dst: Local,
+        op: EdgeOp,
+    },
+    ConstEdge{
+        src: String,
+        dst: Local,
+        op: EdgeOp,
+    }
+}
+
+impl GraphEdge {
+    pub fn to_dot_graph<'tcx> (&self) -> String {
+        let mut attr = String::new();
+        let mut dot = String::new();
+        match self { //label=xxx
+            GraphEdge::NodeEdge { src:_, dst:_, op } => {write!(attr, "label=\"{:?}\" ", op).unwrap();},
+            GraphEdge::ConstEdge { src:_, dst:_, op } => {write!(attr, "label=\"{:?}\" ", op).unwrap();},
+        }
+        match self {
+            GraphEdge::NodeEdge { src, dst, op:_ } => {write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();},
+            GraphEdge::ConstEdge { src, dst, op:_ } => {write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();},
+        }
+        dot
+    }
 }
 
 #[derive(Clone)]
@@ -55,6 +80,22 @@ pub struct GraphNode {
 impl GraphNode {
     pub fn new() -> Self {
         Self { op: NodeOp::Nop, out_edges: vec![], in_edges: vec![] }
+    }
+
+    pub fn to_dot_graph<'tcx> (&self, tcx: &TyCtxt<'tcx>, local: Local, color: Option<String>) -> String {
+        let mut attr = String::new();
+        let mut dot = String::new();
+        match self.op { //label=xxx
+            NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
+            NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+            _ => {write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();},
+        };
+        match color { //color=xxx
+            None => {},
+            Some(color) => {write!(attr, "color={} ", color).unwrap();},
+        }
+        write!(dot, "{:?} [{}]", local, attr).unwrap();
+        dot
     }
 }
 
@@ -73,22 +114,30 @@ impl Graph {
         Self { def_id, argc, nodes: GraphNodes::from_elem_n(GraphNode::new(), n), edges: GraphEdges::new() }
     }
 
-    fn add_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
-        let edge_idx = self.edges.push(GraphEdge {src, dst, op});
+    fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
+        let edge_idx = self.edges.push(GraphEdge::NodeEdge {src, dst, op});
         self.nodes[dst].in_edges.push(edge_idx);
         self.nodes[src].out_edges.push(edge_idx);
+        edge_idx
+    }
+
+    fn add_const_edge(&mut self, src: String, dst: Local, op: EdgeOp) -> EdgeIdx {
+        let edge_idx = self.edges.push(GraphEdge::ConstEdge {src, dst, op});
+        self.nodes[dst].in_edges.push(edge_idx);
         edge_idx
     }
 
     fn add_operand(&mut self, operand: &Operand, dst: Local) {
         match operand {
             Operand::Copy(place) => {
-                self.add_edge(place.local, dst, EdgeOp::Copy);
+                self.add_node_edge(place.local, dst, EdgeOp::Copy);
             },
             Operand::Move(place) => {
-                self.add_edge(place.local, dst, EdgeOp::Move);
+                self.add_node_edge(place.local, dst, EdgeOp::Move);
             },
-            _ => (), // Const
+            Operand::Constant(boxed_const_op) => {
+                self.add_const_edge(boxed_const_op.const_.to_string(), dst, EdgeOp::Const);
+            }
         }
     }
 
@@ -114,8 +163,7 @@ impl Graph {
                     }
                     self.nodes[dst].op = NodeOp::Aggregate;
                 }
-                _ => (),
-                // _ => panic!("Error Rvalue!"),
+                _ => panic!("Unimplemented Rvalue!"),
             };
         }
     }
@@ -138,33 +186,32 @@ impl Graph {
         }
     }
 
-    fn to_dot_graph<'tcx>(&self, tcx: TyCtxt<'tcx>) {
+    fn to_dot_graph<'tcx>(&self, tcx: &TyCtxt<'tcx>) -> String {
         let mut dot = String::new();
-        writeln!(dot, "digraph {} {{", tcx.def_path_str(self.def_id)).unwrap();
+        writeln!(dot, "digraph \"{}\" {{", tcx.def_path_str(self.def_id)).unwrap();
         writeln!(dot, "    node [shape=record];").unwrap();
-
-        //nodes
         for (local, node) in self.nodes.iter_enumerated() {
-            match node.op {
-                NodeOp::Nop => {writeln!(dot, "    {:?} [label=\"<f0> {:?}\"]", local, local).unwrap();},
-                NodeOp::Call(def_id) => {writeln!(dot, "    {:?} [label=\"<f0> {:?} | <f1> {} \"]", local, local, tcx.def_path_str(def_id)).unwrap();},
-                _ => {writeln!(dot, "    {:?} [label=\"<f0> {:?} | <f1> {:?} \"]", local, local, node.op).unwrap();},
-            };
+            if local <= Local::from_usize(self.argc) {
+                let node_dot = node.to_dot_graph(tcx, local, Some(String::from("red")));
+                writeln!(dot, "    {}", node_dot).unwrap();
+            }
+            else {
+                let node_dot = node.to_dot_graph(tcx, local, None);
+                writeln!(dot, "    {}", node_dot).unwrap();
+            }
         }
-
         //edges
         for edge in self.edges.iter() {
-            writeln!(dot, "    {:?} -> {:?} [label=\"{:?}\"]", edge.src, edge.dst, edge.op).unwrap();
+            let edge_dot = edge.to_dot_graph();
+            writeln!(dot, "    {}", edge_dot).unwrap();
         }
-
         writeln!(dot, "}}").unwrap();
-
-        println!("{}", dot);
+        dot
     }
 }
 
 pub fn build_graph<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> Graph {
-    let body: &Body = &tcx.optimized_mir(def_id);
+    let body: &Body = tcx.optimized_mir(def_id);
     let mut graph = Graph::new(def_id, body.arg_count, body.local_decls.len());
     let basic_blocks = &body.basic_blocks;
     for basic_block_data in basic_blocks.iter() {
@@ -175,7 +222,7 @@ pub fn build_graph<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> Graph {
             graph.add_terminator_to_graph(&terminator.kind);
         }
     }
-    graph.to_dot_graph(tcx);
+    let dot = graph.to_dot_graph(&tcx);
     graph
 }
 
