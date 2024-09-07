@@ -154,7 +154,7 @@ impl Graph {
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp
                 },
                 // todo: Aggregate Kind
-                Rvalue::Aggregate(boxed_kind, ops) => {
+                Rvalue::Aggregate(_boxed_kind, ops) => {
                     for op in ops.iter() {
                         self.add_operand(op, dst);
                     }
