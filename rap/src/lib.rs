@@ -5,6 +5,7 @@
 pub mod analysis;
 pub mod utils;
 
+extern crate rustc_index;
 extern crate rustc_driver;
 extern crate rustc_interface;
 extern crate rustc_middle;
@@ -25,11 +26,13 @@ use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
 use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
+
+
 use analysis::safedrop::SafeDrop;
 use analysis::core::control_flow::callgraph::CallGraph;
 use analysis::core::alias::mop::MopAlias;
+use analysis::core::dataflow::DataFlow;
 use analysis::utils::show_mir::ShowMir;
-
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -46,6 +49,7 @@ pub struct RapCallback {
     mop: bool,
     callgraph: bool,
     show_mir: bool,
+    dataflow: bool,
 }
 
 impl Default for RapCallback {
@@ -57,6 +61,7 @@ impl Default for RapCallback {
             mop: false,
             callgraph: false,
             show_mir: false,
+            dataflow: false,
         }
     }
 }
@@ -143,6 +148,14 @@ impl RapCallback {
     pub fn is_show_mir_enabled(&self) -> bool { 
 	self.show_mir 
     }
+
+    pub fn enable_dataflow(&mut self) {
+        self.dataflow = true;
+    }
+
+    pub fn is_dataflow_enabled(self) -> bool {
+        self.dataflow
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -178,6 +191,7 @@ pub fn compile_time_sysroot() -> Option<String> {
     Some(env)
 }
 
+
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
 	    rCanary::new(tcx).start()
@@ -206,6 +220,10 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_show_mir_enabled() {
         ShowMir::new(tcx).start();
+    }
+
+    if callback.is_dataflow_enabled() {
+        DataFlow::new(tcx).start()
     }
 }
 
