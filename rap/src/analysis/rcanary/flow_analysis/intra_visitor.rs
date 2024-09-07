@@ -1,19 +1,17 @@
-use rustc_middle::ty::{self,Ty,TyKind,TypeVisitable};
-use rustc_middle::mir::{Body,BasicBlock,BasicBlockData,Statement,StatementKind,
-                        Terminator,Place,Rvalue,Local,Operand,ProjectionElem,TerminatorKind};
+use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
+use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
+                        Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
 use rustc_target::abi::VariantIdx;
-
-use crate::{rap_debug,rap_error,rap_warn};
-use crate::analysis::rcanary::{Rcx,RcxMut,IcxMut,IcxSliceMut};
-use crate::analysis::rcanary::type_analysis::{DefaultOwnership,mir_body,OwnershipLayout,RustBV,
-                                              ownership::{OwnershipLayoutResult,RawTypeOwner},
-                                              type_visitor::TyWithIndex};
-use crate::analysis::rcanary::flow_analysis::{IntraFlowAnalysis,FlowAnalysis,IcxSliceFroBlock,
-                                              ownership::IntraVar};
-
-use z3::ast::{self, Ast};
 use std::ops::Add;
+use z3::ast::{self, Ast};
 use colorful::{Color, Colorful};
+use crate::{rap_debug, rap_error, rap_warn};
+use super::super::{Rcx, RcxMut, IcxMut, IcxSliceMut};
+use super::super::type_analysis::*;
+use super::super::type_analysis::ownership::*;
+use super::super::type_analysis::type_visitor::*;
+use super::{IntraFlowAnalysis, FlowAnalysis, IcxSliceFroBlock};
+use super::ownership::IntraVar;
 use super::is_z3_goal_verbose;
 // Fixme: arg.0
 // Fixme: arg enum

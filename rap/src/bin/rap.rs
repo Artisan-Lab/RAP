@@ -40,24 +40,25 @@ fn main() {
     let mut compiler = RapCallback::default();
     for arg in env::args() {
         match arg.as_str() {
-            "-F" | "-uaf" => {},
-            "-FF" | "-uaff" => compiler.enable_safedrop(), // TODO: a new safedrop implementation in frontend
+            "-F" | "-uaf" => compiler.enable_safedrop(1), // a new safedrop implementation in frontend
+            "-uaf_backend" => compiler.enable_safedrop(2), // this is the legacy version of safedrop in backend
             "-M" | "-mleak" => compiler.enable_rcanary(),
-            "-adt" => {},
-            "-z3" => {},
-            "-meta" => {},
+            "-alias_mop" => compiler.enable_mop(), 
+            "-dataflow" => compiler.enable_dataflow(),
             "-UI" | "-uig" => compiler.enable_unsafety_isolation(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
-            "-D" | "-dataflow" => compiler.enable_dataflow(),
+            "-adt" => {},
+            "-z3" => {},
+            "-meta" => {},
             _ => args.push(arg),
         }
     }
     if debug == true {
-	Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
+	    Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
     } else {
-	Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
+	    Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
     }
     rap_debug!("rap received arguments{:#?}", env::args());
     rap_debug!("arguments to rustc: {:?}", &args);
