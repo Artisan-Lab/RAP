@@ -28,7 +28,7 @@ use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use analysis::callgraph::CallGraph;
 use analysis::show_mir::ShowMir;
-use analysis::core::dataflow;
+use analysis::core::dataflow::DataFlow;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -43,7 +43,7 @@ pub struct RapCallback {
     unsafety_isolation: bool,
     callgraph: bool,
     show_mir: bool,
-    test: bool,
+    dataflow: bool,
 }
 
 impl Default for RapCallback {
@@ -53,7 +53,7 @@ impl Default for RapCallback {
             unsafety_isolation: false,
             callgraph: false,
             show_mir: false,
-            test: true,
+            dataflow: false,
         }
     }
 }
@@ -125,12 +125,12 @@ impl RapCallback {
 	self.show_mir 
     }
 
-    pub fn enable_test(&mut self) {
-        self.test = true;
+    pub fn enable_dataflow(&mut self) {
+        self.dataflow = true;
     }
 
-    pub fn is_test(self) -> bool {
-        self.test
+    pub fn is_dataflow_enabled(self) -> bool {
+        self.dataflow
     }
 }
 
@@ -185,15 +185,8 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         ShowMir::new(tcx).start();
     }
 
-    if callback.is_test() {
-        for local_def_id in tcx.iter_local_def_id() {
-            let hir_map = tcx.hir();
-            if hir_map.maybe_body_owned_by(local_def_id).is_some() {
-                let def_id = local_def_id.to_def_id();
-                let graph = dataflow::build_graph(tcx, def_id);
-            }
-        }
-        
+    if callback.is_dataflow_enabled() {
+        DataFlow::new(tcx).start()
     }
 }
 
