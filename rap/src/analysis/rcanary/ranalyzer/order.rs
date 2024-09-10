@@ -1,8 +1,10 @@
 use rustc_middle::mir::TerminatorKind;
+
 use std::collections::BinaryHeap;
 use stopwatch::Stopwatch;
+
 use super::super::RcxMut;
-use super::super::flow_analysis::{FlowAnalysis, NodeOrder};
+use super::super::ranalyzer::{FlowAnalysis, NodeOrder};
 use super::mir_body;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{

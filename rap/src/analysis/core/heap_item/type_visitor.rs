@@ -4,11 +4,13 @@ use rustc_middle::mir::visit::{Visitor, TyContext};
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Local, LocalDecl, Operand, TerminatorKind};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
+
 use std::collections::HashMap;
 use std::ops::ControlFlow;
 use colorful::{Color, Colorful};
+
 use crate::rap_debug;
-use super::super::RcxMut;
+use crate::analysis::rcanary::RcxMut;
 use super::*;
 
 // This function is aiming at resolving problems due to 'TyContext' not implementing 'Clone' trait,
@@ -118,7 +120,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         let mut v_res = Vec::new();
 
         for variant in adt_def.variants().iter() {
-            let mut raw_generic = RawGeneric::new(substs.len());
+            let mut raw_generic = IsolatedParam::new(substs.len());
 
             for field in &variant.fields {
                 let field_ty = field.ty(self.tcx(), substs);
@@ -176,7 +178,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         for (variant_index, variant) in adt_def.variants().iter().enumerate() {
             let res = v_res[variant_index as usize].clone();
 
-            let mut raw_generic_prop = RawGenericPropagation::new(
+            let mut raw_generic_prop = IsolatedParamPropagation::new(
                 self.tcx(),
                 res.1.clone(),
                 source_enum,
@@ -225,7 +227,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                             for generic_arg in *field_substs {
                                 match generic_arg.unpack() {
                                     GenericArgKind::Type( g_ty ) => {
-                                        let mut raw_generic_field_subst = RawGenericFieldSubst::new();
+                                        let mut raw_generic_field_subst = IsolatedParamFieldSubst::new();
                                         g_ty.visit_with(&mut raw_generic_field_subst);
                                         if raw_generic_field_subst.contains_param() {
 
@@ -380,7 +382,7 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
 
 }
 
-impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParam {
 
     type BreakTy = ();
 
@@ -403,7 +405,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGeneric {
     }
 }
 
-impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGenericFieldSubst {
+impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
     type BreakTy = ();
 
     #[inline(always)]
@@ -430,7 +432,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for RawGenericFieldSubst {
 
 }
 
-impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for RawGenericPropagation<'tcx, 'a>  {
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a>  {
     type BreakTy = ();
 
     // #[inline(always)]
@@ -455,7 +457,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for RawGenericPropagation<'tcx, 'a>  {
                         GenericArgKind::Lifetime( .. ) => continue,
                         GenericArgKind::Const( .. ) => continue,
                         GenericArgKind::Type(g_ty) => {
-                            let mut raw_generic_field_subst = RawGenericFieldSubst::new();
+                            let mut raw_generic_field_subst = IsolatedParamFieldSubst::new();
                             g_ty.visit_with(&mut raw_generic_field_subst);
                             if !raw_generic_field_subst.contains_param() { continue; }
                             map_raw_generic_field_subst.insert(index as usize, raw_generic_field_subst);

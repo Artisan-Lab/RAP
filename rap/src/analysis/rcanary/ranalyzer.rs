@@ -9,7 +9,7 @@ use rustc_middle::mir::{Body, Terminator};
 
 use crate::Elapsed;
 use super::{rCanary,IcxMut, IcxSliceMut, Rcx, RcxMut};
-use super::type_analysis::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
+use crate::analysis::core::heap_item::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
 use ownership::{IntraVar, Taint};
 
 use std::collections::{HashMap, HashSet};

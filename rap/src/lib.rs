@@ -96,52 +96,52 @@ impl Callbacks for RapCallback {
 }
 
 impl RapCallback {
-    pub fn enable_rcanary(&mut self) { 
-	    self.rcanary = true; 
+    pub fn enable_rcanary(&mut self) {
+        self.rcanary = true;
     }
 
-    pub fn is_rcanary_enabled(&self) -> bool { 
-	    self.rcanary 
+    pub fn is_rcanary_enabled(&self) -> bool {
+        self.rcanary
     }
 
-    pub fn enable_mop(&mut self) { 
-	    self.mop = true; 
+    pub fn enable_mop(&mut self) {
+        self.mop = true;
     }
 
-    pub fn is_mop_enabled(&self) -> bool { 
-	    self.mop 
+    pub fn is_mop_enabled(&self) -> bool {
+        self.mop
     }
 
-    pub fn enable_safedrop(&mut self, x:usize) { 
-	    self.safedrop = x; // 1: backend version; 2: frontend version 
+    pub fn enable_safedrop(&mut self, x:usize) {
+        self.safedrop = x; // 1: backend version; 2: frontend version
     }
 
-    pub fn is_safedrop_enabled(&self) -> usize { 
-	    self.safedrop
+    pub fn is_safedrop_enabled(&self) -> usize {
+        self.safedrop
     }
 
-    pub fn enable_unsafety_isolation(&mut self) { 
-        self.unsafety_isolation = true; 
-    }
-    
-    pub fn is_unsafety_isolation_enabled(&self) -> bool { 
-        self.unsafety_isolation 
+    pub fn enable_unsafety_isolation(&mut self) {
+        self.unsafety_isolation = true;
     }
 
-    pub fn enable_callgraph(&mut self) { 
-	self.callgraph = true; 
+    pub fn is_unsafety_isolation_enabled(&self) -> bool {
+        self.unsafety_isolation
     }
 
-    pub fn is_callgraph_enabled(&self) -> bool { 
-	self.callgraph 
+    pub fn enable_callgraph(&mut self) {
+        self.callgraph = true;
     }
 
-    pub fn enable_show_mir(&mut self) { 
-	self.show_mir = true; 
+    pub fn is_callgraph_enabled(&self) -> bool {
+        self.callgraph
     }
 
-    pub fn is_show_mir_enabled(&self) -> bool { 
-	self.show_mir 
+    pub fn enable_show_mir(&mut self) {
+        self.show_mir = true;
+    }
+
+    pub fn is_show_mir_enabled(&self) -> bool {
+        self.show_mir
     }
 }
 
@@ -169,7 +169,7 @@ pub fn compile_time_sysroot() -> Option<String> {
     let home = option_env!("RUSTUP_HOME").or(option_env!("MULTIRUST_HOME"));
     let toolchain = option_env!("RUSTUP_TOOLCHAIN").or(option_env!("MULTIRUST_TOOLCHAIN"));
     let env = if home.is_some() && toolchain.is_some() {
-         format!("{}/toolchains/{}", home.unwrap(), toolchain.unwrap())
+        format!("{}/toolchains/{}", home.unwrap(), toolchain.unwrap())
     } else {
         option_env!("RUST_SYSROOT")
             .expect("To build RAP without rustup, set the `RUST_SYSROOT` env var at build time")
@@ -180,16 +180,16 @@ pub fn compile_time_sysroot() -> Option<String> {
 
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_rcanary_enabled() {
-	    rCanary::new(tcx).start()
+        rCanary::new(tcx).start()
     }
 
     if callback.is_mop_enabled() {
         MopAlias::new(tcx).start();
     }
     /* legacy: Backend version */
-    if callback.is_safedrop_enabled() == 1 {
-        tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
-    }
+    // if callback.is_safedrop_enabled() == 1 {
+    //     tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
+    // }
 
     /* Frontend Version */
     if callback.is_safedrop_enabled() == 2 {
@@ -208,4 +208,3 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         ShowMir::new(tcx).start();
     }
 }
-
