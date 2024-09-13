@@ -1,11 +1,12 @@
-pub mod type_analysis;
-pub mod flow_analysis;
+pub mod ranalyzer;
 
 use rustc_middle::ty::TyCtxt;
-use crate::Elapsed;
-use flow_analysis::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
-use type_analysis::{TypeAnalysis,AdtOwner};
+
 use std::collections::HashMap;
+use crate::Elapsed;
+
+use ranalyzer::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
+use crate::analysis::core::heap_item::{TypeAnalysis,AdtOwner};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone)]

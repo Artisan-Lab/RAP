@@ -2,14 +2,16 @@ use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
                         Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
 use rustc_target::abi::VariantIdx;
+
 use std::ops::Add;
 use z3::ast::{self, Ast};
 use colorful::{Color, Colorful};
+
 use crate::{rap_debug, rap_error, rap_warn};
 use super::super::{Rcx, RcxMut, IcxMut, IcxSliceMut};
-use super::super::type_analysis::*;
-use super::super::type_analysis::ownership::*;
-use super::super::type_analysis::type_visitor::*;
+use crate::analysis::core::heap_item::*;
+use crate::analysis::core::heap_item::ownership::*;
+use crate::analysis::core::heap_item::type_visitor::*;
 use super::{IntraFlowAnalysis, FlowAnalysis, IcxSliceFroBlock};
 use super::ownership::IntraVar;
 use super::is_z3_goal_verbose;

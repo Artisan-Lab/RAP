@@ -1,5 +1,7 @@
 use rustc_middle::ty::Ty;
+
 use std::fmt::Debug;
+
 use super::{DefaultOwnership, OwnershipLayout};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]

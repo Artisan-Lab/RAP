@@ -4,13 +4,12 @@ pub mod type_visitor;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::def_id::DefId;
 
-use super::{rCanary,RcxMut};
-use ownership::RawTypeOwner;
-
 use std::collections::{HashMap, HashSet};
 use std::env;
-
 use stopwatch::Stopwatch;
+
+use crate::analysis::rcanary::{rCanary, RcxMut};
+use ownership::RawTypeOwner;
 
 type TyMap<'tcx> = HashMap<Ty<'tcx>, String>;
 type OwnerUnit = (RawTypeOwner, Vec<bool>);
@@ -109,11 +108,11 @@ impl<'tcx, 'o, 'a> RcxMut<'tcx, 'o, 'a> for TypeAnalysis<'tcx, 'a> {
 }
 
 #[derive(Clone)]
-struct RawGeneric {
+struct IsolatedParam {
     record: Vec<bool>,
 }
 
-impl RawGeneric {
+impl IsolatedParam {
 
     pub fn new(
         len: usize
@@ -130,11 +129,11 @@ impl RawGeneric {
 }
 
 #[derive(Clone)]
-struct RawGenericFieldSubst {
+struct IsolatedParamFieldSubst {
     parameters: Parameters,
 }
 
-impl<'tcx> RawGenericFieldSubst {
+impl<'tcx> IsolatedParamFieldSubst {
     pub fn new() -> Self {
         Self {
             parameters: HashSet::new(),
@@ -157,7 +156,7 @@ impl<'tcx> RawGenericFieldSubst {
 
 
 #[derive(Clone)]
-struct RawGenericPropagation<'tcx, 'a> {
+struct IsolatedParamPropagation<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     record: Vec<bool>,
     unique: Unique,
@@ -165,7 +164,7 @@ struct RawGenericPropagation<'tcx, 'a> {
     ref_adt_owner: &'a AdtOwner,
 }
 
-impl<'tcx, 'a> RawGenericPropagation<'tcx, 'a> {
+impl<'tcx, 'a> IsolatedParamPropagation<'tcx, 'a> {
     pub fn new(
         tcx: TyCtxt<'tcx>,
         record: Vec<bool>,

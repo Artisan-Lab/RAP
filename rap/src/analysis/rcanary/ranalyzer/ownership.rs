@@ -1,8 +1,10 @@
-use rustc_middle::ty::Ty;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use z3::ast;
-use super::super::type_analysis::type_visitor::TyWithIndex;
+
+use rustc_middle::ty::Ty;
+
+use crate::analysis::core::heap_item::type_visitor::TyWithIndex;
 
 #[derive(Clone, Debug)]
 pub struct Taint<'tcx> {

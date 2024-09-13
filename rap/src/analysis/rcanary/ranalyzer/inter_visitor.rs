@@ -1,5 +1,5 @@
 use super::super::RcxMut;
-use super::super::type_analysis::mir_body;
+use crate::analysis::core::heap_item::mir_body;
 use super::FlowAnalysis;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
