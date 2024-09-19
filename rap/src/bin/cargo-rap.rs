@@ -28,7 +28,7 @@ Unsafe code tracing
     -UI or -uig      generate unsafe code isolation graphs
 
 Dataflow tracing
-    -D or -dataflow  generate dataflow graphs
+    -dataflow  generate dataflow graphs
 
 General command: 
     -H or -help:     show help information
