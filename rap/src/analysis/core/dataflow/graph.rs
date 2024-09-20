@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use rustc_index::IndexVec;
-use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const};
+use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, Mutability};
 use rustc_middle::ty::{TyKind, TyCtxt};
 use rustc_hir::def_id::DefId;
 
@@ -31,10 +31,14 @@ pub enum NodeOp { //warning: the fields are related to the version of the backen
 
 #[derive(Clone, Debug)]
 pub enum EdgeOp {
+    Nop,
     //Operand
     Move,
     Copy,
     Const,
+    //Mutability
+    Immut,
+    Mut,
 }
 
 #[derive(Clone)]
@@ -146,21 +150,75 @@ impl Graph {
                 Rvalue::Use(op) => {
                     self.add_operand(op, dst);
                     self.nodes[dst].op = NodeOp::Use;
-                }
-                Rvalue::CheckedBinaryOp(_, boxed_ops) => { //rustc version related
-                    // 调用 add_operand 时不再需要可变借用 self
-                    self.add_operand(&boxed_ops.0, dst);
-                    self.add_operand(&boxed_ops.1, dst);
-                    self.nodes[dst].op = NodeOp::CheckedBinaryOp
+                },
+                Rvalue::Repeat(op, _) => {
+                    self.add_operand(op, dst);
+                    self.nodes[dst].op = NodeOp::Repeat;
+                },
+                Rvalue::Ref(_, borrow_kind, place) => {
+                    let op = match borrow_kind {
+                        BorrowKind::Shared => EdgeOp::Immut,
+                        BorrowKind::Mut {..} => EdgeOp::Mut,
+                        BorrowKind::Shallow => {panic!("Unimplemented BorrowKind!")}
+                    };
+                    self.add_node_edge(place.local, dst, op);
+                    self.nodes[dst].op = NodeOp::Ref;
+                },
+                Rvalue::AddressOf(mutability, place) => {
+                    let op = match mutability {
+                        Mutability::Not => EdgeOp::Immut,
+                        Mutability::Mut => EdgeOp::Mut,
+                    };
+                    self.add_node_edge(place.local, dst, op);
+                    self.nodes[dst].op = NodeOp::AddressOf;
+                },
+                Rvalue::Len(place) => {
+                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    self.nodes[dst].op = NodeOp::Len;
+
+                },
+                Rvalue::Cast(cast_kind, operand, _) => {
+                    self.add_operand(operand, dst);
+                    self.nodes[dst].op = NodeOp::Cast;
+                },
+                Rvalue::BinaryOp(_, operands) => {
+                    self.add_operand(&operands.0, dst);
+                    self.add_operand(&operands.1, dst);
+                    self.nodes[dst].op = NodeOp::CheckedBinaryOp;
+                },
+                Rvalue::CheckedBinaryOp(_, operands) => {
+                    self.add_operand(&operands.0, dst);
+                    self.add_operand(&operands.1, dst);
+                    self.nodes[dst].op = NodeOp::CheckedBinaryOp;
                 },
                 // todo: Aggregate Kind
-                Rvalue::Aggregate(_boxed_kind, ops) => {
-                    for op in ops.iter() {
-                        self.add_operand(op, dst);
+                Rvalue::Aggregate(boxed_kind, operands) => {
+                    for operand in operands.iter() {
+                        self.add_operand(operand, dst);
                     }
                     self.nodes[dst].op = NodeOp::Aggregate;
-                }
-                _ => panic!("Unimplemented Rvalue!"),
+                },
+                Rvalue::UnaryOp(_, operand) => {
+                    self.add_operand(operand, dst);
+                    self.nodes[dst].op = NodeOp::UnaryOp;
+                },
+                Rvalue::NullaryOp(_, ty) => {
+                    self.add_const_edge(ty.to_string(), dst, EdgeOp::Nop);
+                    self.nodes[dst].op = NodeOp::NullaryOp;
+                },
+                Rvalue::ThreadLocalRef(_) => {todo!()},
+                Rvalue::Discriminant(place) => {
+                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    self.nodes[dst].op = NodeOp::Discriminant;
+                },
+                Rvalue::ShallowInitBox(operand, _) => {
+                    self.add_operand(operand, dst);
+                    self.nodes[dst].op = NodeOp::ShallowInitBox;
+                },
+                Rvalue::CopyForDeref(place) => {
+                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    self.nodes[dst].op = NodeOp::CopyForDeref;
+                },
             };
         }
     }

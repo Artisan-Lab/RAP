@@ -27,6 +27,9 @@ Memory leakage detection.
 Unsafe code tracing
     -UI or -uig      generate unsafe code isolation graphs
 
+Dataflow tracing
+    -dataflow  generate dataflow graphs
+
 General command: 
     -H or -help:     show help information
     -V or -version:  show the version of RAP
