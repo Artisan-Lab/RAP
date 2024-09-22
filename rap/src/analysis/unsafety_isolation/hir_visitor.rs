@@ -3,11 +3,12 @@ use rustc_hir::{
     def_id::DefId,
     intravisit,
     intravisit::Visitor,
-    Block, BodyId, Body, HirId, Impl, ItemKind,
+    Block, BodyId, Body, HirId, Impl, ItemKind, ExprKind, QPath,
 };
 use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::{self, Ty, TyCtxt};
 use rustc_span::Span;
+use std::collections::HashSet;
 
 /// Maps `HirId` of a type to `BodyId` of related impls.
 pub type RelatedItemMap = FxHashMap<Option<HirId>, Vec<(BodyId, Span)>>;
@@ -44,21 +45,28 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
                 let key = Some(self_ty.hir_id);
                 let entry = self.hash_map.entry(key).or_insert(Vec::new());
                 entry.extend(impl_items.iter().filter_map(|impl_item_ref| {
-                    let hir_id = impl_item_ref.id.hir_id();
-                    hir_map
-                        .maybe_body_owned_by(hir_id.owner.def_id)
-                        .map(|body_id| (body_id, impl_item_ref.span))
+                    if let rustc_hir::AssocItemKind::Fn{has_self:_} = impl_item_ref.kind {
+                        let hir_id = impl_item_ref.id.hir_id();
+                        hir_map
+                            .maybe_body_owned_by(hir_id.owner.def_id)
+                            .map(|body_id| (body_id, impl_item_ref.span))
+                    } else {
+                        None
+                    }
                 }));
             }
-            // Free-standing (top level) functions and default trait impls have `None` as a key.
             ItemKind::Trait(_is_auto, _unsafety, _generics, _generic_bounds, trait_items) => {
                 let key = None;
                 let entry = self.hash_map.entry(key).or_insert(Vec::new());
                 entry.extend(trait_items.iter().filter_map(|trait_item_ref| {
-                    let hir_id = trait_item_ref.id.hir_id();
-                    hir_map
-                        .maybe_body_owned_by(hir_id.owner.def_id)
-                        .map(|body_id| (body_id, trait_item_ref.span))
+                    if let rustc_hir::AssocItemKind::Fn{has_self:_} = trait_item_ref.kind {
+                        let hir_id = trait_item_ref.id.hir_id();
+                        hir_map
+                            .maybe_body_owned_by(hir_id.owner.def_id)
+                            .map(|body_id| (body_id, trait_item_ref.span))
+                    } else {
+                        None
+                    }
                 }));
             }
             ItemKind::Fn(_fn_sig, _generics, body_id) => {
@@ -91,9 +99,6 @@ pub struct ContainsUnsafe<'tcx> {
 }
 
 impl<'tcx> ContainsUnsafe<'tcx> {
-    /// Given a `BodyId`, returns if the corresponding body contains unsafe code in it.
-    /// Note that it only checks the function body, so this function will return false for
-    /// body ids of functions that are defined as unsafe.
     pub fn contains_unsafe(tcx: TyCtxt<'tcx>, body_id: BodyId) -> (bool,bool) {
         let mut visitor = ContainsUnsafe {
             tcx,
@@ -128,9 +133,27 @@ impl<'tcx> Visitor<'tcx> for ContainsUnsafe<'tcx> {
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
         use rustc_hir::BlockCheckMode;
         if let BlockCheckMode::UnsafeBlock(_unsafe_source) = block.rules {
+            // println!("{:?}",block.clone());
             self.block_unsafe = true;
         }
         intravisit::walk_block(self, block);
+    }
+}
+
+pub struct ContainsLit {
+    pub structs_used: HashSet<String>,
+}
+
+impl<'tcx> Visitor<'tcx> for ContainsLit {
+    fn visit_expr(&mut self, expr: &'tcx rustc_hir::Expr<'tcx>) {
+        if let ExprKind::Struct(ref qpath, _, _) = expr.kind {
+            if let QPath::Resolved(_, path) = qpath {
+                if let Some(ident) = path.segments.last().map(|segment| segment.ident) {
+                    self.structs_used.insert(ident.to_string());
+                }
+            }
+        }
+        intravisit::walk_expr(self, expr);
     }
 }
 
