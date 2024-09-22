@@ -193,9 +193,12 @@ pub fn compile_time_sysroot() -> Option<String> {
 
 
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
-    if callback.is_rcanary_enabled() {
-        rCanary::new(tcx).start()
-    }
+    let _rcanary: Option<rCanary> =
+        if callback.is_rcanary_enabled() {
+            let mut rcx  = rCanary::new(tcx);
+            rcx.start();
+            Some(rcx)
+        } else { None };
 
     if callback.is_mop_enabled() {
         MopAlias::new(tcx).start();

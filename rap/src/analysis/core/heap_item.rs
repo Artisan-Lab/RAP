@@ -1,13 +1,12 @@
 pub mod ownership;
 pub mod type_visitor;
 
-use rustc_middle::ty::{self, Ty, TyCtxt};
+use rustc_middle::ty::{self, Ty, TyCtxt, TyKind};
 use rustc_span::def_id::DefId;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
 use stopwatch::Stopwatch;
-
 use crate::analysis::rcanary::{rCanary, RcxMut};
 use ownership::RawTypeOwner;
 
@@ -87,6 +86,256 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         //rap_info!("Tymap Sum:{:?}", self.ty_map().len());
         //rap_info!("@@@@@@@@@@@@@Type Analysis:{:?}", sw.elapsed_ms());
         sw.stop();
+    }
+}
+
+/// We encapsulate the interface for identifying heap items in a struct named `HeapItem`.
+/// This struct is a zero-sized type (ZST), so creating and using it does not incur any overhead.
+/// These interfaces typically take at least two fixed inputs.
+/// One is the context metadata of `rCanary`, which stores the cache for ADT analysis
+/// (of course, users do not need to know the specific information stored).
+/// The second input is the type that the user needs to process, along with other parameters.
+#[derive(Copy, Clone, Debug)]
+pub struct HeapItem;
+
+impl HeapItem {
+    /// This method is used to check if one adt-def is already a heap item.
+    /// It is a summary of one type which demonstrate that we will consider all the fields/variants,
+    /// although the analyzer will not traverse them (thus overhead is cheap).
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyVec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub struct MyVec<T, A: Allocator = Global> {
+    ///    buf: RawVec<T, A>, // this field is a heap item
+    ///    len: usize,
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::HeapItem;
+    ///  let ans = HeapItem::is_adt(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_adt<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                for i in ans.iter() {
+                    if i.0 == RawTypeOwner::Owned { return Ok(true); }
+                }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one adt-def of the struct is already a heap item.
+    /// It is a summary of one type which demonstrate that we will consider all the fields,
+    /// although the analyzer will not traverse them (thus overhead is cheap).
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of an enum type, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyVec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub struct MyVec<T, A: Allocator = Global> {
+    ///    buf: RawVec<T, A>, // this field is a heap item
+    ///    len: usize,
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    /// use rap::analysis::core::heap_item::HeapItem;
+    /// let ans = HeapItem::is_struct(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_struct<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_struct() && !adtdef.is_union() { return Err("The input is not a struct") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                if ans[0].0 == RawTypeOwner::Owned { return Ok(true); }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one adt-def of the enum is already a heap item.
+    /// It is a summary of one type which demonstrate that we will consider all the variants,
+    /// although the analyzer will not traverse them (thus overhead is cheap).
+    /// Note that, even for each variance, the result also analyze all its fields.
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is Err.
+    /// If the input is the def of a struct type, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `Vec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub enum MyBuf<T> {
+    ///    Buf1(Vec<T>), // this variance is a heap item
+    ///    Buf2(Vec<T>), // this variance is a heap item
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    /// use rap::analysis::core::heap_item::HeapItem;
+    /// let ans = HeapItem::is_enum(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_enum<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                for i in ans.iter() {
+                    if i.0 == RawTypeOwner::Owned { return Ok(true); }
+                }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+}
+
+/// We encapsulate the interface for identifying isolated parameters in a struct named `IsolatedParameter`.
+/// This struct is a zero-sized type (ZST), so creating and using it does not incur any overhead.
+/// These interfaces typically take at least two fixed inputs.
+/// One is the context metadata of `rCanary`, which stores the cache for ADT analysis
+/// (of course, users do not need to know the specific information stored).
+/// The second input is the type that the user needs to process, along with other parameters.
+pub struct IsolatedParameter;
+
+impl IsolatedParameter {
+    /// This method is used to check if one adt-def has at least one isolated parameter.
+    /// It is a summary of one type which demonstrate that we will consider all the generics.
+    /// Those generic parameters can be located in different fields/variants, and some of them can be
+    /// found in multiple fields/variants.
+    /// The analyzer will not traverse them to generate the result (thus overhead is cheap).
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyVec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub struct MyVec<T, A: Allocator = Global> { // parameter A is an isolated parameter
+    ///    buf: RawVec<T, A>,  // parameter A inside in RawVec
+    ///    len: usize,
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::IsolatedParameter;
+    ///  let ans = IsolatedParameter::is_adt(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_adt<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                for i in ans.iter() {
+                    if i.1.iter().any(|&x| x == true) { return Ok(true); }
+                }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one adt-def of the struct has at least one isolated parameter.
+    /// It is a summary of one type which demonstrate that we will consider all the generics.
+    /// Those generic parameters can be located in different fields, and some of them can be
+    /// found in multiple fields.
+    /// The analyzer will not traverse them to generate the result (thus overhead is cheap).
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyVec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub struct MyVec<T, A: Allocator = Global> { // parameter A is an isolated parameter
+    ///    buf: RawVec<T, A>, // parameter A inside in RawVec
+    ///    len: usize,
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::IsolatedParameter;
+    ///  let ans = IsolatedParameter::is_adt(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_struct<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_struct() && !adtdef.is_union() { return Err("The input is not a struct") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                if ans[0].1.iter().any(|&x| x == true) { return Ok(true); }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one adt-def of the enum has at least one isolated parameter.
+    /// It is a summary of one type which demonstrate that we will consider all the generics in all the variants.
+    /// Those generic parameters can be located in different fields, and some of them can be
+    /// found in multiple fields.
+    /// Note that, even for each variance, the result also analyze all its fields.
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of a struct type, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `Vec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub enum MyBuf<T, S, F> { // parameter S F are an isolated parameters
+    ///    Buf1(Vec<T>),
+    ///    Buf2(S), // this variance is an isolated parameter
+    ///    Buf3((F,S)), // this variance has 2 isolated parameters
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::IsolatedParameter;
+    ///  let ans = IsolatedParameter::is_adt(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_enum<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                for i in ans.iter() {
+                    if i.1.iter().any(|&x| x == true) { return Ok(true); }
+                }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
     }
 }
 
