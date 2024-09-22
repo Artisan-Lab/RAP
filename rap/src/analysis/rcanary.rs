@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::Elapsed;
 
 use ranalyzer::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
-use crate::analysis::core::heap_item::{TypeAnalysis,AdtOwner};
+use crate::analysis::core::heap_item::{TypeAnalysis, AdtOwner};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone)]
