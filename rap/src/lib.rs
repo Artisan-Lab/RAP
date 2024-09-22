@@ -25,7 +25,7 @@ use rustc_session::search_paths::PathKind;
 use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
 use analysis::rcanary::rCanary;
-use analysis::unsafety_isolation::UnsafetyIsolationCheck;
+use analysis::unsafety_isolation::{UnsafetyIsolationCheck,UigInstruction};
 
 
 use analysis::safedrop::SafeDrop;
@@ -45,7 +45,7 @@ pub type Elapsed = (i64, i64);
 pub struct RapCallback {
     rcanary: bool,
     safedrop: usize,
-    unsafety_isolation: bool,
+    unsafety_isolation: usize,
     mop: bool,
     callgraph: bool,
     show_mir: bool,
@@ -57,7 +57,7 @@ impl Default for RapCallback {
         Self {
             rcanary: false,
             safedrop: 0,
-            unsafety_isolation: false,
+            unsafety_isolation: 0,
             mop: false,
             callgraph: false,
             show_mir: false,
@@ -125,11 +125,11 @@ impl RapCallback {
         self.safedrop
     }
 
-    pub fn enable_unsafety_isolation(&mut self) {
-        self.unsafety_isolation = true;
+    pub fn enable_unsafety_isolation(&mut self, x:usize) {
+        self.unsafety_isolation = x;
     }
 
-    pub fn is_unsafety_isolation_enabled(&self) -> bool {
+    pub fn is_unsafety_isolation_enabled(&self) -> usize {
         self.unsafety_isolation
     }
 
@@ -210,9 +210,15 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         SafeDrop::new(tcx).start();
     }
 
-    if callback.is_unsafety_isolation_enabled() {
-        UnsafetyIsolationCheck::new(tcx).start();
+    let x = callback.is_unsafety_isolation_enabled();
+    match x {
+        1 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::UigCount),
+        2 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Doc),
+        3 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Upg),
+        4 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Ucons),
+        _ => {} 
     }
+    
 
     if callback.is_callgraph_enabled() {
         CallGraph::new(tcx).start();

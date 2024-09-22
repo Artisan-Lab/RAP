@@ -2,12 +2,12 @@ use std::process::Command;
 use std::fs::File;
 use std::io::Write;
 
-// please ensure 'dot' has been installed
+// please ensure 'graphviz' has been installed
 pub fn render_dot_graphs(dot_graphs: Vec<String>) {
     Command::new("mkdir")
-    .args(&["UPG"])
-    .output()
-    .expect("Failed to create directory");
+        .args(&["UPG"])
+        .output()
+        .expect("Failed to create directory");
 
     for (index, dot) in dot_graphs.into_iter().enumerate() {
         let file_name = format!("graph{}.dot", index);
