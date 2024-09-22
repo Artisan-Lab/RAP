@@ -284,9 +284,9 @@ impl Graph {
         set
     }
 
-    pub fn dfs<F>(&self, now: Local, direction: Direction, operator: &mut F) //direction: 0 is upside, 1 is downside,
+    pub fn dfs<F>(&self, now: Local, direction: Direction, operator: &mut F)
     where 
-        F: FnMut(Local) -> bool // 0 is to continue and 1 is to stop
+        F: FnMut(Local) -> bool
     {
         if operator(now) {
             match direction {
