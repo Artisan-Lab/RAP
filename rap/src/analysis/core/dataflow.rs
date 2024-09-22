@@ -1,6 +1,9 @@
 pub mod graph;
 
 use std::collections::HashMap;
+use std::io::Write;
+use std::process::Command;
+use std::fs::File;
 
 use rustc_middle::mir::Body;
 use rustc_middle::ty::TyCtxt;
@@ -42,6 +45,27 @@ impl<'tcx> DataFlow<'tcx> {
             }
         }
         graph
+    }
+
+    pub fn draw_graphs(&self) {
+        Command::new("mkdir")
+        .args(&["DataflowGraph"])
+        .output()
+        .expect("Failed to create directory.");
+
+        for (def_id, graph) in self.graphs.iter() {
+            let name = self.tcx.def_path_str(def_id);
+            let dot_file_name = format!("DataflowGraph/{}.dot", &name);
+            let png_file_name = format!("DataflowGraph/{}.png", &name);
+            let mut file = File::create(&dot_file_name).expect("Unable to create file.");
+            let dot = graph.to_dot_graph(&self.tcx);
+            file.write_all(dot.as_bytes()).expect("Unable to write data.");
+
+            Command::new("dot")
+            .args(&["-Tpng", &dot_file_name, "-o", &png_file_name])
+            .output()
+            .expect("Failed to execute Graphviz dot command.");
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::Write;
 
 use rustc_index::IndexVec;
@@ -88,7 +89,7 @@ impl GraphNode {
         let mut dot = String::new();
         match self.op { //label=xxx
             NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
-            NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+            NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
             _ => {write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();},
         };
         match color { //color=xxx
@@ -177,7 +178,7 @@ impl Graph {
                     self.nodes[dst].op = NodeOp::Len;
 
                 },
-                Rvalue::Cast(cast_kind, operand, _) => {
+                Rvalue::Cast(_cast_kind, operand, _) => {
                     self.add_operand(operand, dst);
                     self.nodes[dst].op = NodeOp::Cast;
                 },
@@ -192,7 +193,7 @@ impl Graph {
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp;
                 },
                 // todo: Aggregate Kind
-                Rvalue::Aggregate(boxed_kind, operands) => {
+                Rvalue::Aggregate(_boxed_kind, operands) => {
                     for operand in operands.iter() {
                         self.add_operand(operand, dst);
                     }
@@ -243,7 +244,9 @@ impl Graph {
 
     pub fn to_dot_graph<'tcx>(&self, tcx: &TyCtxt<'tcx>) -> String {
         let mut dot = String::new();
-        writeln!(dot, "digraph \"{}\" {{", tcx.def_path_str(self.def_id)).unwrap();
+        let name = tcx.def_path_str(self.def_id);
+
+        writeln!(dot, "digraph \"{}\" {{", &name).unwrap();
         writeln!(dot, "    node [shape=record];").unwrap();
         for (local, node) in self.nodes.iter_enumerated() {
             if local <= Local::from_usize(self.argc) {
@@ -263,4 +266,62 @@ impl Graph {
         writeln!(dot, "}}").unwrap();
         dot
     }
+
+    pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
+        let mut set = HashSet::new();
+        let mut operator = |node_idx: Local| -> bool {
+            let node = &self.nodes[node_idx];
+            match node.op {
+                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => { //Nop means a orphan node or a parameter
+                    set.insert(node_idx);
+                    true
+                },
+                _ => false,
+            }
+        };
+        self.dfs(local, Direction::Upside, &mut operator);
+        self.dfs(local, Direction::Downside, &mut operator);
+        set
+    }
+
+    pub fn dfs<F>(&self, now: Local, direction: Direction, operator: &mut F)
+    where 
+        F: FnMut(Local) -> bool
+    {
+        if operator(now) {
+            match direction {
+                Direction::Upside => {
+                    for edge_idx in self.nodes[now].in_edges.iter() {
+                        let edge = &self.edges[*edge_idx];
+                        if let GraphEdge::NodeEdge { src, op, .. } = edge {
+                            match op {
+                                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => {
+                                    self.dfs(*src, direction, operator);
+                                },
+                                EdgeOp::Nop | EdgeOp::Const => {}
+                            }
+                        }
+                    }
+                },
+                Direction::Downside => {
+                    for edge_idx in self.nodes[now].out_edges.iter() {
+                        let edge = &self.edges[*edge_idx];
+                        if let GraphEdge::NodeEdge { op, dst, .. } = edge {
+                            match op {
+                                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => {
+                                    self.dfs(*dst, direction, operator);
+                                },
+                                EdgeOp::Nop | EdgeOp::Const => {}
+                            }
+                        }
+                    }
+                }
+            };
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum Direction {
+    Upside, Downside
 }
