@@ -26,8 +26,7 @@ use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
 use analysis::rcanary::rCanary;
 use analysis::unsafety_isolation::{UnsafetyIsolationCheck,UigInstruction};
-
-
+use analysis::senryx::SenryxCheck;
 use analysis::safedrop::SafeDrop;
 use analysis::core::control_flow::callgraph::CallGraph;
 use analysis::core::alias::mop::MopAlias;
@@ -45,6 +44,7 @@ pub type Elapsed = (i64, i64);
 pub struct RapCallback {
     rcanary: bool,
     safedrop: usize,
+    senryx: bool,
     unsafety_isolation: usize,
     mop: bool,
     callgraph: bool,
@@ -57,6 +57,7 @@ impl Default for RapCallback {
         Self {
             rcanary: false,
             safedrop: 0,
+            senryx: false,
             unsafety_isolation: 0,
             mop: false,
             callgraph: false,
@@ -131,6 +132,14 @@ impl RapCallback {
 
     pub fn is_unsafety_isolation_enabled(&self) -> usize {
         self.unsafety_isolation
+    }
+
+    pub fn enable_senryx(&mut self) {
+        self.senryx = true;
+    }
+
+    pub fn is_senryx_enabled(&self) -> bool {
+        self.senryx
     }
 
     pub fn enable_callgraph(&mut self) {
@@ -222,6 +231,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         _ => {} 
     }
     
+    if callback.is_senryx_enabled() {
+        SenryxCheck::new(tcx).start();
+    }
 
     if callback.is_callgraph_enabled() {
         CallGraph::new(tcx).start();

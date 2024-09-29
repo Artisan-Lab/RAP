@@ -49,6 +49,7 @@ fn main() {
             "-doc" => compiler.enable_unsafety_isolation(2),
             "-upg" => compiler.enable_unsafety_isolation(3),
             "-ucons" => compiler.enable_unsafety_isolation(4),
+            "-senryx" => compiler.enable_senryx(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
