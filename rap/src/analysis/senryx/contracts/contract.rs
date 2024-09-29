@@ -1,5 +1,5 @@
 use super::abstract_state::*;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use crate::analysis::senryx::contracts::state_lattice::Lattice;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -61,24 +61,24 @@ pub fn handle_state_op(left: StateType, op: Op, right: StateType) -> bool {
     }
 }
 
-struct UnsafeApiInfo<T: std::cmp::PartialEq + std::cmp::PartialOrd>{
-    name: String,
-    variable_contracts: HashMap<usize,Vec<Contract<T>>>,
-}
+// struct UnsafeApiInfo<T: std::cmp::PartialEq + std::cmp::PartialOrd>{
+//     name: String,
+//     variable_contracts: HashMap<usize,Vec<Contract<T>>>,
+// }
 
-static SLICE_FROM_RAW_PARTS_MUT: UnsafeApiInfo::<isize> = UnsafeApiInfo::<isize> {
-        name : "slice::from_raw_parts_mut".to_string(),
-        variable_contracts: {
-            let mut map = HashMap::new();
-            map.insert(1, vec![
-                Contract::ValueCheck { op: Op::GE, value: 0 },
-                Contract::StateCheck { op: Op::EQ, state: StateType::AllocatedState(AllocatedState::Alloc) },
-            ]);
-            map.insert(2, vec![
-                Contract::ValueCheck { op: Op::LE, value: isize::MAX },
-            ]);
-            map
-        },
-    };
+// static SLICE_FROM_RAW_PARTS_MUT: UnsafeApiInfo::<isize> = UnsafeApiInfo::<isize> {
+//         name : "slice::from_raw_parts_mut".to_string(),
+//         variable_contracts: {
+//             let mut map = HashMap::new();
+//             map.insert(1, vec![
+//                 Contract::ValueCheck { op: Op::GE, value: 0 },
+//                 Contract::StateCheck { op: Op::EQ, state: StateType::AllocatedState(AllocatedState::Alloc) },
+//             ]);
+//             map.insert(2, vec![
+//                 Contract::ValueCheck { op: Op::LE, value: isize::MAX },
+//             ]);
+//             map
+//         },
+//     };
 
 
