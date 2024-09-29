@@ -49,7 +49,7 @@ pub struct RapCallback {
     mop: bool,
     callgraph: bool,
     show_mir: bool,
-    dataflow: bool,
+    dataflow: usize,
 }
 
 impl Default for RapCallback {
@@ -61,7 +61,7 @@ impl Default for RapCallback {
             mop: false,
             callgraph: false,
             show_mir: false,
-            dataflow: false,
+            dataflow: 0,
         }
     }
 }
@@ -149,11 +149,11 @@ impl RapCallback {
         self.show_mir
     }
 
-    pub fn enable_dataflow(&mut self) {
-        self.dataflow = true;
+    pub fn enable_dataflow(&mut self, x:usize) {
+        self.dataflow = x;
     }
 
-    pub fn is_dataflow_enabled(self) -> bool {
+    pub fn is_dataflow_enabled(self) -> usize {
         self.dataflow
     }
 }
@@ -231,7 +231,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         ShowMir::new(tcx).start();
     }
 
-    if callback.is_dataflow_enabled() {
-        DataFlow::new(tcx).start()
+    match callback.is_dataflow_enabled() {
+        1 => DataFlow::new(tcx, false).start(),
+        2 => DataFlow::new(tcx, true).start(),
+        _ => {}
     }
 }

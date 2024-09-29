@@ -13,12 +13,13 @@ use graph::Graph;
 
 pub struct DataFlow<'tcx> {
     pub tcx: TyCtxt<'tcx>,
-    pub graphs: HashMap<DefId, Graph>
+    pub graphs: HashMap<DefId, Graph>,
+    pub debug: bool,
 }
 
 impl<'tcx> DataFlow<'tcx> {
-    pub fn new(tcx : TyCtxt<'tcx>) -> Self {
-        Self { tcx: tcx, graphs: HashMap::new() }
+    pub fn new(tcx: TyCtxt<'tcx>, debug: bool) -> Self {
+        Self { tcx: tcx, graphs: HashMap::new(), debug }
     }
 
     pub fn start(&mut self) {
@@ -29,6 +30,9 @@ impl<'tcx> DataFlow<'tcx> {
                 let graph = self.build_graph(def_id);
                 self.graphs.insert(def_id, graph);
             }
+        }
+        if self.debug {
+            self.draw_graphs();
         }
     }
 

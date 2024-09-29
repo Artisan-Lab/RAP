@@ -44,7 +44,8 @@ fn main() {
             "-uaf=backend" => compiler.enable_safedrop(2), // this is the legacy version of safedrop in backend
             "-M" | "-mleak" => compiler.enable_rcanary(),
             "-alias=mop" => compiler.enable_mop(), 
-            "-dataflow" => compiler.enable_dataflow(),
+            "-dataflow" => compiler.enable_dataflow(1),
+            "-dataflow=debug" => compiler.enable_dataflow(2),
             "-UI" | "-uig" => compiler.enable_unsafety_isolation(1),
             "-doc" => compiler.enable_unsafety_isolation(2),
             "-upg" => compiler.enable_unsafety_isolation(3),
