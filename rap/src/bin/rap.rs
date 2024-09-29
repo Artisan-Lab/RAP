@@ -55,6 +55,7 @@ fn main() {
             "-adt" => {},
             "-z3" => {},
             "-meta" => {},
+            "-pa" => compiler.enable_pointer_analysis(),
             _ => args.push(arg),
         }
     }

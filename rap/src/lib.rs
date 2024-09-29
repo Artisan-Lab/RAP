@@ -33,6 +33,7 @@ use analysis::core::control_flow::callgraph::CallGraph;
 use analysis::core::alias::mop::MopAlias;
 use analysis::core::dataflow::DataFlow;
 use analysis::utils::show_mir::ShowMir;
+use analysis::core::pointer_analysis::PointerAnalysis;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
@@ -50,6 +51,7 @@ pub struct RapCallback {
     callgraph: bool,
     show_mir: bool,
     dataflow: bool,
+    pointer_analysis: bool,
 }
 
 impl Default for RapCallback {
@@ -62,6 +64,7 @@ impl Default for RapCallback {
             callgraph: false,
             show_mir: false,
             dataflow: false,
+            pointer_analysis: false,
         }
     }
 }
@@ -156,6 +159,14 @@ impl RapCallback {
     pub fn is_dataflow_enabled(self) -> bool {
         self.dataflow
     }
+
+    pub fn enable_pointer_analysis(&mut self) {
+        self.pointer_analysis = true;
+    }
+
+    pub fn is_pointer_analysis_enabled(self) -> bool {
+        self.pointer_analysis
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -233,5 +244,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_dataflow_enabled() {
         DataFlow::new(tcx).start()
+    }
+
+    if callback.is_pointer_analysis_enabled() {
+        PointerAnalysis::new(tcx).start()
     }
 }
