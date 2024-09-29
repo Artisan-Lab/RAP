@@ -1,8 +1,9 @@
+use std::cell::Cell;
 use std::collections::HashSet;
 use std::fmt::Write;
 
 use rustc_index::IndexVec;
-use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, Mutability};
+use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, AggregateKind, Mutability};
 use rustc_middle::ty::{TyKind, TyCtxt};
 use rustc_hir::def_id::DefId;
 
@@ -23,7 +24,7 @@ pub enum NodeOp { //warning: the fields are related to the version of the backen
     NullaryOp,
     UnaryOp,
     Discriminant,
-    Aggregate,
+    Aggregate(AggKind),
     ShallowInitBox,
     CopyForDeref,
     //TerminatorKind
@@ -90,6 +91,12 @@ impl GraphNode {
         match self.op { //label=xxx
             NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
             NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+            NodeOp::Aggregate(agg_kind) => {
+                match agg_kind {
+                    AggKind::Adt(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> Agg {}::\\{{..\\}}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+                    _ => {write!(attr, "label=\"<f0> {:?} | {:?}\" ", local, agg_kind).unwrap();},
+                }
+            }
             _ => {write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();},
         };
         match color { //color=xxx
@@ -192,12 +199,16 @@ impl Graph {
                     self.add_operand(&operands.1, dst);
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp;
                 },
-                // todo: Aggregate Kind
-                Rvalue::Aggregate(_boxed_kind, operands) => {
+                Rvalue::Aggregate(boxed_kind, operands) => {
                     for operand in operands.iter() {
                         self.add_operand(operand, dst);
                     }
-                    self.nodes[dst].op = NodeOp::Aggregate;
+                    match **boxed_kind {
+                        AggregateKind::Array(_) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Array) },
+                        AggregateKind::Tuple => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Tuple) },
+                        AggregateKind::Adt(def_id, ..) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id)) },
+                        _ => todo!()
+                    }
                 },
                 Rvalue::UnaryOp(_, operand) => {
                     self.add_operand(operand, dst);
@@ -269,36 +280,66 @@ impl Graph {
 
     pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
         let mut set = HashSet::new();
-        let mut operator = |node_idx: Local| -> bool {
-            let node = &self.nodes[node_idx];
+        let mut node_operator = |idx: Local| -> bool {
+            let node = &self.nodes[idx];
             match node.op {
                 NodeOp::Nop | NodeOp::Use | NodeOp::Ref => { //Nop means a orphan node or a parameter
-                    set.insert(node_idx);
+                    set.insert(idx);
                     true
                 },
                 _ => false,
             }
         };
-        self.dfs(local, Direction::Upside, &mut operator);
-        self.dfs(local, Direction::Downside, &mut operator);
+        let mut edge_validator = |op: &EdgeOp| -> bool {
+            match op {
+                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => true,
+                EdgeOp::Nop | EdgeOp::Const => false
+            }
+        };
+        self.dfs(local, Direction::Upside, &mut node_operator, &mut edge_validator);
+        self.dfs(local, Direction::Downside, &mut node_operator, &mut edge_validator);
         set
     }
 
-    pub fn dfs<F>(&self, now: Local, direction: Direction, operator: &mut F)
+    pub fn is_connected(&self, idx_1: Local, idx_2: Local) -> bool {
+        let target = idx_2;
+        let find = Cell::new(false);
+        let mut node_operator = |idx: Local| -> bool {
+            find.set(idx == target);
+            !find.get() // if not found, move on
+        };
+        let mut edge_validator = |_: &EdgeOp| -> bool {
+            true
+        };
+        self.dfs(idx_1, Direction::Downside, &mut node_operator, &mut edge_validator);
+        if !find.get() {
+            self.dfs(idx_1, Direction::Upside, &mut node_operator, &mut edge_validator);
+        }
+        find.get()
+    }
+
+    pub fn param_return_deps(&self) -> IndexVec<Local, bool> { //the length is argc + 1, because _0 depends on _0 itself.
+        let _0 = Local::from_usize(0);
+        let deps = (0..self.argc + 1).map(|i| {
+            let _i = Local::from_usize(i);
+            self.is_connected(_i, _0)
+        }).collect();
+        deps
+    }
+
+    pub fn dfs<F, G>(&self, now: Local, direction: Direction, node_operator: &mut F, edge_validator: &mut G)
     where 
-        F: FnMut(Local) -> bool
+        F: FnMut(Local) -> bool,
+        G: FnMut(&EdgeOp) -> bool,
     {
-        if operator(now) {
+        if node_operator(now) {
             match direction {
                 Direction::Upside => {
                     for edge_idx in self.nodes[now].in_edges.iter() {
                         let edge = &self.edges[*edge_idx];
                         if let GraphEdge::NodeEdge { src, op, .. } = edge {
-                            match op {
-                                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => {
-                                    self.dfs(*src, direction, operator);
-                                },
-                                EdgeOp::Nop | EdgeOp::Const => {}
+                            if edge_validator(op) {
+                                self.dfs(*src, direction, node_operator, edge_validator);
                             }
                         }
                     }
@@ -307,11 +348,8 @@ impl Graph {
                     for edge_idx in self.nodes[now].out_edges.iter() {
                         let edge = &self.edges[*edge_idx];
                         if let GraphEdge::NodeEdge { op, dst, .. } = edge {
-                            match op {
-                                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => {
-                                    self.dfs(*dst, direction, operator);
-                                },
-                                EdgeOp::Nop | EdgeOp::Const => {}
+                            if edge_validator(op) {
+                                self.dfs(*dst, direction, node_operator, edge_validator);
                             }
                         }
                     }
@@ -324,4 +362,11 @@ impl Graph {
 #[derive(Clone, Copy)]
 pub enum Direction {
     Upside, Downside
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum AggKind {
+    Array,
+    Tuple,
+    Adt(DefId),
 }
