@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 use rustc_index::IndexVec;
-use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, Mutability};
+use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, AggregateKind, Mutability};
 use rustc_middle::ty::{TyKind, TyCtxt};
 use rustc_hir::def_id::DefId;
 
@@ -24,7 +24,7 @@ pub enum NodeOp { //warning: the fields are related to the version of the backen
     NullaryOp,
     UnaryOp,
     Discriminant,
-    Aggregate,
+    Aggregate(AggKind),
     ShallowInitBox,
     CopyForDeref,
     //TerminatorKind
@@ -91,6 +91,12 @@ impl GraphNode {
         match self.op { //label=xxx
             NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
             NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+            NodeOp::Aggregate(agg_kind) => {
+                match agg_kind {
+                    AggKind::Adt(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> Agg {}::\\{{..\\}}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+                    _ => {write!(attr, "label=\"<f0> {:?} | {:?}\" ", local, agg_kind).unwrap();},
+                }
+            }
             _ => {write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();},
         };
         match color { //color=xxx
@@ -193,12 +199,16 @@ impl Graph {
                     self.add_operand(&operands.1, dst);
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp;
                 },
-                // todo: Aggregate Kind
-                Rvalue::Aggregate(_boxed_kind, operands) => {
+                Rvalue::Aggregate(boxed_kind, operands) => {
                     for operand in operands.iter() {
                         self.add_operand(operand, dst);
                     }
-                    self.nodes[dst].op = NodeOp::Aggregate;
+                    match **boxed_kind {
+                        AggregateKind::Array(_) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Array) },
+                        AggregateKind::Tuple => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Tuple) },
+                        AggregateKind::Adt(def_id, ..) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id)) },
+                        _ => todo!()
+                    }
                 },
                 Rvalue::UnaryOp(_, operand) => {
                     self.add_operand(operand, dst);
@@ -352,4 +362,11 @@ impl Graph {
 #[derive(Clone, Copy)]
 pub enum Direction {
     Upside, Downside
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum AggKind {
+    Array,
+    Tuple,
+    Adt(DefId),
 }
