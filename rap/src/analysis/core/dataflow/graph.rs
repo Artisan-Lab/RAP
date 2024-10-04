@@ -86,14 +86,28 @@ impl GraphNode {
     }
 
     pub fn to_dot_graph<'tcx> (&self, tcx: &TyCtxt<'tcx>, local: Local, color: Option<String>) -> String {
+        fn escaped_string(s: String) -> String{
+            s
+                .replace("{", "\\{")
+                .replace("}", "\\}")
+                .replace("<", "\\<")
+                .replace(">", "\\>")
+        }
+
         let mut attr = String::new();
         let mut dot = String::new();
         match self.op { //label=xxx
             NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
-            NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+            NodeOp::Call(def_id) => {
+                let func_name = tcx.def_path_str(def_id);
+                write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, escaped_string(func_name)).unwrap();
+            },
             NodeOp::Aggregate(agg_kind) => {
                 match agg_kind {
-                    AggKind::Adt(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> Agg {}::\\{{..\\}}\" ", local, tcx.def_path_str(def_id)).unwrap();},
+                    AggKind::Adt(def_id) => {
+                        let agg_name = format!("{}::{{..}}", tcx.def_path_str(def_id));
+                        write!(attr, "label=\"<f0> {:?} | <f1> Agg {}\" ", local, escaped_string(agg_name)).unwrap();
+                    },
                     _ => {write!(attr, "label=\"<f0> {:?} | {:?}\" ", local, agg_kind).unwrap();},
                 }
             }
