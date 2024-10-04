@@ -1,10 +1,9 @@
 use std::cell::Cell;
 use std::collections::HashSet;
-use std::fmt::Write;
 
 use rustc_index::IndexVec;
-use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, AggregateKind, Mutability};
-use rustc_middle::ty::{TyKind, TyCtxt};
+use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, AggregateKind, Mutability, PlaceElem, Place};
+use rustc_middle::ty::TyKind;
 use rustc_hir::def_id::DefId;
 
 #[derive(Clone, Debug)]
@@ -41,6 +40,10 @@ pub enum EdgeOp {
     //Mutability
     Immut,
     Mut,
+    //Place
+    Deref,
+    Field(String),
+    Downcast(String),
 }
 
 #[derive(Clone)]
@@ -57,54 +60,16 @@ pub enum GraphEdge {
     }
 }
 
-impl GraphEdge {
-    pub fn to_dot_graph<'tcx> (&self) -> String {
-        let mut attr = String::new();
-        let mut dot = String::new();
-        match self { //label=xxx
-            GraphEdge::NodeEdge { src:_, dst:_, op } => {write!(attr, "label=\"{:?}\" ", op).unwrap();},
-            GraphEdge::ConstEdge { src:_, dst:_, op } => {write!(attr, "label=\"{:?}\" ", op).unwrap();},
-        }
-        match self {
-            GraphEdge::NodeEdge { src, dst, op:_ } => {write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();},
-            GraphEdge::ConstEdge { src, dst, op:_ } => {write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();},
-        }
-        dot
-    }
-}
-
 #[derive(Clone)]
 pub struct GraphNode {
-    op: NodeOp,
-    out_edges: Vec<EdgeIdx>,
-    in_edges: Vec<EdgeIdx>,
+    pub op: NodeOp,
+    pub out_edges: Vec<EdgeIdx>,
+    pub in_edges: Vec<EdgeIdx>,
 }
 
 impl GraphNode {
     pub fn new() -> Self {
         Self { op: NodeOp::Nop, out_edges: vec![], in_edges: vec![] }
-    }
-
-    pub fn to_dot_graph<'tcx> (&self, tcx: &TyCtxt<'tcx>, local: Local, color: Option<String>) -> String {
-        let mut attr = String::new();
-        let mut dot = String::new();
-        match self.op { //label=xxx
-            NodeOp::Nop => {write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();},
-            NodeOp::Call(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> fn {}\" ", local, tcx.def_path_str(def_id)).unwrap();},
-            NodeOp::Aggregate(agg_kind) => {
-                match agg_kind {
-                    AggKind::Adt(def_id) => {write!(attr, "label=\"<f0> {:?} | <f1> Agg {}::\\{{..\\}}\" ", local, tcx.def_path_str(def_id)).unwrap();},
-                    _ => {write!(attr, "label=\"<f0> {:?} | {:?}\" ", local, agg_kind).unwrap();},
-                }
-            }
-            _ => {write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();},
-        };
-        match color { //color=xxx
-            None => {},
-            Some(color) => {write!(attr, "color={} ", color).unwrap();},
-        }
-        write!(dot, "{:?} [{}]", local, attr).unwrap();
-        dot
     }
 }
 
@@ -114,13 +79,14 @@ pub type GraphEdges = IndexVec<EdgeIdx, GraphEdge>;
 pub struct Graph {
     pub def_id: DefId,
     pub argc: usize,
-    pub nodes: GraphNodes,
+    pub nodes: GraphNodes, //constsis of locals in mir and newly created markers
     pub edges: GraphEdges,
+    pub n_locals: usize,
 }
 
 impl Graph {
-    pub fn new(def_id: DefId, argc: usize, n: usize) -> Self {
-        Self { def_id, argc, nodes: GraphNodes::from_elem_n(GraphNode::new(), n), edges: GraphEdges::new() }
+    pub fn new(def_id: DefId, argc: usize, n_locals: usize) -> Self {
+        Self { def_id, argc, nodes: GraphNodes::from_elem_n(GraphNode::new(), n_locals), edges: GraphEdges::new(), n_locals }
     }
 
     pub fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
@@ -139,10 +105,12 @@ impl Graph {
     pub fn add_operand(&mut self, operand: &Operand, dst: Local) {
         match operand {
             Operand::Copy(place) => {
-                self.add_node_edge(place.local, dst, EdgeOp::Copy);
+                let src = self.parse_place(place);
+                self.add_node_edge(src, dst, EdgeOp::Copy);
             },
             Operand::Move(place) => {
-                self.add_node_edge(place.local, dst, EdgeOp::Move);
+                let src = self.parse_place(place);
+                self.add_node_edge(src, dst, EdgeOp::Move);
             },
             Operand::Constant(boxed_const_op) => {
                 self.add_const_edge(boxed_const_op.const_.to_string(), dst, EdgeOp::Const);
@@ -150,9 +118,34 @@ impl Graph {
         }
     }
 
+    pub fn parse_place(&mut self, place: &Place) -> Local {
+        fn parse_one_step(graph: &mut Graph, src: Local, place_elem: PlaceElem) -> Local{
+            let dst = graph.nodes.push(GraphNode::new());
+            match place_elem {
+                PlaceElem::Deref => {
+                    graph.add_node_edge(src, dst, EdgeOp::Deref);
+                },
+                PlaceElem::Field(field_idx, _) => {
+                    graph.add_node_edge(src, dst, EdgeOp::Field(format!("{:?}", field_idx)));
+                },
+                PlaceElem::Downcast(symbol, _) => {
+                    graph.add_node_edge(src, dst, EdgeOp::Downcast(symbol.unwrap().to_string()));
+                },
+                _ => { todo!() }
+            }
+            dst
+        }
+        let mut ret = place.local;
+        for place_elem in place.projection {
+            ret = parse_one_step(self, ret, place_elem);
+        }
+        ret
+    }
+
     pub fn add_statm_to_graph(&mut self, kind: &StatementKind) {
         if let StatementKind::Assign(boxed_statm) = &kind {
-            let dst = boxed_statm.0.local;
+            let place = boxed_statm.0;
+            let dst = self.parse_place(&place);
             let rvalue = &boxed_statm.1;
             match rvalue {
                 Rvalue::Use(op) => {
@@ -169,7 +162,8 @@ impl Graph {
                         BorrowKind::Mut {..} => EdgeOp::Mut,
                         BorrowKind::Shallow => {panic!("Unimplemented BorrowKind!")}
                     };
-                    self.add_node_edge(place.local, dst, op);
+                    let src = self.parse_place(place);
+                    self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::Ref;
                 },
                 Rvalue::AddressOf(mutability, place) => {
@@ -177,11 +171,13 @@ impl Graph {
                         Mutability::Not => EdgeOp::Immut,
                         Mutability::Mut => EdgeOp::Mut,
                     };
-                    self.add_node_edge(place.local, dst, op);
+                    let src = self.parse_place(place);
+                    self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::AddressOf;
                 },
                 Rvalue::Len(place) => {
-                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    let src = self.parse_place(place);
+                    self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::Len;
 
                 },
@@ -220,7 +216,8 @@ impl Graph {
                 },
                 Rvalue::ThreadLocalRef(_) => {todo!()},
                 Rvalue::Discriminant(place) => {
-                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    let src = self.parse_place(place);
+                    self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::Discriminant;
                 },
                 Rvalue::ShallowInitBox(operand, _) => {
@@ -228,7 +225,8 @@ impl Graph {
                     self.nodes[dst].op = NodeOp::ShallowInitBox;
                 },
                 Rvalue::CopyForDeref(place) => {
-                    self.add_node_edge(place.local, dst, EdgeOp::Nop);
+                    let src = self.parse_place(place);
+                    self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::CopyForDeref;
                 },
             };
@@ -253,31 +251,6 @@ impl Graph {
         }
     }
 
-    pub fn to_dot_graph<'tcx>(&self, tcx: &TyCtxt<'tcx>) -> String {
-        let mut dot = String::new();
-        let name = tcx.def_path_str(self.def_id);
-
-        writeln!(dot, "digraph \"{}\" {{", &name).unwrap();
-        writeln!(dot, "    node [shape=record];").unwrap();
-        for (local, node) in self.nodes.iter_enumerated() {
-            if local <= Local::from_usize(self.argc) {
-                let node_dot = node.to_dot_graph(tcx, local, Some(String::from("red")));
-                writeln!(dot, "    {}", node_dot).unwrap();
-            }
-            else {
-                let node_dot = node.to_dot_graph(tcx, local, None);
-                writeln!(dot, "    {}", node_dot).unwrap();
-            }
-        }
-        //edges
-        for edge in self.edges.iter() {
-            let edge_dot = edge.to_dot_graph();
-            writeln!(dot, "    {}", edge_dot).unwrap();
-        }
-        writeln!(dot, "}}").unwrap();
-        dot
-    }
-
     pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
         let mut set = HashSet::new();
         let mut node_operator = |idx: Local| -> bool {
@@ -293,7 +266,7 @@ impl Graph {
         let mut edge_validator = |op: &EdgeOp| -> bool {
             match op {
                 EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => true,
-                EdgeOp::Nop | EdgeOp::Const => false
+                EdgeOp::Nop | EdgeOp::Const | EdgeOp::Deref | EdgeOp::Downcast(_) | EdgeOp::Field(_) => false
             }
         };
         self.dfs(local, Direction::Upside, &mut node_operator, &mut edge_validator);

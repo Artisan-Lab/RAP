@@ -52,8 +52,15 @@ impl<'tcx> DataFlow<'tcx> {
     }
 
     pub fn draw_graphs(&self) {
+        let dir_name = "DataflowGraph";
+
+        Command::new("rm")
+        .args(&["-rf", dir_name])
+        .output()
+        .expect("Failed to remove directory.");
+
         Command::new("mkdir")
-        .args(&["DataflowGraph"])
+        .args(&[dir_name])
         .output()
         .expect("Failed to create directory.");
 
