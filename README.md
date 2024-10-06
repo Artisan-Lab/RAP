@@ -8,9 +8,7 @@ The project is still under heavy development.
 ```shell
 git clone https://github.com/Artisan-Lab/RAP.git
 cd rap
-git submodule update --init --recursive
-./0-install-rap-rust.sh
-./1-install-rap-cargo.sh
+./install.sh
 ```
 
 ## Usage
@@ -18,11 +16,6 @@ git submodule update --init --recursive
 Navigate to your Rust project folder containing a `Cargo.toml` file. If your project includes a `rust-toolchain.toml` file, we recommend disabling or removing it.
 ```shell
 cargo rap -help
-```
-
-If the command fails, try setting the default Rust toolchain to `rap-rust`.
-```
-rustup default rap-rust
 ```
 
 ### Use-After-Free Detection
