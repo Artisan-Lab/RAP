@@ -1,4 +1,5 @@
 pub mod graph;
+pub mod debug;
 
 use std::collections::HashMap;
 use std::io::Write;
