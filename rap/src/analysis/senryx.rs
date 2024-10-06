@@ -27,7 +27,7 @@ impl<'tcx> SenryxCheck<'tcx>{
                     self.check_soundness(def_id);
                 }
                 if function_unsafe{
-                    self.generate_safety_annotation(def_id);
+                    self.annotate_safety(def_id);
                 }
             }
         }
@@ -41,5 +41,31 @@ impl<'tcx> SenryxCheck<'tcx>{
     pub fn annotate_safety(&self, def_id: DefId) {
         
         println!("Annotate unsafe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
+    }
+
+    //retval: 0-constructor, 1-method, 2-function
+    pub fn get_type(&self,def_id: DefId) -> usize{
+        let tcx = self.tcx;
+        let mut node_type = 2;
+        if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
+            if assoc_item.fn_has_self_parameter {
+                node_type = 1;
+            } else if !assoc_item.fn_has_self_parameter  {
+                let fn_sig = tcx.fn_sig(def_id).skip_binder();
+                let output = fn_sig.output().skip_binder();
+                if output.is_param(0) {
+                    node_type = 0;
+                }
+                if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
+                    if let Some(impl_id) = assoc_item.impl_container(tcx) {
+                        let ty = tcx.type_of(impl_id).skip_binder();
+                        if output == ty{
+                            node_type = 0;
+                        }
+                    }
+                }
+            }
+        }
+        return node_type;
     }
 }
