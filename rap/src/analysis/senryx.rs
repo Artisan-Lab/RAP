@@ -38,7 +38,7 @@ impl<'tcx> SenryxCheck<'tcx>{
         println!("Find unsound safe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
     }
 
-    pub fn generate_safety_annotation(&self, def_id: DefId) {
+    pub fn annotate_safety(&self, def_id: DefId) {
         
         println!("Annotate unsafe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
     }

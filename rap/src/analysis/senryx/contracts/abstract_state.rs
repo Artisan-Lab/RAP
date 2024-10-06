@@ -39,15 +39,6 @@ pub struct AbstractStateItem<T: std::cmp::PartialEq + std::cmp::PartialOrd> {
     pub state: HashSet<StateType>,
 }
 
-// impl<T: std::cmp::PartialEq + std::cmp::PartialOrd> AbstractStateItem<T> {
-//     fn new(value: (T,T)) -> Self {
-//         AbstractStateItem { 
-//             value, 
-//             state: HashSet::new(),
-//         }
-//     }
-// }
-
 pub struct AbstractState {
 
 }
