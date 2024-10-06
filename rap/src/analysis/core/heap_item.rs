@@ -3,6 +3,8 @@ pub mod type_visitor;
 
 use rustc_middle::ty::{self, Ty, TyCtxt, TyKind};
 use rustc_span::def_id::DefId;
+use rustc_target::abi::VariantIdx;
+
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -178,11 +180,11 @@ impl HeapItem {
     /// It can be referred to the enum with enum-type variance.
     ///
     /// # Safety
-    /// If `ty` is not an adt, the result is Err.
+    /// If `ty` is not an adt, the result is `Err`.
     /// If the input is the def of a struct type, the result is `Err`.
     ///
     /// # Case `ty::Ty`
-    /// Given the adt `Vec<T, A>` the result is `Ok(true)`.
+    /// Given the adt `MyBuf<T>` the result is `Ok(true)`.
     /// ```rust
     /// pub enum MyBuf<T> {
     ///    Buf1(Vec<T>), // this variance is a heap item
@@ -204,6 +206,86 @@ impl HeapItem {
                     if i.0 == RawTypeOwner::Owned { return Ok(true); }
                 }
                 Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one variance of the enum is already a heap item.
+    /// It is a summary of one variance which demonstrate that we will consider all the fields of it,
+    /// although the analyzer will not traverse them (thus overhead is cheap).
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of a struct type, the result is `Err`.
+    /// If the index `idx` is not valid (out of bound), the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyBuf<T>` the result for idx: 0, 1 is `Ok(true)`; the result for idx: 3 is `Err`.
+    /// ```rust
+    /// pub enum MyBuf<T> {
+    ///    Buf1(Vec<T>), // this variance is a heap item
+    ///    Buf2(Vec<T>), // this variance is a heap item
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    /// use rap::analysis::core::heap_item::HeapItem;
+    /// let ans = HeapItem::is_enum_vidx(rcanary.rcx, vec.ty, 1);
+    /// ```
+    pub fn is_enum_vidx<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, idx: usize) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                if idx > ans.len() { return Err("The index is not a valid variance"); }
+                if ans[idx].0 == RawTypeOwner::Owned { return Ok(true); }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to give the result of all the variances of the enum.
+    /// For each variance, it is a summary that we will consider all the fields of it,
+    /// although the analyzer will not traverse them (thus overhead is cheap).
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of a struct type, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyBuf<T>` the result is `[true, false]`.
+    /// ```rust
+    /// pub enum MyBuf<T> {
+    ///    Buf1(Vec<T>), // this variance is a heap item
+    ///    Buf2(()), // this variance is a heap item
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    /// use rap::analysis::core::heap_item::HeapItem;
+    /// let ans = HeapItem::is_enum_flattened(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_enum_flattened<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<Vec<bool>, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                let mut v = Vec::with_capacity(ans.len());
+                for i in ans.iter() {
+                    if i.0 == RawTypeOwner::Owned { v.push(true); }
+                    else { v.push(false); }
+                }
+                Ok(v)
             },
             _ => {
                 Err("The input is not an ADT")
@@ -308,7 +390,7 @@ impl IsolatedParameter {
     /// If the input is the def of a struct type, the result is `Err`.
     ///
     /// # Case `ty::Ty`
-    /// Given the adt `Vec<T, A>` the result is `Ok(true)`.
+    /// Given the adt `MyBuf<T, S, F>` the result is `Ok(true)`.
     /// ```rust
     /// pub enum MyBuf<T, S, F> { // parameter S F are an isolated parameters
     ///    Buf1(Vec<T>),
@@ -331,6 +413,89 @@ impl IsolatedParameter {
                     if i.1.iter().any(|&x| x == true) { return Ok(true); }
                 }
                 Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one variance of the enum has at least one isolated parameter.
+    /// It is a summary of one type which demonstrate that we will consider all the generics in the given variance.
+    /// Note that, even for this variance, the result also analyze all its fields.
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of a struct type, the result is `Err`.
+    /// If the index `idx` is not valid (out of bound), the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `MyBuf<T, S, F>` the result for idx: 0 is `Ok(false)`; the result for idx: 1, 2 is `Ok(true)`; the result for idx: 3 is `Err`.
+    /// ```rust
+    /// pub enum MyBuf<T, S, F> { // parameter S F are an isolated parameters
+    ///    Buf1(Vec<T>),
+    ///    Buf2(S), // this variance is an isolated parameter
+    ///    Buf3((F,S)), // this variance has 2 isolated parameters
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::IsolatedParameter;
+    ///  let ans = IsolatedParameter::is_enum_vidx(rcanary.rcx, vec.ty, 1);
+    /// ```
+    pub fn is_enum_vidx<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, idx: usize) -> Result<bool, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                if idx > ans.len() { return Err("The index is not a valid variance"); }
+                if ans[idx].1.iter().any(|&x| x == true) { return Ok(true); }
+                Ok(false)
+            },
+            _ => {
+                Err("The input is not an ADT")
+            },
+        }
+    }
+
+    /// This method is used to check if one adt-def of the enum has at least one isolated parameter.
+    /// It is a summary of one type which demonstrate that we will consider all the generics in all the variants.
+    /// Those generic parameters can be located in different fields, and some of them can be
+    /// found in multiple fields.
+    /// Note that, even for each variance, the result also analyze all its fields.
+    /// It can be referred to the enum with enum-type variance.
+    ///
+    /// # Safety
+    /// If `ty` is not an adt, the result is `Err`.
+    /// If the input is the def of a struct type, the result is `Err`.
+    ///
+    /// # Case `ty::Ty`
+    /// Given the adt `Vec<T, A>` the result is `Ok(true)`.
+    /// ```rust
+    /// pub enum MyBuf<T, S, F> { // parameter S F are an isolated parameters
+    ///    Buf1(Vec<T>),
+    ///    Buf2(S), // this variance is an isolated parameter
+    ///    Buf3((F,S)), // this variance has 2 isolated parameters
+    /// }
+    /// ```
+    ///
+    /// # Example:
+    /// ```rust
+    ///  use rap::analysis::core::heap_item::IsolatedParameter;
+    ///  let ans = IsolatedParameter::is_enum_flattened(rcanary.rcx, vec.ty);
+    /// ```
+    pub fn is_enum_flattened<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<Vec<Vec<bool>>, &'static str> {
+        match ty.kind() {
+            TyKind::Adt( adtdef, .. ) => {
+                if !adtdef.is_enum() { return Err("The input is not an enum") }
+                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+                let mut v:Vec<Vec<bool>> = Vec::default();
+                for i in ans.iter() {
+                    v.push(i.1.clone());
+                }
+                Ok(v)
             },
             _ => {
                 Err("The input is not an ADT")
@@ -622,4 +787,58 @@ pub fn is_display_verbose() -> bool {
 pub fn mir_body(tcx: TyCtxt<'_>, def_id: DefId) -> &rustc_middle::mir::Body<'_> {
     let def = ty::InstanceDef::Item(def_id);
     tcx.instance_mir(def)
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Default)]
+pub struct IndexedTy<'tcx>(pub Option<(usize, &'tcx TyKind<'tcx>, Option<usize>, bool)>);
+
+impl<'tcx> IndexedTy<'tcx> {
+    pub fn new(ty: Ty<'tcx>, vidx: Option<VariantIdx>) -> Self {
+        match &ty.kind() {
+            TyKind::Tuple( list ) => {
+                IndexedTy(Some((list.len(), &ty.kind(), None, true)))
+            },
+            TyKind::Adt(adtdef, ..) => {
+                if adtdef.is_enum() {
+                    if vidx.is_none() { return IndexedTy(None); }
+                    let idx = vidx.unwrap();
+                    let len = adtdef.variants()[idx].fields.len();
+                    IndexedTy(Some((len, &ty.kind(), Some(idx.index()), true)))
+                } else {
+                    let len = adtdef.variants()[VariantIdx::from_usize(0)].fields.len();
+                    IndexedTy(Some((len, &ty.kind(), None, true)))
+                }
+            },
+            TyKind::Array( .. )
+            | TyKind::Param( .. )
+            | TyKind::RawPtr( .. )
+            | TyKind::Ref( .. ) => {
+                IndexedTy(Some((1, &ty.kind(), None, true)))
+            },
+            TyKind::Bool
+            | TyKind::Char
+            | TyKind::Int( .. )
+            | TyKind::Uint( .. )
+            | TyKind::Float( .. )
+            | TyKind::Str
+            | TyKind::Slice( .. ) => {
+                IndexedTy(Some((1, &ty.kind(), None, false)))
+            },
+            _ => IndexedTy(None),
+        }
+    }
+
+    // 0->unsupported, 1->trivial, 2-> needed
+    pub fn get_priority(&self) -> usize {
+        if self.0.is_none() { return 0; }
+        match self.0.unwrap().0 {
+            0 => 1,
+            _ => {
+                match self.0.unwrap().3 {
+                    true => 2,
+                    false => 1,
+                }
+            }
+        }
+    }
 }
