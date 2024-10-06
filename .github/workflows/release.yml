@@ -1,0 +1,28 @@
+name: Rap-booting and testing
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Rap-Rust
+      run: |
+        chmod +x ./00-install-rap-rust.sh
+        ./00-install-rap-rust.sh
+
+    - name: Build Rap
+      run: |
+        chmod +x ./01-install-rap-cargo.sh
+        ./01-install-rap-cargo.sh
+
