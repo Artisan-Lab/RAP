@@ -8,12 +8,12 @@ NC='\033[0m'
 printf "%bNow building cargo rap for your toolchain.%b\n" "${YELLOW}" "${NC}"
 printf "%bPHASE1: Checking operating system.%b\n" "${YELLOW}" "${NC}"
 os_type=$(uname -s)
-arch=$(uname -m)
+arch_type=$(uname -m)
 
 if [ "$os_type" = "Linux" ]; then
     printf "Detection success: running on %bLinux (x86_64-unknown-linux-gnu)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-unknown-linux-gnu"
-elif [ "$os_type" = "Darwin" ] && [ "$os_type" = "x86_64" ]; then
+elif [ "$os_type" = "Darwin" ] && [ "$arch_type" = "x86_64" ]; then
     printf "Detection success: running on %bMacintosh-Intel (x86_64-apple-darwin)%b.\n" "${BLUE}" "${NC}"
     export HOST_TRIPLE="x86_64-apple-darwin"
 elif [ "$os_type" = "Darwin" ]; then
