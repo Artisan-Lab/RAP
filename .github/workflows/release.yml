@@ -25,14 +25,7 @@ jobs:
       run: |
         pip install ninja
    
-    - name: Build Rap-Rust
+    - name: Build RAP 
       run: |
-        git submodule update --init --recursive
-        chmod +x ./00-install-rap-rust.sh
-        ./00-install-rap-rust.sh
-
-    - name: Build Rap
-      run: |
-        chmod +x ./01-install-rap-cargo.sh
-        ./01-install-rap-cargo.sh
-
+        chmod +x ./install.sh
+        ./install.sh
