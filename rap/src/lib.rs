@@ -43,7 +43,7 @@ pub type Elapsed = (i64, i64);
 #[derive(Debug, Copy, Clone, Hash)]
 pub struct RapCallback {
     rcanary: bool,
-    safedrop: usize,
+    safedrop: bool,
     senryx: bool,
     unsafety_isolation: usize,
     mop: bool,
@@ -56,7 +56,7 @@ impl Default for RapCallback {
     fn default() -> Self {
         Self {
             rcanary: false,
-            safedrop: 0,
+            safedrop: false,
             senryx: false,
             unsafety_isolation: 0,
             mop: false,
@@ -118,11 +118,11 @@ impl RapCallback {
         self.mop
     }
 
-    pub fn enable_safedrop(&mut self, x:usize) {
-        self.safedrop = x; // 1: backend version; 2: frontend version
+    pub fn enable_safedrop(&mut self) {
+        self.safedrop = true;
     }
 
-    pub fn is_safedrop_enabled(&self) -> usize {
+    pub fn is_safedrop_enabled(&self) -> bool {
         self.safedrop
     }
 
@@ -212,13 +212,8 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     if callback.is_mop_enabled() {
         MopAlias::new(tcx).start();
     }
-    /* legacy: Backend version */
-    // if callback.is_safedrop_enabled() == 1 {
-    //     tcx.hir().par_body_owners(|def_id| tcx.ensure().query_safedrop(def_id));
-    // }
 
-    /* Frontend Version */
-    if callback.is_safedrop_enabled() == 2 {
+    if callback.is_safedrop_enabled() {
         SafeDrop::new(tcx).start();
     }
 
