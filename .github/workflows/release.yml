@@ -18,6 +18,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build Rap-Rust
       run: |
+        git submodule update --init --recursive
         chmod +x ./00-install-rap-rust.sh
         ./00-install-rap-rust.sh
 
