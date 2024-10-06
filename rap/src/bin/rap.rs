@@ -40,8 +40,7 @@ fn main() {
     let mut compiler = RapCallback::default();
     for arg in env::args() {
         match arg.as_str() {
-            "-F" | "-uaf" => compiler.enable_safedrop(1), // a new safedrop implementation in frontend
-            "-uaf=backend" => compiler.enable_safedrop(2), // this is the legacy version of safedrop in backend
+            "-F" | "-uaf" => compiler.enable_safedrop(),
             "-M" | "-mleak" => compiler.enable_rcanary(),
             "-alias=mop" => compiler.enable_mop(), 
             "-dataflow" => compiler.enable_dataflow(1),

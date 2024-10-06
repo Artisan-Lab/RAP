@@ -98,36 +98,6 @@ fn version_info() -> VersionMeta {
     VersionMeta::for_command(rap).expect("Failed to determine underlying rustc version of rap.")
 }
 
-fn test_sysroot_consistency() {
-    fn get_sysroot(mut cmd: Command) -> PathBuf {
-        let output = cmd.arg("--print").arg("sysroot").output()
-            .expect("Failed to run rustc to get sysroot.");
-        let stdout = String::from_utf8(output.stdout)
-            .expect("Invalid UTF-8: stdout.");
-        let stderr = String::from_utf8(output.stderr)
-            .expect("Invalid UTF-8: stderr.");
-        let stdout = stdout.trim();
-
-        assert!(
-            output.status.success(),
-            "Termination unsuccessful when getting sysroot.\nstdout: {}\nstderr: {}",
-            stdout,
-            stderr,
-        );
-
-        PathBuf::from(stdout).canonicalize()
-            .unwrap_or_else(|_| panic!("Failed to canonicalize sysroot:{}", stdout))
-    }
-
-    let rustc_sysroot = get_sysroot(Command::new("rustc"));
-    let rap_sysroot = get_sysroot(Command::new(find_rap()));
-
-    assert_eq!(rustc_sysroot, rap_sysroot,
-        "Inconsistent toolchain! You may switch the default toolchain via !\n\
-         `rustup default rap-rust`"
-    );
-}
-
 /*
     The function finds a package under the current directory.
 */
@@ -193,7 +163,6 @@ fn cleanup(){
 
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
-    test_sysroot_consistency();
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
         rap_error!("Expect command: e.g., `cargo rap -help`.");
