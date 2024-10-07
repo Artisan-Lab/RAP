@@ -1,5 +1,4 @@
 .idea/
-.idea/vcs.xml
 .vscode/
 target/
-rap-llvm/build
+Cargo.lock
