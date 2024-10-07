@@ -7,7 +7,7 @@ The project is still under heavy development.
 
 ```shell
 git clone https://github.com/Artisan-Lab/RAP.git
-cd rap
+cd RAP 
 ./install.sh
 ```
 

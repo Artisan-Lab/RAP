@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # Define color variables
@@ -24,8 +23,8 @@ case "$SHELL" in
 esac
 
 # Set the library path to be added
-LIBRARY_PATH="$HOME/.rustup/toolchains/nightly-2023-10-05-x86_64-unknown-linux-gnu/lib"
-toolchain_base="nightly-2023-10-05"
+#LIBRARY_PATH="$HOME/.rustup/toolchains/nightly-2023-10-05-x86_64-unknown-linux-gnu/lib"
+toolchain_date="nightly-2023-10-05"
 toolchain_file="rust-toolchain.toml"
 if [ ! -f "$toolchain_file" ]; then
     printf "%bError: %s does not exist.%b\n" "${RED}" "$toolchain_file" "${NC}"
@@ -37,33 +36,40 @@ arch_type=$(uname -m)
 
 if [ "$os_type" = "Linux" ]; then
     # Update the channel field in rust-toolchain.toml
-    toolchain="$toolchain_base-x86_64-unknown-linux-gnu"
+    toolchain="$toolchain_date-x86_64-unknown-linux-gnu"
+    toolchain_lib="$HOME/.rustup/toolchains/$toolchain/lib"
     printf "%bDetected OS: Linux. Setting toolchain to %s%b\n" "${BLUE}" "$toolchain" "${NC}"
     sed -i.bak "s/^channel = \".*\"/channel = \"$toolchain\"/" "$toolchain_file"
 
-    if ! grep -q "LD_LIBRARY_PATH.*$LIBRARY_PATH" "$SHELL_CONFIG"; then
-    	export LD_LIBRARY_PATH="$LIBRARY_PATH:$LD_LIBRARY_PATH"
+    if ! grep -q "LD_LIBRARY_PATH.*$toolchain_lib" "$SHELL_CONFIG"; then
         if grep -q "LD_LIBRARY_PATH" "$SHELL_CONFIG"; then
+    	    export LD_LIBRARY_PATH="$toolchain_lib:$LD_LIBRARY_PATH"
             sed -i '/LD_LIBRARY_PATH/d' "$SHELL_CONFIG"
             printf "%bOld LD_LIBRARY_PATH definition has been removed from %s.%b\n" "${GREEN}" "$SHELL_CONFIG" "${NC}"
+        else 
+    	    export LD_LIBRARY_PATH="$toolchain_lib"
         fi
         echo "export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\"" >> "$SHELL_CONFIG"
         printf "%bEnvironment variables have been successfully written to %s.%b\n" "${GREEN}" "$SHELL_CONFIG" "${NC}"
     fi
 elif [ "$os_type" = "Darwin" ]; then
     if [ "$arch_type" = "x86_64" ]; then
-        toolchain="$toolchain_base-x86_64-apple-darwin"
+        toolchain="$toolchain_date-x86_64-apple-darwin"
+        toolchain_lib="$HOME/.rustup/toolchain/$toolchain/lib"
     else
-        toolchain="$toolchain_base-aarch64-apple-darwin"
+        toolchain="$toolchain_date-aarch64-apple-darwin"
+        toolchain_lib="$HOME/.rustup/toolchain/$toolchain/lib"
     fi
     printf "%bDetected OS: macOS. Setting toolchain to %s%b\n" "${BLUE}" "$toolchain" "${NC}"
     sed -i.bak "s/^channel = \".*\"/channel = \"$toolchain\"/" "$toolchain_file"
         
-    if ! grep -q "LD_LIBRARY_PATH.*$LIBRARY_PATH" "$SHELL_CONFIG"; then
-        export DYLD_LIBRARY_PATH="$LIBRARY_PATH:$DYLD_LIBRARY_PATH"
+    if ! grep -q "DYLD_LIBRARY_PATH.*$toolchain_lib" "$SHELL_CONFIG"; then
         if grep -q "DYLD_LIBRARY_PATH" "$SHELL_CONFIG"; then
+    	    export DYLD_LIBRARY_PATH="$toolchain_lib:$DYLD_LIBRARY_PATH"
             sed -i '/DYLD_LIBRARY_PATH/d' "$SHELL_CONFIG"
             printf "%bOld DYLD_LIBRARY_PATH definition has been removed from %s.%b\n" "${GREEN}" "$SHELL_CONFIG" "${NC}"
+        else 
+    	    export DYLD_LIBRARY_PATH="$toolchain_lib"
         fi
         echo "export DYLD_LIBRARY_PATH=\"${DYLD_LIBRARY_PATH}\"" >> "$SHELL_CONFIG"
         printf "%bEnvironment variables have been successfully written to %s.%b\n" "${GREEN}" "$SHELL_CONFIG" "${NC}"
