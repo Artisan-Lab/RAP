@@ -4,9 +4,20 @@ use super::contract::*;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+
+pub trait Checker {
+    fn variable_contracts(&self) -> &HashMap<usize, Vec<Contract>>;
+}
+
 pub struct SliceFromRawPartsChecker<T>{
     pub variable_contracts: HashMap<usize,Vec<Contract>>,
     _marker: PhantomData<T>,
+}
+
+impl<T> Checker for SliceFromRawPartsChecker<T> {
+    fn variable_contracts(&self) -> &HashMap<usize, Vec<Contract>> {
+        &self.variable_contracts
+    }
 }
 
 impl<T> SliceFromRawPartsChecker<T> {

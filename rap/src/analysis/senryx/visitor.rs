@@ -3,6 +3,7 @@ use super::matcher::match_unsafe_api_and_check_contracts;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     ty,
+    ty::GenericArgKind,
     mir::{self, ProjectionElem, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
 use rustc_hir::def_id::DefId;
@@ -10,6 +11,7 @@ use rustc_hir::def_id::DefId;
 pub struct BodyVisitor<'tcx>  {
     pub tcx: TyCtxt<'tcx>,
     pub abstract_states: AbstractState,
+    pub scc_sub_blocks: Vec<Vec<usize>>,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
@@ -17,6 +19,7 @@ impl<'tcx> BodyVisitor<'tcx> {
         Self{
             tcx,
             abstract_states: AbstractState::new(),
+            scc_sub_blocks: Vec::new(),
         }
     }
 
@@ -29,11 +32,10 @@ impl<'tcx> BodyVisitor<'tcx> {
                     continue;
                 }
                 self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*block_index)].clone(), index, *block_index);
-                // TODO: analyze scc blocks
                 // let tem_scc_sub_blocks = self.scc_sub_blocks[*block_index].clone();
                 // if tem_scc_sub_blocks.len() > 0{
                 //     for sub_block in &tem_scc_sub_blocks {
-                //         self.path_analyze_block(tcx, &self.body.as_ref().basic_blocks[BasicBlock::from_usize(*sub_block)].clone(), index, *block_index,direction);
+                //         self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*sub_block)].clone(), index, *block_index);
                 //     }
                 // }
             }
@@ -51,12 +53,16 @@ impl<'tcx> BodyVisitor<'tcx> {
         match &terminator.kind {
             TerminatorKind::Call{func, args, destination: _, target: _, ..} => {
                 let func_name = format!("{:?}",func);
-                match_unsafe_api_and_check_contracts(func_name.as_str(), args, &self.abstract_states);
-
-                //handle inter analysis
                 if let Operand::Constant(func_constant) = func{
                     if let ty::FnDef(ref _callee_def_id, raw_list) = func_constant.const_.ty().kind() {
-                        println!("{:?}",raw_list);
+                        for generic_arg in raw_list.iter() {
+                            match generic_arg.unpack() {
+                                GenericArgKind::Type(ty) => {
+                                    match_unsafe_api_and_check_contracts(func_name.as_str(), args, &self.abstract_states, ty);
+                                }
+                                _ => {}
+                            }
+                        }
                         //TODO:path_inter_analyze
                     }
                 }
@@ -174,7 +180,8 @@ impl<'tcx> BodyVisitor<'tcx> {
     }
 
     pub fn get_all_paths(&self, def_id: DefId) -> Vec<Vec<usize>> {
-        let results = Vec::new();
+        // let results = Vec::new();
+        let results = vec![vec![0,1,2,3,4,5,6,7,8]];
         let _body = self.tcx.optimized_mir(def_id);
         // TODO: get all paths in a body
         results
