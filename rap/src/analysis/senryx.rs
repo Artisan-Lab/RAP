@@ -1,9 +1,11 @@
 pub mod visitor;
 pub mod contracts;
+pub mod matcher;
 
-use crate::analysis::unsafety_isolation::hir_visitor::{ContainsUnsafe, RelatedFnCollector};
+use crate::analysis::unsafety_isolation::{hir_visitor::{ContainsUnsafe, RelatedFnCollector}, UnsafetyIsolationCheck};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
+use visitor::BodyVisitor;
 
 pub struct SenryxCheck<'tcx> {
     pub tcx: TyCtxt<'tcx>,
@@ -34,38 +36,33 @@ impl<'tcx> SenryxCheck<'tcx>{
     }
 
     pub fn check_soundness(&self, def_id: DefId) {
-        
+        self.pre_handle_type(def_id);
         println!("Find unsound safe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
     }
 
     pub fn annotate_safety(&self, def_id: DefId) {
-        
+        self.pre_handle_type(def_id);
         println!("Annotate unsafe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
     }
 
-    //retval: 0-constructor, 1-method, 2-function
-    pub fn get_type(&self,def_id: DefId) -> usize{
-        let tcx = self.tcx;
-        let mut node_type = 2;
-        if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
-            if assoc_item.fn_has_self_parameter {
-                node_type = 1;
-            } else if !assoc_item.fn_has_self_parameter  {
-                let fn_sig = tcx.fn_sig(def_id).skip_binder();
-                let output = fn_sig.output().skip_binder();
-                if output.is_param(0) {
-                    node_type = 0;
-                }
-                if let Some(assoc_item) = tcx.opt_associated_item(def_id) {
-                    if let Some(impl_id) = assoc_item.impl_container(tcx) {
-                        let ty = tcx.type_of(impl_id).skip_binder();
-                        if output == ty{
-                            node_type = 0;
-                        }
-                    }
-                }
+    pub fn pre_handle_type(&self, def_id: DefId) {
+        let mut uig_checker = UnsafetyIsolationCheck::new(self.tcx);
+        let func_type = uig_checker.get_type(def_id);
+        let mut body_visitor = BodyVisitor::new(self.tcx);
+        if func_type == 1 {
+            let func_cons = uig_checker.search_constructor(def_id);
+            for func_con in func_cons {
+                body_visitor.path_forward_check(func_con);
+                // TODO: cache fields' states
+
+                // TODO: update method body's states
+
+                // analyze body's states
+                body_visitor.path_forward_check(def_id);
             }
+        } else {
+            body_visitor.path_forward_check(def_id);
         }
-        return node_type;
     }
+
 }

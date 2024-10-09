@@ -1,11 +1,25 @@
-use super::super::senryx::SenryxCheck;
+use super::contracts::abstract_state::AbstractState;
+use super::matcher::match_unsafe_api_and_check_contracts;
+use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     ty,
     mir::{self, ProjectionElem, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
 use rustc_hir::def_id::DefId;
 
-impl<'tcx> SenryxCheck<'tcx> {
+pub struct BodyVisitor<'tcx>  {
+    pub tcx: TyCtxt<'tcx>,
+    pub abstract_states: AbstractState,
+}
+
+impl<'tcx> BodyVisitor<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self{
+        Self{
+            tcx,
+            abstract_states: AbstractState::new(),
+        }
+    }
+
     pub fn path_forward_check(&mut self, def_id: DefId) {
         let paths = self.get_all_paths(def_id);
         let body = self.tcx.optimized_mir(def_id);
@@ -35,13 +49,14 @@ impl<'tcx> SenryxCheck<'tcx> {
 
     pub fn path_analyze_terminator(&mut self, terminator:&Terminator<'tcx>, _path_index:usize, _bb_index: usize) {
         match &terminator.kind {
-            TerminatorKind::Call{func, args: _, destination: _, target: _, ..} => {
+            TerminatorKind::Call{func, args, destination: _, target: _, ..} => {
                 let func_name = format!("{:?}",func);
-                self.match_unsafe_api_and_check_contracts(func_name);
+                match_unsafe_api_and_check_contracts(func_name.as_str(), args, &self.abstract_states);
 
                 //handle inter analysis
                 if let Operand::Constant(func_constant) = func{
-                    if let ty::FnDef(ref _callee_def_id, _) = func_constant.const_.ty().kind() {
+                    if let ty::FnDef(ref _callee_def_id, raw_list) = func_constant.const_.ty().kind() {
+                        println!("{:?}",raw_list);
                         //TODO:path_inter_analyze
                     }
                 }
@@ -158,14 +173,10 @@ impl<'tcx> SenryxCheck<'tcx> {
         return current_local;
     }
 
-    pub fn match_unsafe_api_and_check_contracts(&mut self, _func_name: String) {
-
-    }
-
     pub fn get_all_paths(&self, def_id: DefId) -> Vec<Vec<usize>> {
         let results = Vec::new();
         let _body = self.tcx.optimized_mir(def_id);
-        // todo: get all paths in a body
+        // TODO: get all paths in a body
         results
     }
 
