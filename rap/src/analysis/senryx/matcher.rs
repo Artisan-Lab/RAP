@@ -3,8 +3,10 @@ use rustc_middle::mir::Operand;
 use super::contracts::{abstract_state::AbstractState, checker::{Checker, SliceFromRawPartsChecker}, contract::check_contract};
 
 pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
-    let checker: Option<Box<dyn Checker>> = match func_name {
-        "std::slice::from_raw_parts::<'_, u8>" => {
+    let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
+    println!("base name ---- {:?}",base_func_name);
+    let checker: Option<Box<dyn Checker>> = match base_func_name {
+        "std::slice::from_raw_parts::" => {
             Some(Box::new(SliceFromRawPartsChecker::<T>::new()))
         }
         _ => None,

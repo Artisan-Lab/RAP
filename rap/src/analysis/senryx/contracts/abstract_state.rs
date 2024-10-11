@@ -48,6 +48,15 @@ pub struct AbstractStateItem {
     pub state: HashSet<StateType>,
 }
 
+impl AbstractStateItem {
+    pub fn new(value:(Value,Value), state: HashSet<StateType>) -> Self {
+        Self {
+            value,
+            state,
+        }
+    }
+}
+
 pub struct AbstractState {
     pub state_map: HashMap<usize,AbstractStateItem>,
 }
@@ -57,5 +66,9 @@ impl AbstractState {
         Self {
             state_map: HashMap::new(),
         }
+    }
+
+    pub fn insert_abstate(&mut self, place: usize, place_state_item: AbstractStateItem) {
+        self.state_map.insert(place, place_state_item);
     }
 }

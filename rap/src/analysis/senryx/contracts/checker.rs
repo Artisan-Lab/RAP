@@ -28,7 +28,7 @@ impl<T> SliceFromRawPartsChecker<T> {
             Contract::StateCheck { op: Op::EQ, state: StateType::AllocatedState(AllocatedState::Alloc) },
         ]);
         map.insert(1, vec![
-            Contract::ValueCheck { op: Op::LE, value: Value::Isize((isize::MAX)/(mem::size_of::<T>() as isize)) },
+            Contract::ValueCheck { op: Op::LE, value: Value::Usize((isize::MAX as usize)/mem::size_of::<T>()) },
         ]);
         Self {
             variable_contracts: map,
