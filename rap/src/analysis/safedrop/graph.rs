@@ -17,7 +17,6 @@ use rustc_middle::ty;
 use rustc_span::Span;
 use super::safedrop::*;
 use super::bug_records::*;
-use super::alias::*;
 use super::types::*;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
@@ -157,8 +156,6 @@ pub struct SafeDropGraph<'tcx>{
     pub scc_indices: Vec<usize>,
     // record the constant value during safedrop checking, i.e., which id has what value.
     pub constant: FxHashMap<usize, usize>,
-    // contains the return results for inter-procedure analysis.
-    pub ret_alias: FnRetAlias,
     // used for filtering duplicate alias assignments in return results.
     pub return_set: FxHashSet<(usize, usize)>,
     // record the information of bugs for the function.
@@ -394,15 +391,13 @@ impl<'tcx> SafeDropGraph<'tcx> {
             arg_size: arg_size,
             scc_indices: scc_indices,
             constant: FxHashMap::default(), 
-            ret_alias: FnRetAlias::new(arg_size),
             return_set: FxHashSet::default(),
             bug_records: BugRecords::new(),
             visit_times: 0,
         }
     }
 
-    pub fn tarjan(&mut self, index: usize, stack: &mut Vec<usize>, instack: &mut FxHashSet<usize>,
-                  dfn: &mut Vec<usize>, low: &mut Vec<usize>, time: &mut usize) {
+    pub fn tarjan(&mut self, index: usize, stack: &mut Vec<usize>, instack: &mut FxHashSet<usize>, dfn: &mut Vec<usize>, low: &mut Vec<usize>, time: &mut usize) {
         dfn[index] = *time;
         low[index] = *time;
         *time += 1;

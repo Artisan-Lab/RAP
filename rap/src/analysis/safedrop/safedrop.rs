@@ -1,32 +1,17 @@
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::mir::{TerminatorKind, Operand};
 use rustc_middle::mir::Operand::{Copy, Move, Constant};
-use rustc_data_structures::fx::{FxHashSet, FxHashMap};
 
 use crate::{rap_error};
-
-use super::graph::*;
-use super::alias::*;
+use crate::analysis::core::alias::mop::{FnMap};
+use crate::analysis::safedrop::SafeDropGraph;
 
 pub const DROP:usize = 1634;
 pub const DROP_IN_PLACE:usize = 2160;
 pub const CALL_MUT:usize = 3022;
 pub const NEXT:usize = 7587;
 
-pub const VISIT_LIMIT:usize = 10000;
-
-//struct to cache the results for analyzed functions.
-#[derive(Clone)]
-pub struct FuncMap {
-    pub map: FxHashMap<usize, FnRetAlias>,
-    pub set: FxHashSet<usize>,
-}
-
-impl FuncMap {
-    pub fn new() -> FuncMap {
-        FuncMap { map: FxHashMap::default(), set: FxHashSet::default() }
-    }
-}
+pub const VISIT_LIMIT:usize = 1000;
 
 impl<'tcx> SafeDropGraph<'tcx> {
     // analyze the drop statement and update the liveness for nodes.
@@ -58,43 +43,43 @@ impl<'tcx> SafeDropGraph<'tcx> {
         }
     }
 
-    pub fn split_check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, func_map: &mut FuncMap) {
+    pub fn split_check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
-        self.check(bb_index, tcx, func_map);
+        self.check(bb_index, tcx, fn_map);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
-    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, tcx: TyCtxt<'tcx>, func_map: &mut FuncMap) {
+    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
         /* add control-sensitive indicator to the path status */ 
         self.constant.insert(path_discr_id, path_discr_val);
-        self.check(bb_index, tcx, func_map);
+        self.check(bb_index, tcx, fn_map);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
 
     // the core function of the safedrop.
-    pub fn check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, func_map: &mut FuncMap) {
+    pub fn check(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap) {
         self.visit_times += 1;
         if self.visit_times > VISIT_LIMIT {
             return;
         }
         let cur_block = self.blocks[self.scc_indices[bb_index]].clone();
         self.alias_bb(self.scc_indices[bb_index], tcx);
-        self.alias_bbcall(self.scc_indices[bb_index], tcx, func_map);
+        self.alias_bbcall(self.scc_indices[bb_index], tcx, fn_map);
         self.drop_check(self.scc_indices[bb_index], tcx);
 
         /* Handle cases if the current block is a merged scc block with sub block */
         if cur_block.scc_sub_blocks.len() > 0{
             for i in cur_block.scc_sub_blocks.clone(){
                 self.alias_bb(i, tcx);
-                self.alias_bbcall(i, tcx, func_map);
+                self.alias_bbcall(i, tcx, fn_map);
                 self.drop_check(i, tcx);
             }
         }
@@ -105,9 +90,6 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 if Self::should_check(self.def_id){
                     self.dp_check(&cur_block);
                 }
-                // merge the result.
-                let results_nodes = self.values.clone();
-                self.merge_results(results_nodes, cur_block.is_cleanup);
                 return;
             }, 
             1 => {
@@ -116,7 +98,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 * We cannot use [0] for FxHashSet.
                 */
                 for next in cur_block.next {
-                    self.check(next, tcx, func_map);
+                    self.check(next, tcx, fn_map);
                 }
                 return;
             },
@@ -178,7 +160,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         /* End: finish handling SwitchInt */
         // fixed path since a constant switchInt value
         if single_target {
-            self.check(sw_target, tcx, func_map);
+            self.check(sw_target, tcx, fn_map);
         } else {
             // Other cases in switchInt terminators
             if let Some(targets) = sw_targets {
@@ -188,19 +170,19 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     }
                     let next_index = iter.1.as_usize();
                     let path_discr_val = iter.0 as usize;
-                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, func_map);
+                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, fn_map);
                 }
                 let all_targets = targets.all_targets();
                 let next_index = all_targets[all_targets.len()-1].as_usize();
                 let path_discr_val = usize::MAX; // to indicate the default path;
-                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, func_map);
+                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, tcx, fn_map);
             } else {
                 for i in cur_block.next {
                     if self.visit_times > VISIT_LIMIT {
                         continue;
                     }
                     let next_index = i;
-                    self.split_check(next_index, tcx, func_map);
+                    self.split_check(next_index, tcx, fn_map);
                 }
             }
         }

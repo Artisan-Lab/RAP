@@ -11,7 +11,7 @@ use crate::rap_info;
 use graph::MopGraph;
 use alias::FnRetAlias;
 
-pub const VISIT_LIMIT:usize = 10000;
+pub const VISIT_LIMIT:usize = 1000;
 
 //struct to cache the results for analyzed functions.
 pub type FnMap = FxHashMap<DefId, FnRetAlias>;
@@ -29,7 +29,7 @@ impl<'tcx> MopAlias<'tcx> {
         }
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self) -> &FnMap {
         for local_def_id in self.tcx.iter_local_def_id() {
             let hir_map = self.tcx.hir();
             if hir_map.maybe_body_owned_by(local_def_id).is_some() {
@@ -46,6 +46,7 @@ impl<'tcx> MopAlias<'tcx> {
                 rap_info!("{}", fn_alias);
             }
         }
+        return &self.fn_map;
     }
 
     pub fn query_mop(&mut self, def_id: DefId) -> () {
