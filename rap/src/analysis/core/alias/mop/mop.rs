@@ -1,5 +1,7 @@
 use rustc_middle::mir::TerminatorKind;
 use rustc_middle::mir::Operand::{Copy, Move, Constant};
+use rustc_data_structures::fx::FxHashSet;
+use rustc_hir::def_id::DefId;
 use super::graph::*;
 use super::*;
 
@@ -9,42 +11,42 @@ pub const CALL_MUT:usize = 3022;
 pub const NEXT:usize = 7587;
 
 impl<'tcx> MopGraph<'tcx> {
-    pub fn split_check(&mut self, bb_index: usize, fn_map: &mut FnMap) {
+    pub fn split_check(&mut self, bb_index: usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
-        self.check(bb_index, fn_map);
+        self.check(bb_index, fn_map, recursion_set);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
-    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, fn_map: &mut FnMap) {
+    pub fn split_check_with_cond(&mut self, bb_index: usize, path_discr_id: usize, path_discr_val:usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
         /* duplicate the status before visiting a path; */
         let backup_values = self.values.clone(); // duplicate the status when visiting different paths;
         let backup_constant = self.constant.clone();
         /* add control-sensitive indicator to the path status */ 
         self.constant.insert(path_discr_id, path_discr_val);
-        self.check(bb_index, fn_map);
+        self.check(bb_index, fn_map, recursion_set);
         /* restore after visit */ 
         self.values = backup_values;
         self.constant = backup_constant;
     }
 
     // the core function of the safedrop.
-    pub fn check(&mut self, bb_index: usize, fn_map: &mut FnMap) {
+    pub fn check(&mut self, bb_index: usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
         self.visit_times += 1;
         if self.visit_times > VISIT_LIMIT {
             return;
         }
         let cur_block = self.blocks[self.scc_indices[bb_index]].clone();
         self.alias_bb(self.scc_indices[bb_index]);
-        self.alias_bbcall(self.scc_indices[bb_index], fn_map);
+        self.alias_bbcall(self.scc_indices[bb_index], fn_map, recursion_set);
 
         /* Handle cases if the current block is a merged scc block with sub block */
         if cur_block.scc_sub_blocks.len() > 0{
             for i in cur_block.scc_sub_blocks.clone(){
                 self.alias_bb(i);
-                self.alias_bbcall(i, fn_map);
+                self.alias_bbcall(i, fn_map, recursion_set);
             }
         }
 
@@ -61,7 +63,7 @@ impl<'tcx> MopGraph<'tcx> {
                 * We cannot use [0] for FxHashSet.
                 */
                 for next in cur_block.next {
-                    self.check(next, fn_map);
+                    self.check(next, fn_map, recursion_set);
                 }
                 return;
             },
@@ -122,7 +124,7 @@ impl<'tcx> MopGraph<'tcx> {
         /* End: finish handling SwitchInt */
         // fixed path since a constant switchInt value
         if single_target {
-            self.check(sw_target, fn_map);
+            self.check(sw_target, fn_map, recursion_set);
         } else {
             // Other cases in switchInt terminators
             if let Some(targets) = sw_targets {
@@ -132,19 +134,19 @@ impl<'tcx> MopGraph<'tcx> {
                     }
                     let next_index = iter.1.as_usize();
                     let path_discr_val = iter.0 as usize;
-                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map);
+                    self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map, recursion_set);
                 }
                 let all_targets = targets.all_targets();
                 let next_index = all_targets[all_targets.len()-1].as_usize();
                 let path_discr_val = usize::MAX; // to indicate the default path;
-                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map);
+                self.split_check_with_cond(next_index, path_discr_id, path_discr_val, fn_map, recursion_set);
             } else {
                 for i in cur_block.next {
                     if self.visit_times > VISIT_LIMIT {
                         continue;
                     }
                     let next_index = i;
-                    self.split_check(next_index, fn_map);
+                    self.split_check(next_index, fn_map, recursion_set);
                 }
             }
         }

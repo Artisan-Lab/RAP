@@ -6,12 +6,13 @@ pub mod alias;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 use rustc_data_structures::fx::FxHashMap;
-use crate::rap_info;
-//use crate::utils::source::*;
+use rustc_data_structures::fx::FxHashSet;
+use crate::{rap_info, rap_debug};
+use crate::utils::source::*;
 use graph::MopGraph;
 use alias::FnRetAlias;
 
-pub const VISIT_LIMIT:usize = 1000;
+pub const VISIT_LIMIT:usize = 100;
 
 //struct to cache the results for analyzed functions.
 pub type FnMap = FxHashMap<DefId, FnRetAlias>;
@@ -38,11 +39,9 @@ impl<'tcx> MopAlias<'tcx> {
         }
         rap_info!("Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.");
         for (fn_id, fn_alias) in &self.fn_map {
-            /* FIXME: This does not work.
-            let fn_name = get_name(self.tcx, *fn_id);
-            */
+            let fn_name = get_fn_name(self.tcx, *fn_id);
             if fn_alias.alias_vec.len() > 0 {
-                rap_info!("{:?}", fn_id);
+                rap_info!("{:?},{:?}", fn_name, fn_id);
                 rap_info!("{}", fn_alias);
             }
         }
@@ -50,6 +49,9 @@ impl<'tcx> MopAlias<'tcx> {
     }
 
     pub fn query_mop(&mut self, def_id: DefId) -> () {
+        //let fn_name = get_fn_name(self.tcx, def_id);
+        //rap_info!("query_mop: {:?}", fn_name);
+        let mut recursion_set = FxHashSet::default();
         /* filter const mir */
         if let Some(_other) = self.tcx.hir().body_const_context(def_id.expect_local()) {
             return;
@@ -57,7 +59,7 @@ impl<'tcx> MopAlias<'tcx> {
         if self.tcx.is_mir_available(def_id) {
             let mut mop_graph = MopGraph::new(self.tcx, def_id);
             mop_graph.solve_scc();
-            mop_graph.check(0, &mut self.fn_map);
+            mop_graph.check(0, &mut self.fn_map, &mut recursion_set);
             if mop_graph.visit_times <= VISIT_LIMIT { 
                 return ;
             } else { 

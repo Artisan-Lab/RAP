@@ -1,7 +1,9 @@
 use rustc_middle::ty;
 use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
+use rustc_data_structures::fx::FxHashSet;
+use rustc_hir::def_id::DefId;
 use std::fmt;
-use crate::rap_error;
+use crate::{rap_info, rap_error};
 use super::graph::*;
 use super::types::*;
 use super::mop::*;
@@ -34,7 +36,7 @@ impl<'tcx> MopGraph<'tcx> {
     }
 
     /* Check the aliases introduced by the terminators (function call) of a scc block */
-    pub fn alias_bbcall(&mut self, bb_index: usize, fn_map: &mut FnMap){
+    pub fn alias_bbcall(&mut self, bb_index: usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
         let cur_block = self.blocks[bb_index].clone();
         for call in cur_block.calls {
             if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
@@ -71,6 +73,7 @@ impl<'tcx> MopGraph<'tcx> {
                         //if may_drop_flag > 1 || Self::should_check(target_id.clone()) == false {
                         if may_drop_flag > 1 {
                             if self.tcx.is_mir_available(*target_id) {
+                                //rap_info!("target_id {:?}", target_id);
                                 if fn_map.contains_key(&target_id) {
                                     let assignments = fn_map.get(&target_id).unwrap();
                                     for assign in assignments.alias_vec.iter() {
@@ -81,12 +84,14 @@ impl<'tcx> MopGraph<'tcx> {
                                     }
                                 }
                                 else{
-                                    if fn_map.contains_key(&target_id) {
-                                        continue;
+                                    /* Fixed-point iteration: this is not perfect */
+                                    if recursion_set.contains(&target_id){
+                                         continue;
                                     }
+                                    recursion_set.insert(*target_id);
                                     let mut mop_graph = MopGraph::new(self.tcx, *target_id);
                                     mop_graph.solve_scc();
-                                    mop_graph.check(0, fn_map);
+                                    mop_graph.check(0, fn_map, recursion_set);
                                     let ret_alias = mop_graph.ret_alias.clone();
                                     for assign in ret_alias.alias_vec.iter() {
                                         if !assign.valuable(){
@@ -95,6 +100,7 @@ impl<'tcx> MopGraph<'tcx> {
                                         self.merge(assign, &merge_vec);
                                     }
                                     fn_map.insert(*target_id, ret_alias);
+                                    recursion_set.remove(target_id);
                                 }
                             }
                             else {
