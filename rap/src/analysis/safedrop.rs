@@ -11,7 +11,8 @@ use rustc_hir::def_id::DefId;
 
 use graph::SafeDropGraph;
 use safedrop::*;
-use crate::analysis::core::alias::mop::{MopAlias, FnMap};
+use crate::analysis::core::alias::mop::MopAlias;
+use crate::analysis::core::alias::FnMap;
 
 pub struct SafeDrop<'tcx> {
     pub tcx: TyCtxt<'tcx>,

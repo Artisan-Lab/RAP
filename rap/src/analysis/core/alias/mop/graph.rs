@@ -13,8 +13,8 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_middle::mir::Operand;
 use rustc_middle::mir::Rvalue;
 use rustc_span::Span;
-use super::alias::*;
 use super::types::*;
+use crate::analysis::core::alias::FnRetAlias;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum AssignType {

@@ -5,8 +5,7 @@ use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
 use crate::rap_error;
 use super::types::*;
 use super::graph::*;
-use crate::analysis::safedrop::FnMap;
-use crate::analysis::core::alias::mop::alias::RetAlias;
+use crate::analysis::core::alias::{FnMap, RetAlias};
 
 impl<'tcx> SafeDropGraph<'tcx>{
     /* alias analysis for a single block */

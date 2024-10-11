@@ -7,15 +7,12 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
-use crate::{rap_info, rap_debug};
+use crate::rap_info;
 use crate::utils::source::*;
 use graph::MopGraph;
-use alias::FnRetAlias;
+use crate::analysis::core::alias::FnMap;
 
 pub const VISIT_LIMIT:usize = 100;
-
-//struct to cache the results for analyzed functions.
-pub type FnMap = FxHashMap<DefId, FnRetAlias>;
 
 pub struct MopAlias<'tcx> {
     pub tcx: TyCtxt<'tcx>,
