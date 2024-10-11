@@ -4,6 +4,15 @@ use rustc_span::def_id::DefId;
 use rustc_span::{FileName, FileNameDisplayPreference};
 use rustc_hir::Node::*;
 
+extern crate rustc_hir;
+extern crate rustc_middle;
+extern crate rustc_span;
+
+pub fn get_fn_name(tcx: TyCtxt<'_>, def_id: DefId) -> Option<String> {
+    let name = tcx.def_path(def_id).to_string_no_crate_verbose();
+    Some(name)
+}
+
 pub fn get_name(tcx: TyCtxt<'_>, def_id: DefId) -> Option<Symbol> {
     if def_id.is_local() {
         if let Some(node) = tcx.hir().get_if_local(def_id) {
