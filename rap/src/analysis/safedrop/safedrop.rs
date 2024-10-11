@@ -3,7 +3,7 @@ use rustc_middle::mir::{TerminatorKind, Operand};
 use rustc_middle::mir::Operand::{Copy, Move, Constant};
 
 use crate::{rap_error};
-use crate::analysis::core::alias::mop::{FnMap};
+use crate::analysis::core::alias::FnMap;
 use crate::analysis::safedrop::SafeDropGraph;
 
 pub const DROP:usize = 1634;
