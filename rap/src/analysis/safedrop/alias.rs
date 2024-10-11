@@ -1,12 +1,12 @@
 use rustc_middle::ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
-use rustc_data_structures::fx::FxHashSet;
 
 use crate::rap_error;
-use super::graph::*;
 use super::types::*;
-use super::safedrop::*;
+use super::graph::*;
+use crate::analysis::safedrop::FnMap;
+use crate::analysis::core::alias::mop::alias::RetAlias;
 
 impl<'tcx> SafeDropGraph<'tcx>{
     /* alias analysis for a single block */
@@ -37,7 +37,7 @@ impl<'tcx> SafeDropGraph<'tcx>{
     }
 
     /* Check the aliases introduced by the terminators (function call) of a scc block */
-    pub fn alias_bbcall(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, func_map: &mut FuncMap){
+    pub fn alias_bbcall(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap){
         let cur_block = self.blocks[bb_index].clone();
         for call in cur_block.calls {
             if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
@@ -74,42 +74,16 @@ impl<'tcx> SafeDropGraph<'tcx>{
                         }
                     }
                     if let ty::FnDef(ref target_id, _) = constant.const_.ty().kind() {
-                        if may_drop_flag > 1 || (may_drop_flag > 0 && Self::should_check(target_id.clone()) == false) {
+                         if may_drop_flag > 1 {
                             if tcx.is_mir_available(*target_id) {
-                                if func_map.map.contains_key(&target_id.index.as_usize()) {
-                                    let assignments = func_map.map.get(&target_id.index.as_usize()).unwrap();
+                                if fn_map.contains_key(&target_id) {
+                                    let assignments = fn_map.get(&target_id).unwrap();
                                     for assign in assignments.alias_vec.iter() {
                                         if !assign.valuable() {
                                             continue;
                                         }
                                         self.merge(assign, &merge_vec);
                                     }
-                                    for dead in assignments.dead.iter() {
-                                        let drop = merge_vec[*dead];
-                                        self.dead_node(drop, 99999, &call.source_info, false);
-                                    }
-                                }
-                                else{
-                                    if func_map.set.contains(&target_id.index.as_usize()) {
-                                        continue;
-                                    }
-                                    func_map.set.insert(target_id.index.as_usize());
-                                    let func_body = tcx.optimized_mir(*target_id);
-                                    let mut safedrop_graph = SafeDropGraph::new(&func_body, tcx, *target_id);
-                                    safedrop_graph.solve_scc();
-                                    safedrop_graph.check(0, tcx, func_map);
-                                    let ret_alias = safedrop_graph.ret_alias.clone();
-                                    for assign in ret_alias.alias_vec.iter() {
-                                        if !assign.valuable(){
-                                            continue;
-                                        }
-                                        self.merge(assign, &merge_vec);
-                                    }
-                                    for dead in ret_alias.dead.iter() {
-                                        let drop = merge_vec[*dead];
-                                        self.dead_node(drop, 99999, &call.source_info, false);
-                                    }
-                                    func_map.map.insert(target_id.index.as_usize(), ret_alias);
                                 }
                             }
                             else {
@@ -223,7 +197,7 @@ impl<'tcx> SafeDropGraph<'tcx>{
         let mut right_init = arg_vec[ret_alias.right_index];
         let mut lv = left_init;
         let mut rv = right_init;
-        for index in ret_alias.left.iter() {
+        for index in ret_alias.left_field_seq.iter() {
             if self.values[lv].fields.contains_key(&index) == false {
                 let need_drop = ret_alias.left_need_drop;
                 let may_drop = ret_alias.left_may_drop;
@@ -236,7 +210,7 @@ impl<'tcx> SafeDropGraph<'tcx>{
             }
             lv = *self.values[lv].fields.get(&index).unwrap();
         }
-        for index in ret_alias.right.iter() {
+        for index in ret_alias.right_field_seq.iter() {
             if self.values[rv].alias[0] != rv {
                 rv = self.values[rv].alias[0];
                 right_init = self.values[rv].local;
@@ -256,62 +230,3 @@ impl<'tcx> SafeDropGraph<'tcx>{
         self.merge_alias(lv, rv);
     }
 }
-/*
- * To store the alias relationships among arguments and return values.
- */
-#[derive(Debug,Clone)]
-pub struct RetAlias{
-    pub left_index: usize,
-    pub left: Vec<usize>, //field
-    pub left_may_drop: bool, 
-    pub left_need_drop: bool,
-    pub right_index: usize,
-    pub right: Vec<usize>,
-    pub right_may_drop: bool, 
-    pub right_need_drop: bool,
-    pub atype: usize,
-}
-
-impl RetAlias{
-    pub fn new(atype: usize, left_index: usize, left_may_drop: bool, left_need_drop: bool,
-        right_index: usize, right_may_drop: bool, right_need_drop: bool) -> RetAlias{
-        let left = Vec::<usize>::new();
-        let right = Vec::<usize>::new();
-        RetAlias{
-            left_index: left_index,
-            left: left,
-            left_may_drop: left_may_drop,
-            left_need_drop: left_need_drop,
-            right_index: right_index,
-            right: right,
-            right_may_drop: right_may_drop,
-            right_need_drop: right_need_drop,
-            atype: atype
-        }
-    }
-
-    pub fn valuable(&self) -> bool{
-        return self.left_may_drop && self.right_may_drop;
-    }
-}
-
-/*
- * To store the alias relationships among arguments and return values.
- * Each function may have multiple return instructions, leading to different RetAlias.
- */
-#[derive(Debug, Clone)]
-pub struct FnRetAlias {
-    pub arg_size: usize,
-    pub alias_vec: Vec<RetAlias>,
-    pub dead: FxHashSet<usize>,
-}
-
-impl FnRetAlias {
-    pub fn new(arg_size: usize) -> FnRetAlias{
-        let alias_vec = Vec::<RetAlias>::new();
-        let dead = FxHashSet::default();
-        FnRetAlias { arg_size: arg_size, alias_vec: alias_vec, dead: dead }
-    }
-}
-
-

@@ -8,7 +8,7 @@ use rustc_target::abi::VariantIdx;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
-use stopwatch::Stopwatch;
+//use stopwatch::Stopwatch;
 use crate::analysis::rcanary::{rCanary, RcxMut};
 use ownership::RawTypeOwner;
 
@@ -77,7 +77,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     // RAP will construct an instance of struct TypeCollector and call self.start to make analysis starting.
     pub fn start(&mut self) {
 
-        let mut sw = Stopwatch::start_new();
+        //let mut sw = Stopwatch::start_new();
 
         // Get the analysis result from rap phase llvm
         // self.connect();
@@ -87,7 +87,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         //rap_info!("AdtDef Sum:{:?}", self.adt_owner().len());
         //rap_info!("Tymap Sum:{:?}", self.ty_map().len());
         //rap_info!("@@@@@@@@@@@@@Type Analysis:{:?}", sw.elapsed_ms());
-        sw.stop();
+        //sw.stop();
     }
 }
 

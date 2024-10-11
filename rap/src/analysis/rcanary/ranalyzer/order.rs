@@ -1,7 +1,7 @@
 use rustc_middle::mir::TerminatorKind;
 
 use std::collections::BinaryHeap;
-use stopwatch::Stopwatch;
+//use stopwatch::Stopwatch;
 
 use super::super::RcxMut;
 use super::super::ranalyzer::{FlowAnalysis, NodeOrder};
@@ -12,7 +12,7 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
         // Get the Global TyCtxt from rustc
         // Grasp all mir Keys defined in current crate
 
-        let mut sw = Stopwatch::start_new();
+        //let mut sw = Stopwatch::start_new();
 
         let tcx = self.tcx();
         let mir_keys = tcx.mir_keys(());
@@ -30,8 +30,8 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
             self.rcx_mut().mir_graph_mut().insert(def_id, path.graph_mut().clone());
         }
 
-        self.rcx_mut().add_time_build(sw.elapsed_ms());
-        sw.stop();
+        //self.rcx_mut().add_time_build(sw.elapsed_ms());
+        //sw.stop();
     }
 }
 

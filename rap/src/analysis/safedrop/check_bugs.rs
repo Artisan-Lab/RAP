@@ -4,7 +4,6 @@ use rustc_span::symbol::Symbol;
 use rustc_data_structures::fx::FxHashSet;
 use crate::utils::source::*;
 use super::graph::*;
-use super::alias::*;
 
 impl<'tcx> SafeDropGraph<'tcx> {
     pub fn report_bugs(&self) {
@@ -126,36 +125,6 @@ impl<'tcx> SafeDropGraph<'tcx> {
         //SCC.
         if self.values[drop].birth < birth as isize && self.values[drop].may_drop {
             self.values[drop].dead();   
-        }
-    }
-
-    //merge the result of current path to the final result.
-    pub fn merge_results(&mut self, results_nodes: Vec<ValueNode>, is_cleanup: bool) {
-        for node in results_nodes.iter() {
-            if node.local <= self.arg_size {
-                if node.alias[0] != node.index || node.alias.len() > 1 {
-                    for alias in node.alias.clone(){
-                        if results_nodes[alias].local <= self.arg_size
-                        && !self.return_set.contains(&(node.index, alias))
-                        && alias != node.index
-                        && node.local != results_nodes[alias].local {
-                            self.return_set.insert((node.index, alias));
-                            let left_node = node;
-                            let right_node = &results_nodes[alias];
-                            let mut new_alias = RetAlias::new(0, 
-                                left_node.local, left_node.may_drop, left_node.need_drop,
-                                right_node.local, right_node.may_drop, right_node.need_drop
-			                );
-                            new_alias.left = self.get_field_seq(left_node); 
-                            new_alias.right = self.get_field_seq(right_node); 
-                            self.ret_alias.alias_vec.push(new_alias);
-                        }
-                    }
-                }
-                if node.is_ptr() && is_cleanup == false && node.is_alive() == false && node.index <= self.arg_size {
-                    self.ret_alias.dead.insert(node.index);
-                }
-            }
         }
     }
 
