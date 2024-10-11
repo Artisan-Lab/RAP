@@ -457,4 +457,26 @@ impl<'tcx> SafeDropGraph<'tcx> {
         let mut time = 0;
         self.tarjan(0, &mut stack, &mut instack, &mut dfn, &mut low, &mut time);
     }
+
+    pub fn dfs_on_spanning_tree(&self, index: usize, stack: &mut Vec<usize>, paths: &mut Vec<Vec<usize>>) {
+        let curr_scc_index = self.scc_indices[index];
+        if self.blocks[curr_scc_index].next.len() == 0 {
+            paths.push(stack.to_vec());
+        } else {
+            for child in self.blocks[curr_scc_index].next.iter() {
+                stack.push(*child);
+                self.dfs_on_spanning_tree(*child, stack, paths);
+            }
+        }
+        stack.pop();
+    }
+    
+    pub fn get_paths(&self) -> Vec<Vec<usize>> {
+        // rap_debug!("dfs here");
+        let mut paths: Vec<Vec<usize>> = Vec::new();
+        let mut stack: Vec<usize> = vec![0];
+        self.dfs_on_spanning_tree(0, &mut stack, &mut paths);
+
+        return paths;
+    }
 }

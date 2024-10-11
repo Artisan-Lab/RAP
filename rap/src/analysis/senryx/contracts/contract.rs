@@ -2,19 +2,19 @@ use super::abstract_state::*;
 use crate::analysis::senryx::contracts::state_lattice::Lattice;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Contract<T: std::cmp::PartialEq + std::cmp::PartialOrd> {
-    ValueCheck { op: Op, value: T },
+pub enum Contract {
+    ValueCheck { op: Op, value: Value },
     StateCheck { op: Op, state: StateType },
 }
 
 
-pub fn check_contract<T: std::cmp::PartialEq + std::cmp::PartialOrd>(contract: Contract<T>, abstate: &AbstractStateItem<T>) -> bool {
+pub fn check_contract(contract: Contract, abstate_item: &AbstractStateItem) -> bool {
     match contract {
         Contract::ValueCheck {op, value} => {
-            return handle_value_op(&abstate.value, op, value);
+            return handle_value_op(&abstate_item.value, op, value);
         },
         Contract::StateCheck {op, state} => {
-            for ab_state in &abstate.state {
+            for ab_state in &abstate_item.state {
                 if handle_state_op(*ab_state, op, state) {
                     return true;
                 }

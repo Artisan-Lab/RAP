@@ -4,20 +4,31 @@ use super::contract::*;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-struct SliceFromRawPartsChecker<T>{
-    variable_contracts: HashMap<usize,Vec<Contract<isize>>>,
+
+pub trait Checker {
+    fn variable_contracts(&self) -> &HashMap<usize, Vec<Contract>>;
+}
+
+pub struct SliceFromRawPartsChecker<T>{
+    pub variable_contracts: HashMap<usize,Vec<Contract>>,
     _marker: PhantomData<T>,
+}
+
+impl<T> Checker for SliceFromRawPartsChecker<T> {
+    fn variable_contracts(&self) -> &HashMap<usize, Vec<Contract>> {
+        &self.variable_contracts
+    }
 }
 
 impl<T> SliceFromRawPartsChecker<T> {
     pub fn new() -> Self {
         let mut map = HashMap::new();
-        map.insert(1, vec![
-            Contract::ValueCheck { op: Op::GE, value: 0 },
+        map.insert(0, vec![
+            Contract::ValueCheck { op: Op::GE, value: Value::Usize(0) },
             Contract::StateCheck { op: Op::EQ, state: StateType::AllocatedState(AllocatedState::Alloc) },
         ]);
-        map.insert(2, vec![
-            Contract::ValueCheck { op: Op::LE, value: (isize::MAX)/(mem::size_of::<T>() as isize) },
+        map.insert(1, vec![
+            Contract::ValueCheck { op: Op::LE, value: Value::Usize((isize::MAX as usize)/mem::size_of::<T>()) },
         ]);
         Self {
             variable_contracts: map,

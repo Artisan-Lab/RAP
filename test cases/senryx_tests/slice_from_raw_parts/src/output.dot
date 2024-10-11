@@ -1,0 +1,45 @@
+digraph __crate__ {
+subgraph cluster_Mir_0_4 {
+    graph [fontname="Courier, monospace"];
+    node [fontname="Courier, monospace"];
+    edge [fontname="Courier, monospace"];
+    label=<fn test1() -&gt; ()<br align="left"/>let _1: *const u8;<br align="left"/>let _2: &amp;ReErased mut u8;<br align="left"/>let mut _3: std::boxed::Box&lt;u8, std::alloc::Global&gt;;<br align="left"/>let _4: usize;<br align="left"/>let mut _5: usize;<br align="left"/>let mut _6: usize;<br align="left"/>let mut _7: usize;<br align="left"/>let mut _8: bool;<br align="left"/>let mut _9: (usize, bool);<br align="left"/>let _10: &amp;ReErased [u8];<br align="left"/>let _11: &amp;ReErased [u8];<br align="left"/>let mut _12: std::option::Option&lt;&amp;ReErased u8&gt;;<br align="left"/>let mut _13: isize;<br align="left"/>let _14: &amp;ReErased u8;<br align="left"/>let _15: ();<br align="left"/>let mut _16: std::fmt::Arguments&lt;ReErased&gt;;<br align="left"/>let mut _17: &amp;ReErased [&amp;ReErased str];<br align="left"/>let mut _18: &amp;ReErased [core::fmt::rt::Argument&lt;ReErased&gt;];<br align="left"/>let _19: &amp;ReErased [core::fmt::rt::Argument&lt;ReErased&gt;; 1_usize];<br align="left"/>let _20: [core::fmt::rt::Argument&lt;ReErased&gt;; 1_usize];<br align="left"/>let mut _21: core::fmt::rt::Argument&lt;ReErased&gt;;<br align="left"/>let _22: &amp;ReErased &amp;ReErased u8;<br align="left"/>let _23: ();<br align="left"/>let mut _24: std::fmt::Arguments&lt;ReErased&gt;;<br align="left"/>let mut _25: &amp;ReErased [&amp;ReErased str];<br align="left"/>let mut _26: &amp;ReErased [&amp;ReErased str; 1_usize];<br align="left"/>let mut _27: &amp;ReErased [&amp;ReErased str; 2_usize];<br align="left"/>debug data =&gt; _1;<br align="left"/>debug len =&gt; _4;<br align="left"/>debug slice =&gt; _10;<br align="left"/>debug last_element =&gt; _14;<br align="left"/>>;
+    bb0__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">0</td></tr><tr><td align="left">_3 = Box::&lt;u8&gt;::new(const 0_u8)</td></tr></table>>];
+    bb1__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">1</td></tr><tr><td align="left">_2 = Box::&lt;u8&gt;::leak::&lt;'_&gt;(move _3)</td></tr></table>>];
+    bb2__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">2</td></tr><tr><td align="left" balign="left">_1 = &amp;raw const (*_2)<br/>_6 = const _ as usize (IntToInt)<br/></td></tr><tr><td align="left">_7 = std::mem::size_of::&lt;u8&gt;()</td></tr></table>>];
+    bb3__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">3</td></tr><tr><td align="left" balign="left">_8 = Eq(_7, const 0_usize)<br/></td></tr><tr><td align="left">assert(!move _8, &quot;attempt to divide `{}` by zero&quot;, _6)</td></tr></table>>];
+    bb4__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">4</td></tr><tr><td align="left" balign="left">_5 = Div(move _6, move _7)<br/>_9 = CheckedAdd(_5, const 1_usize)<br/></td></tr><tr><td align="left">assert(!move (_9.1: bool), &quot;attempt to compute `{} + {}`, which would overflow&quot;, move _5, const 1_usize)</td></tr></table>>];
+    bb5__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">5</td></tr><tr><td align="left" balign="left">_4 = move (_9.0: usize)<br/></td></tr><tr><td align="left">_11 = std::slice::from_raw_parts::&lt;'_, u8&gt;(_1, _4)</td></tr></table>>];
+    bb6__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">6</td></tr><tr><td align="left" balign="left">_10 = _11<br/></td></tr><tr><td align="left">_12 = core::slice::&lt;impl [u8]&gt;::last(_10)</td></tr></table>>];
+    bb7__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">7</td></tr><tr><td align="left" balign="left">_13 = discriminant(_12)<br/></td></tr><tr><td align="left">switchInt(move _13)</td></tr></table>>];
+    bb8__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">8</td></tr><tr><td align="left" balign="left">_14 = ((_12 as Some).0: &amp;u8)<br/>_27 = const _<br/>_17 = _27 as &amp;[&amp;str] (PointerCoercion(Unsize))<br/>_22 = &amp;_14<br/></td></tr><tr><td align="left">_21 = core::fmt::rt::Argument::&lt;'_&gt;::new_display::&lt;&amp;u8&gt;(_22)</td></tr></table>>];
+    bb9__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">9</td></tr><tr><td align="left" balign="left">_20 = [move _21]<br/>_19 = &amp;_20<br/>_18 = _19 as &amp;[core::fmt::rt::Argument&lt;'_&gt;] (PointerCoercion(Unsize))<br/></td></tr><tr><td align="left">_16 = Arguments::&lt;'_&gt;::new_v1(move _17, move _18)</td></tr></table>>];
+    bb10__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">10</td></tr><tr><td align="left">_15 = _print(move _16)</td></tr></table>>];
+    bb11__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">11</td></tr><tr><td align="left" balign="left">_26 = const _<br/>_25 = _26 as &amp;[&amp;str] (PointerCoercion(Unsize))<br/></td></tr><tr><td align="left">_24 = Arguments::&lt;'_&gt;::new_const(move _25)</td></tr></table>>];
+    bb12__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">12</td></tr><tr><td align="left">_23 = _print(move _24)</td></tr></table>>];
+    bb13__0_4 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">13</td></tr><tr><td align="left">return</td></tr></table>>];
+    bb0__0_4 -> bb1__0_4 [label="return"];
+    bb1__0_4 -> bb2__0_4 [label="return"];
+    bb2__0_4 -> bb3__0_4 [label="return"];
+    bb3__0_4 -> bb4__0_4 [label="success"];
+    bb4__0_4 -> bb5__0_4 [label="success"];
+    bb5__0_4 -> bb6__0_4 [label="return"];
+    bb6__0_4 -> bb7__0_4 [label="return"];
+    bb7__0_4 -> bb8__0_4 [label="1"];
+    bb7__0_4 -> bb11__0_4 [label="otherwise"];
+    bb8__0_4 -> bb9__0_4 [label="return"];
+    bb9__0_4 -> bb10__0_4 [label="return"];
+    bb10__0_4 -> bb13__0_4 [label="return"];
+    bb11__0_4 -> bb12__0_4 [label="return"];
+    bb12__0_4 -> bb13__0_4 [label="return"];
+}
+subgraph cluster_Mir_0_5 {
+    graph [fontname="Courier, monospace"];
+    node [fontname="Courier, monospace"];
+    edge [fontname="Courier, monospace"];
+    label=<fn main() -&gt; ()<br align="left"/>let _1: ();<br align="left"/>>;
+    bb0__0_5 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">0</td></tr><tr><td align="left">_1 = test1()</td></tr></table>>];
+    bb1__0_5 [shape="none", label=<<table border="0" cellborder="1" cellspacing="0"><tr><td bgcolor="gray" align="center" colspan="1">1</td></tr><tr><td align="left">return</td></tr></table>>];
+    bb0__0_5 -> bb1__0_5 [label="return"];
+}
+}

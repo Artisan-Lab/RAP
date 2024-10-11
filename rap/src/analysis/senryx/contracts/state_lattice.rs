@@ -114,22 +114,58 @@ impl Lattice for AllocatedState {
 impl Lattice for AlignState {
     fn join(&self, other: Self) -> Self {
         match (self, other) {
-            (AlignState::Aligned, AlignState::Unaligned) | (AlignState::Unaligned, AlignState::Aligned) => AlignState::Unaligned,
-            (AlignState::Aligned, AlignState::Aligned) => AlignState::Aligned,
-            (AlignState::Unaligned, AlignState::Unaligned) => AlignState::Unaligned,
+            (AlignState::Aligned, _) => AlignState::Aligned,
+            (AlignState::Big2SmallCast, AlignState::Big2SmallCast) => AlignState::Big2SmallCast,
+            (AlignState::Big2SmallCast, AlignState::Small2BigCast) => AlignState::Big2SmallCast,
+            (AlignState::Big2SmallCast, AlignState::Aligned) => AlignState::Aligned,
+            (AlignState::Small2BigCast, _) => other,
         }
     }
 
     fn meet(&self, other: Self) -> Self {
         match (self, other) {
-            (AlignState::Aligned, _) | (_, AlignState::Aligned) => AlignState::Aligned,
-            (AlignState::Unaligned, AlignState::Unaligned) => AlignState::Unaligned,
+            (AlignState::Aligned, _) => other,
+            (AlignState::Big2SmallCast, AlignState::Big2SmallCast) => AlignState::Big2SmallCast,
+            (AlignState::Big2SmallCast, AlignState::Small2BigCast) => AlignState::Small2BigCast,
+            (AlignState::Big2SmallCast, AlignState::Aligned) => AlignState::Big2SmallCast,
+            (AlignState::Small2BigCast, _) => AlignState::Small2BigCast,
         }
     }
 
     fn less_than(&self, other: Self) -> bool {
         match (self, other) {
-            (AlignState::Aligned, AlignState::Unaligned) => true,
+            (_, AlignState::Aligned) => true,
+            (AlignState::Small2BigCast, AlignState::Big2SmallCast) => true,
+            _ => false,
+        }
+    }
+
+    fn equal(&self, other: Self) -> bool {
+        *self == other
+    }
+}
+
+impl Lattice for InitState {
+    fn join(&self, other: Self) -> Self {
+        match (self, other) {
+            (InitState::FullyInitialized, _) => InitState::FullyInitialized,
+            (_, InitState::FullyInitialized) => InitState::FullyInitialized,
+            _ => InitState::PartlyInitialized,
+        }
+    }
+
+    fn meet(&self, other: Self) -> Self {
+        match (self, other) {
+            (InitState::FullyInitialized, _) => other,
+            (_, InitState::FullyInitialized) => *self,
+            _ => InitState::PartlyInitialized,
+        }
+    }
+
+    fn less_than(&self, other: Self) -> bool {
+        match (self, other) {
+            (InitState::FullyInitialized, InitState::FullyInitialized) => true,
+            (InitState::PartlyInitialized, _) => true,
             _ => false,
         }
     }

@@ -1,29 +1,55 @@
-use super::super::senryx::SenryxCheck;
+use std::collections::HashMap;
+
+use crate::analysis::safedrop::graph::SafeDropGraph;
+
+use super::contracts::abstract_state::AbstractState;
+use super::matcher::match_unsafe_api_and_check_contracts;
+use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     ty,
+    ty::GenericArgKind,
     mir::{self, ProjectionElem, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
 use rustc_hir::def_id::DefId;
 
-impl<'tcx> SenryxCheck<'tcx> {
-    pub fn path_forward_check(&mut self, def_id: DefId) {
-        let paths = self.get_all_paths(def_id);
-        let body = self.tcx.optimized_mir(def_id);
+pub struct BodyVisitor<'tcx>  {
+    pub tcx: TyCtxt<'tcx>,
+    pub def_id: DefId,
+    pub safedrop_graph: SafeDropGraph<'tcx>,
+    pub abstract_states: HashMap<usize,AbstractState>,
+}
+
+impl<'tcx> BodyVisitor<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> Self{
+        let body = tcx.optimized_mir(def_id);
+        Self{
+            tcx,
+            def_id,
+            safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
+            abstract_states: HashMap::new(),
+        }
+    }
+
+    pub fn path_forward_check(&mut self) {
+        let paths = self.get_all_paths();
+        let body = self.tcx.optimized_mir(self.def_id);
         for (index, path_info) in paths.iter().enumerate() {
+            self.abstract_states.insert(index, AbstractState::new());
             for block_index in path_info.iter() {
                 if block_index >= &body.basic_blocks.len(){
                     continue;
                 }
                 self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*block_index)].clone(), index, *block_index);
-                // TODO: analyze scc blocks
-                // let tem_scc_sub_blocks = self.scc_sub_blocks[*block_index].clone();
-                // if tem_scc_sub_blocks.len() > 0{
-                //     for sub_block in &tem_scc_sub_blocks {
-                //         self.path_analyze_block(tcx, &self.body.as_ref().basic_blocks[BasicBlock::from_usize(*sub_block)].clone(), index, *block_index,direction);
-                //     }
-                // }
+                let tem_scc_sub_blocks = self.safedrop_graph.blocks[*block_index].scc_sub_blocks.clone();
+                // println!("father block {:?} scc sub blocks {:?}", block_index, tem_scc_sub_blocks);
+                if tem_scc_sub_blocks.len() > 0{
+                    for sub_block in &tem_scc_sub_blocks {
+                        self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*sub_block)].clone(), index, *block_index);
+                    }
+                }
             }
         }
+        self.abstract_states_mop();
     }
 
     pub fn path_analyze_block(&mut self, block:&BasicBlockData<'tcx>, path_index:usize, bb_index: usize,) {
@@ -33,15 +59,20 @@ impl<'tcx> SenryxCheck<'tcx> {
         self.path_analyze_terminator(&block.terminator(), path_index, bb_index);
     }
 
-    pub fn path_analyze_terminator(&mut self, terminator:&Terminator<'tcx>, _path_index:usize, _bb_index: usize) {
+    pub fn path_analyze_terminator(&mut self, terminator:&Terminator<'tcx>, path_index:usize, _bb_index: usize) {
         match &terminator.kind {
-            TerminatorKind::Call{func, args: _, destination: _, target: _, ..} => {
+            TerminatorKind::Call{func, args, destination: _, target: _, ..} => {
                 let func_name = format!("{:?}",func);
-                self.match_unsafe_api_and_check_contracts(func_name);
-
-                //handle inter analysis
                 if let Operand::Constant(func_constant) = func{
-                    if let ty::FnDef(ref _callee_def_id, _) = func_constant.const_.ty().kind() {
+                    if let ty::FnDef(ref _callee_def_id, raw_list) = func_constant.const_.ty().kind() {
+                        for generic_arg in raw_list.iter() {
+                            match generic_arg.unpack() {
+                                GenericArgKind::Type(ty) => {
+                                    match_unsafe_api_and_check_contracts(func_name.as_str(), args, &self.abstract_states.get(&path_index).unwrap(), ty);
+                                }
+                                _ => {}
+                            }
+                        }
                         //TODO:path_inter_analyze
                     }
                 }
@@ -158,15 +189,26 @@ impl<'tcx> SenryxCheck<'tcx> {
         return current_local;
     }
 
-    pub fn match_unsafe_api_and_check_contracts(&mut self, _func_name: String) {
-
+    pub fn get_all_paths(&mut self) -> Vec<Vec<usize>> {
+        self.safedrop_graph.solve_scc();
+        let results = self.safedrop_graph.get_paths();
+        results
     }
 
-    pub fn get_all_paths(&self, def_id: DefId) -> Vec<Vec<usize>> {
-        let results = Vec::new();
-        let _body = self.tcx.optimized_mir(def_id);
-        // todo: get all paths in a body
-        results
+    pub fn abstract_states_mop(&mut self) {
+        let mut result_state = AbstractState {
+            state_map: HashMap::new(),
+        };
+
+        for (_path_idx, abstract_state) in &self.abstract_states {
+            for (var_index, state_item) in &abstract_state.state_map {
+                if let Some(existing_state_item) = result_state.state_map.get_mut(&var_index) {
+                    existing_state_item.meet_state_item(state_item);
+                } else {
+                    result_state.state_map.insert(*var_index, state_item.clone());
+                }
+            }
+        }
     }
 
     pub fn get_all_callees(&self, def_id: DefId) -> Vec<String> {
