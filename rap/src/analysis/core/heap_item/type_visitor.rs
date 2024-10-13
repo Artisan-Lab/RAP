@@ -6,7 +6,6 @@ use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
 use std::collections::HashMap;
-use std::ops::ControlFlow;
 use colorful::{Color, Colorful};
 
 use crate::rap_debug;
@@ -359,9 +358,8 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
             TyKind::Slice(ty) => {
                 self.visit_ty(*ty, ty_context);
             },
-            TyKind::RawPtr(typeandmut) => {
-                let ty = typeandmut.ty;
-                self.visit_ty(ty, ty_context);
+            TyKind::RawPtr(ty, _) => {
+                self.visit_ty(*ty, ty_context);
             },
             TyKind::Ref(_, ty, ..) => {
                 self.visit_ty(*ty, ty_context);
@@ -384,9 +382,7 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParam {
 
-    type BreakTy = ();
-
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
         match ty.kind() {
             TyKind::Array( .. ) => {
                 ty.super_visit_with(self)
@@ -396,20 +392,21 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParam {
             },
             TyKind::Param(param_ty) => {
                 self.record_mut()[param_ty.index as usize] = true;
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
         }
     }
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
-    type BreakTy = ();
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty:Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty:Ty<'tcx>) -> Self::Result {
         match ty.kind() {
             TyKind::Array( .. ) => {
                 ty.super_visit_with(self)
@@ -422,10 +419,12 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
             }
             TyKind::Param(param_ty) => {
                 self.parameters_mut().insert(param_ty.index as usize);
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
         }
     }
@@ -433,7 +432,6 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
 }
 
 impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a>  {
-    type BreakTy = ();
 
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
@@ -441,15 +439,24 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
     // }
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
 
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-                if substs.len() == 0 { return ControlFlow::Break(()); }
+                if substs.len() == 0 { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
 
-                if !self.source_enum() && adtdef.is_enum() { return ControlFlow::Break(()); }
+                if !self.source_enum() && adtdef.is_enum() { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
 
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
+                if !self.unique_mut().insert(adtdef.did()) { 
+                    //return ControlFlow::Continue(()); 
+                    ()
+                }
 
                 let mut map_raw_generic_field_subst = HashMap::new();
                 for (index, subst) in substs.iter().enumerate() {
@@ -464,10 +471,16 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
                         }
                     }
                 }
-                if map_raw_generic_field_subst.is_empty() { return ControlFlow::Break(()); }
+                if map_raw_generic_field_subst.is_empty() { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
-                if get_ans.len() == 0 { return ControlFlow::Break(()); }
+                if get_ans.len() == 0 { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
                 let get_ans = get_ans[0].clone();
 
                 for (index, flag) in  get_ans.1.iter().enumerate() {
@@ -494,7 +507,8 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
                 ty.super_visit_with(self)
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
         }
     }
@@ -502,7 +516,6 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
 }
 
 impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
-    type BreakTy = ();
 
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
@@ -510,22 +523,32 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
     // }
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
 
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
+                if !self.unique_mut().insert(adtdef.did()) { 
+                    //return ControlFlow::Continue(()); 
+                    ()
+                }
 
-                if adtdef.is_enum() { return ControlFlow::Break(()); }
+                if adtdef.is_enum() { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
-                if get_ans.len() == 0 { return ControlFlow::Break(()); }
+                if get_ans.len() == 0 { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
                 let get_ans = get_ans[0].clone();
 
                 match get_ans.0 {
                     RawTypeOwner::Owned => {
                         self.ownership = RawTypeOwner::Owned;
-                        return ControlFlow::Break(());
+                        //return ControlFlow::Break(());
+                        ()
                     }
                     _ => (),
                 };
@@ -546,22 +569,25 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
                 ty.super_visit_with(self)
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
         }
     }
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
-    type BreakTy = ();
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
         match ty.kind() {
             TyKind::Adt( adtdef, substs ) => {
 
                 if adtdef.is_struct() {
-                    if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
+                    if !self.unique_mut().insert(adtdef.did()) { 
+                        //return ControlFlow::Continue(()); 
+                        ()
+                    }
 
                     for field in adtdef.all_fields() {
                         let field_ty = field.ty(self.tcx(), substs);
@@ -569,7 +595,8 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
                     }
                     self.unique_mut().remove(&adtdef.did());
                 }
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
 
             },
             TyKind::Tuple( .. ) => {
@@ -577,14 +604,17 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
             },
             TyKind::RawPtr( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::Break(())
+                //ControlFlow::Break(())
+                ()
             },
             TyKind::Ref( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::Break(())
+                //ControlFlow::Break(())
+                ()
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
         }
     }
@@ -592,7 +622,6 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
 }
 
 impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
-    type BreakTy = ();
 
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
@@ -600,27 +629,35 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
     // }
 
     #[inline(always)]
-    fn visit_ty(&mut self, ty: Ty<'tcx>) -> ControlFlow<Self::BreakTy> {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
 
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
 
                 if adtdef.is_enum() {
-                    return ControlFlow::Break(());
+                    //return ControlFlow::Break(());
+                    ()
                 }
 
-                if !self.unique_mut().insert(adtdef.did()) { return ControlFlow::Continue(()); }
+                if !self.unique_mut().insert(adtdef.did()) { 
+                    //return ControlFlow::Continue(()); 
+                    ()
+                }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
 
                 // handle the secene of Zero Sized Types
-                if get_ans.len() == 0 { return ControlFlow::Break(()); }
+                if get_ans.len() == 0 { 
+                    //return ControlFlow::Break(()); 
+                    ()
+                }
                 let (unit_res, generic_list) = get_ans[0].clone();
 
                 match unit_res {
                     RawTypeOwner::Owned => {
                         self.set_res(RawTypeOwner::Owned);
-                        return ControlFlow::Break(())
+                        //return ControlFlow::Break(())
+                        ()
                     },
                     RawTypeOwner::Unowned => {
                         for (index, each_generic) in generic_list.iter().enumerate() {
@@ -637,8 +674,8 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
                       unreachable!();
                     },
                 }
-
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
             TyKind::Array( .. ) => {
                 ty.super_visit_with(self)
@@ -649,19 +686,22 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
             TyKind::Param( .. ) => {
                 self.set_param(true);
                 self.set_res(RawTypeOwner::Owned);
-
-                ControlFlow::Break(())
+                //ControlFlow::Break(())
+                ()
             },
             TyKind::RawPtr( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
             TyKind::Ref( .. ) => {
                 self.set_ptr(true);
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                ()
             },
             _ => {
-                ControlFlow::Continue(())
+                //ControlFlow::Continue(())
+                () 
             },
         }
     }

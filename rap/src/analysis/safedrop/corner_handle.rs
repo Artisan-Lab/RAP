@@ -1,6 +1,6 @@
 use rustc_span::def_id::DefId;
-use super::safedrop::*;
 use super::graph::*;
+use crate::analysis::utils::intrinsic_id::*;
 
 impl<'tcx> SafeDropGraph<'tcx> {
     //can also use the format to check.

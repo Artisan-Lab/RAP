@@ -85,18 +85,14 @@ impl Callbacks for RapCallback {
 
     fn after_analysis<'tcx>(
         &mut self,
-        compiler: &Compiler,
+        _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        compiler.session().abort_if_errors();
-
         rap_info!("Execute after_analysis() of compiler callbacks");
         queries.global_ctxt().unwrap().enter(
             |tcx| start_analyzer(tcx, *self)
         );
         rap_info!("analysis done");
-
-        compiler.session().abort_if_errors();
         Compilation::Continue
     }
 }

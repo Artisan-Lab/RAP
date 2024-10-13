@@ -160,7 +160,7 @@ impl Graph {
                     let op = match borrow_kind {
                         BorrowKind::Shared => EdgeOp::Immut,
                         BorrowKind::Mut {..} => EdgeOp::Mut,
-                        BorrowKind::Shallow => {panic!("Unimplemented BorrowKind!")}
+                        BorrowKind::Fake(_) => EdgeOp::Nop, // todo
                     };
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, op);
@@ -186,11 +186,6 @@ impl Graph {
                     self.nodes[dst].op = NodeOp::Cast;
                 },
                 Rvalue::BinaryOp(_, operands) => {
-                    self.add_operand(&operands.0, dst);
-                    self.add_operand(&operands.1, dst);
-                    self.nodes[dst].op = NodeOp::CheckedBinaryOp;
-                },
-                Rvalue::CheckedBinaryOp(_, operands) => {
                     self.add_operand(&operands.0, dst);
                     self.add_operand(&operands.1, dst);
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp;
@@ -240,7 +235,7 @@ impl Graph {
                     if let TyKind::FnDef(def_id, _) = ty.kind() {
                         let dst = destination.local;
                         for op in args.iter() { //rustc version related
-                            self.add_operand(op, dst);
+                            self.add_operand(&op.node, dst);
                         }
                         self.nodes[dst].op = NodeOp::Call(*def_id);
                         return;

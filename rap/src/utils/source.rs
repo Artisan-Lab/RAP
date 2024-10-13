@@ -41,7 +41,7 @@ pub fn get_name(tcx: TyCtxt<'_>, def_id: DefId) -> Option<Symbol> {
 pub fn get_filename(tcx: TyCtxt<'_>, def_id: DefId) -> Option<String> {
     // Get the HIR node corresponding to the DefId
     if let Some(local_id) = def_id.as_local() {
-	    let hir_id = tcx.hir().local_def_id_to_hir_id(local_id);
+	    let hir_id = tcx.local_def_id_to_hir_id(local_id);
         let span = tcx.hir().span(hir_id);
         let source_map = tcx.sess.source_map();
 

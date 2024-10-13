@@ -36,7 +36,6 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
         let hir_map = self.tcx.hir();
         match &item.kind {
             ItemKind::Impl(Impl {
-                unsafety: _unsafety,
                 generics: _generics,
                 self_ty,
                 items: impl_items,
@@ -49,7 +48,7 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
                         let hir_id = impl_item_ref.id.hir_id();
                         hir_map
                             .maybe_body_owned_by(hir_id.owner.def_id)
-                            .map(|body_id| (body_id, impl_item_ref.span))
+                            .map(|body| (body.id(), impl_item_ref.span))
                     } else {
                         None
                     }
@@ -63,7 +62,7 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
                         let hir_id = trait_item_ref.id.hir_id();
                         hir_map
                             .maybe_body_owned_by(hir_id.owner.def_id)
-                            .map(|body_id| (body_id, trait_item_ref.span))
+                            .map(|body| (body.id(), trait_item_ref.span))
                     } else {
                         None
                     }
@@ -116,7 +115,7 @@ impl<'tcx> ContainsUnsafe<'tcx> {
     fn body_unsafety(&self, body: &'tcx Body<'tcx>) -> bool {
         let did = body.value.hir_id.owner.to_def_id();
         let sig = self.tcx.fn_sig(did);
-        if let rustc_hir::Unsafety::Unsafe = sig.skip_binder().unsafety(){
+        if let rustc_hir::Safety::Unsafe = sig.skip_binder().safety(){
             return true
         }
         false

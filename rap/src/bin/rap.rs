@@ -4,7 +4,7 @@ extern crate rustc_driver;
 extern crate rustc_session;
 
 use rustc_session::config::ErrorOutputType;
-use rustc_session::EarlyErrorHandler;
+use rustc_session::EarlyDiagCtxt;
 use std::env;
 use rap::{RapCallback, compile_time_sysroot, RAP_DEFAULT_ARGS};
 use rap::utils::log::Verbosity;
@@ -22,7 +22,7 @@ fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
     // Finally, add the default flags all the way in the beginning, but after the binary name.
     args.splice(1..1, RAP_DEFAULT_ARGS.iter().map(ToString::to_string));
 
-    let handler = EarlyErrorHandler::new(ErrorOutputType::default());
+    let handler = EarlyDiagCtxt::new(ErrorOutputType::default());
     rustc_driver::init_rustc_env_logger(&handler);
     rustc_driver::install_ice_hook("bug_report_url", |_|());
 

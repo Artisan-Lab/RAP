@@ -6,11 +6,6 @@ use crate::{rap_error};
 use crate::analysis::core::alias::FnMap;
 use crate::analysis::safedrop::SafeDropGraph;
 
-pub const DROP:usize = 1634;
-pub const DROP_IN_PLACE:usize = 2160;
-pub const CALL_MUT:usize = 3022;
-pub const NEXT:usize = 7587;
-
 pub const VISIT_LIMIT:usize = 1000;
 
 impl<'tcx> SafeDropGraph<'tcx> {
@@ -28,7 +23,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 TerminatorKind::Call { func: _,  ref args, .. } => {
                     if args.len() > 0 {
                         let birth = self.scc_indices[bb_index];
-                    	let place = match args[0] {
+                    	let place = match args[0].node {
                         	Operand::Copy(place) => place,
                         	Operand::Move(place) => place,
                         	_ => { rap_error!("Constant operand exists: {:?}", args[0]); return; }

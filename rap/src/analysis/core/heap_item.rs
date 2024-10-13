@@ -785,7 +785,8 @@ pub fn is_display_verbose() -> bool {
     }
 }
 pub fn mir_body(tcx: TyCtxt<'_>, def_id: DefId) -> &rustc_middle::mir::Body<'_> {
-    let def = ty::InstanceDef::Item(def_id);
+    //let def = ty::InstanceDef::Item(def_id);
+    let def = ty::InstanceKind::Item(def_id);
     tcx.instance_mir(def)
 }
 

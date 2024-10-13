@@ -14,7 +14,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let my_ref = unsafe { f(MyRef { a: &string })};
     if args.len() > 2 {
-        drop(string);
+         drop(string);
     }
     println!("{:?}",my_ref.a);
 }

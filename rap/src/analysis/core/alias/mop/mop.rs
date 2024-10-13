@@ -5,11 +5,6 @@ use rustc_hir::def_id::DefId;
 use super::graph::*;
 use super::*;
 
-pub const DROP:usize = 1634;
-pub const DROP_IN_PLACE:usize = 2160;
-pub const CALL_MUT:usize = 3022;
-pub const NEXT:usize = 7587;
-
 impl<'tcx> MopGraph<'tcx> {
     pub fn split_check(&mut self, bb_index: usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
         /* duplicate the status before visiting a path; */

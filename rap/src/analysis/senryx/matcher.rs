@@ -1,8 +1,10 @@
 use rustc_middle::mir::Operand;
+use rustc_span::source_map::Spanned;
 
 use super::contracts::{abstract_state::AbstractState, checker::{Checker, SliceFromRawPartsChecker}, contract::check_contract};
 
-pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
+//pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
+pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args: &Box<[Spanned<Operand>]>, abstate:&AbstractState, _ty: T) {
     let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
     // println!("base name ---- {:?}",base_func_name);
     let checker: Option<Box<dyn Checker>> = match base_func_name {
@@ -17,10 +19,11 @@ pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operan
     }
 }
 
-fn process_checker(checker: &dyn Checker, args: &Vec<Operand>, abstate: &AbstractState) {
+//fn process_checker(checker: &dyn Checker, args: &Vec<Operand>, abstate: &AbstractState) {
+fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstate: &AbstractState) {
     for (idx, contracts_vec) in checker.variable_contracts().iter() {
         for contract in contracts_vec {
-            let arg_place = get_arg_place(&args[*idx]);
+            let arg_place = get_arg_place(&args[*idx].node);
             if arg_place == 0 {
                 return 
             }
