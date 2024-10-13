@@ -1,23 +1,15 @@
 use std::vec::Vec;
 use std::cmp::min;
-use rustc_middle::mir::StatementKind;
-use rustc_middle::mir::TerminatorKind;
-use rustc_middle::mir::Body;
-use rustc_middle::mir::BasicBlock;
-use rustc_middle::mir::Terminator;
-use rustc_middle::mir::Place;
-use rustc_middle::mir::UnwindAction;
+use rustc_middle::mir::{Body, StatementKind, TerminatorKind, BasicBlock, Terminator, Place, UnwindAction, Const, Operand, Rvalue};
 use rustc_middle::ty::TyCtxt;
-use rustc_span::def_id::DefId;
-use rustc_data_structures::fx::FxHashSet;
-use rustc_data_structures::fx::FxHashMap;
-use rustc_middle::mir::Operand;
-use rustc_middle::mir::Rvalue;
 use rustc_middle::ty;
+use rustc_span::def_id::DefId;
+use rustc_data_structures::fx::{FxHashSet, FxHashMap};
 use rustc_span::Span;
 use super::bug_records::*;
 use super::types::*;
 use crate::analysis::utils::intrinsic_id::*;
+//use crate::rap_info;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum AssignType {
@@ -217,14 +209,23 @@ impl<'tcx> SafeDropGraph<'tcx> {
                                     }
                                 },
                                 Operand::Constant(ref constant) => { 
-                                    if let Some(const_bool) = constant.const_.try_to_bool() {
-                                        cur_bb.const_value.push((lv_local, const_bool as usize));
+                                    /* We should check the correctness due to the update of rustc */
+                                    match constant.const_ { 
+                                        Const::Ty(_ty, const_value) => {
+                                            if let Some((_ty, scalar)) = const_value.try_eval_scalar_int(tcx, param_env) {
+                                                let val = scalar.to_uint(scalar.size());
+                                                cur_bb.const_value.push((lv_local, val as usize));
+                                            } 
+                                        },
+                                        Const::Unevaluated(_unevaluated, _ty) => {
+                                        },
+                                        Const::Val(const_value, _ty) => {
+                                            if let Some(scalar) = const_value.try_to_scalar_int() {
+                                                let val = scalar.to_uint(scalar.size());
+                                                cur_bb.const_value.push((lv_local, val as usize));
+                                            } 
+                                        },
                                     }
-                                    /*
-                                    else if let Some(val) = constant.const_.try_eval_target_usize(tcx, param_env) {
-                                        cur_bb.const_value.push((lv_local, val as usize));
-                                    }
-                                    */
                                 },
                             }
                         }
@@ -335,7 +336,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                         Operand::Constant(c) => {
                             match c.ty().kind() {
                                 ty::FnDef(id, ..) => {
-                                    // DROP(1634) means std::mem::drop, 2160 means std::ptr::drop_in_place
+                                    // rap_info!("The ID of {:?} is {:?}", c, id);
                                     if id.index.as_usize() == DROP || id.index.as_usize() == DROP_IN_PLACE {
                                         cur_bb.drops.push(terminator.clone());
                                     }
