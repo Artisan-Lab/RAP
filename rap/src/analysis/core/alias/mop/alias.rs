@@ -5,8 +5,8 @@ use rustc_hir::def_id::DefId;
 use crate::rap_error;
 use super::graph::*;
 use super::types::*;
-use super::mop::*;
 use crate::analysis::core::alias::{FnMap, RetAlias};
+use crate::analysis::utils::intrinsic_id::*;
 
 impl<'tcx> MopGraph<'tcx> {
     /* alias analysis for a single block */
@@ -48,7 +48,7 @@ impl<'tcx> MopGraph<'tcx> {
                         may_drop_flag += 1;
                     }
                     for arg in args {
-                        match arg {
+                        match arg.node {
                             Operand::Copy(ref p) => {
                                 let rv = self.projection(true, p.clone());
                                 merge_vec.push(rv);

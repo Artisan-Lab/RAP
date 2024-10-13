@@ -15,9 +15,9 @@ use rustc_middle::mir::Operand;
 use rustc_middle::mir::Rvalue;
 use rustc_middle::ty;
 use rustc_span::Span;
-use super::safedrop::*;
 use super::bug_records::*;
 use super::types::*;
+use crate::analysis::utils::intrinsic_id::*;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum AssignType {
@@ -217,11 +217,14 @@ impl<'tcx> SafeDropGraph<'tcx> {
                                     }
                                 },
                                 Operand::Constant(ref constant) => { 
-                                    if let Some(val) = constant.const_.try_eval_target_usize(tcx, param_env) {
-                                        cur_bb.const_value.push((lv_local, val as usize));
-                                    } else if let Some(const_bool) = constant.const_.try_to_bool() {
+                                    if let Some(const_bool) = constant.const_.try_to_bool() {
                                         cur_bb.const_value.push((lv_local, const_bool as usize));
                                     }
+                                    /*
+                                    else if let Some(val) = constant.const_.try_eval_target_usize(tcx, param_env) {
+                                        cur_bb.const_value.push((lv_local, val as usize));
+                                    }
+                                    */
                                 },
                             }
                         }
@@ -319,7 +322,6 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 TerminatorKind::UnwindResume
                 | TerminatorKind::Return
                 | TerminatorKind::UnwindTerminate(_)
-                | TerminatorKind::GeneratorDrop
                 | TerminatorKind::Unreachable => {},
                 TerminatorKind::Drop { place: _, ref target, ref unwind , replace: _} => {
                     cur_bb.add_next(target.as_usize());
@@ -370,8 +372,11 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 TerminatorKind::FalseUnwind { ref real_target, unwind: _ } => {
                     cur_bb.add_next(real_target.as_usize());
                 },
-                TerminatorKind::InlineAsm { template: _, operands: _, options: _, line_spans: _, ref destination, ref unwind} => {
-                    if let Some(target) = destination {
+                TerminatorKind::CoroutineDrop {} => {
+                    // todo
+                },
+                TerminatorKind::InlineAsm { template: _, operands: _, options: _, line_spans: _, ref unwind, targets} => {
+                    for target in targets {
                         cur_bb.add_next(target.as_usize());
                     }
                     if let UnwindAction::Cleanup(target) = unwind {

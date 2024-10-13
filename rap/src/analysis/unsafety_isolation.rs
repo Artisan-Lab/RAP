@@ -204,7 +204,7 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
     pub fn check_safety(&self, body_did: DefId) -> bool {
         let poly_fn_sig = self.tcx.fn_sig(body_did);
         let fn_sig = poly_fn_sig.skip_binder();
-        fn_sig.unsafety() == rustc_hir::Unsafety::Unsafe
+        fn_sig.safety() == rustc_hir::Safety::Unsafe
     }
 
     pub fn get_name(&self,body_did: DefId) -> String {

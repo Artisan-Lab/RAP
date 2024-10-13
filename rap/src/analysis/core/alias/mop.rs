@@ -46,16 +46,17 @@ impl<'tcx> MopAlias<'tcx> {
     }
 
     pub fn query_mop(&mut self, def_id: DefId) -> () {
-        //let fn_name = get_fn_name(self.tcx, def_id);
-        //rap_info!("query_mop: {:?}", fn_name);
-        let mut recursion_set = FxHashSet::default();
+        let fn_name = get_fn_name(self.tcx, def_id);
+        rap_info!("query_mop: {:?}", fn_name);
         /* filter const mir */
         if let Some(_other) = self.tcx.hir().body_const_context(def_id.expect_local()) {
             return;
         }
+        
         if self.tcx.is_mir_available(def_id) {
             let mut mop_graph = MopGraph::new(self.tcx, def_id);
             mop_graph.solve_scc();
+            let mut recursion_set = FxHashSet::default();
             mop_graph.check(0, &mut self.fn_map, &mut recursion_set);
             if mop_graph.visit_times <= VISIT_LIMIT { 
                 return ;

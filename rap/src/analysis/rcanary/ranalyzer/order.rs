@@ -61,8 +61,6 @@ impl<'tcx> NodeOrder<'tcx> {
                     result.push(target.as_usize()),
                 TerminatorKind::Yield { .. } =>
                     (),
-                TerminatorKind::GeneratorDrop =>
-                    (),
                 TerminatorKind::FalseEdge { .. } =>
                     (),
                 TerminatorKind::FalseUnwind { .. } =>
@@ -72,6 +70,8 @@ impl<'tcx> NodeOrder<'tcx> {
                 TerminatorKind::UnwindResume =>
                     (),
                 TerminatorKind::UnwindTerminate( .. ) =>
+                    (),
+                TerminatorKind::CoroutineDrop => 
                     (),
                 TerminatorKind::Call { target, .. } => {
                     // We check the destination due to following case.

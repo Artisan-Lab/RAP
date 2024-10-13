@@ -7,21 +7,23 @@ use rustc_middle::ty::fast_reject::SimplifiedType;
 use rustc_hir::{ImplItemRef, ItemKind, Mutability, Node, OwnerId, TraitItemRef};
 use rustc_middle::ty::{FloatTy, IntTy, UintTy};
 
+/*
 pub fn def_path_last_def_id<'tcx>(tcx: &TyCtxt<'tcx>, path: &[&str]) -> DefId {
     def_path_def_ids(tcx, path).last().unwrap()
 }
 
 
-// The code below refers to rust-clippy.
+/* Copied from Clippy 
+ * https://github.com/rust-lang/rust-clippy/blob/master/clippy_utils/src/lib.rs
+ * */
 
 /// Resolves a def path like `std::vec::Vec` to its [`DefId`]s, see [`def_path_res`].
 pub fn def_path_def_ids<'tcx>(tcx: &TyCtxt<'tcx>, path: &[&str]) -> impl Iterator<Item = DefId> {
     def_path_res(tcx, path).into_iter().filter_map(|res| res.opt_def_id())
 }
 
-
-pub fn def_path_res<'tcx>(tcx: &TyCtxt<'tcx>, path: &[&str]) -> Vec<Res> {
-    let (base, mut path) = match *path {
+pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
+    let (base, path) = match *path {
         [primitive] => {
             return vec![PrimTy::from_name(Symbol::intern(primitive)).map_or(Res::Err, Res::PrimTy)];
         },
@@ -37,44 +39,16 @@ pub fn def_path_res<'tcx>(tcx: &TyCtxt<'tcx>, path: &[&str]) -> Vec<Res> {
         None
     };
 
-    let starts = find_primitive_impls(tcx, base)
-        .chain(tcx.crates(())
-            .iter()
-            .copied()
-            .filter(move |&num| tcx.crate_name(num) == base_sym)
-            .map(CrateNum::as_def_id)
-        )
+    let crates = find_primitive_impls(tcx, base)
         .chain(local_crate)
-        .map(|id| Res::Def(tcx.def_kind(id), id));
+        .map(|id| Res::Def(tcx.def_kind(id), id))
+        .chain(find_crates(tcx, base_sym))
+        .collect();
 
-    let mut resolutions: Vec<Res> = starts.collect();
-
-    while let [segment, rest @ ..] = path {
-        path = rest;
-        let segment = Symbol::intern(segment);
-
-        resolutions = resolutions
-            .into_iter()
-            .filter_map(|res| res.opt_def_id())
-            .flat_map(|def_id| {
-                // When the current def_id is e.g. `struct S`, check the impl items in
-                // `impl S { ... }`
-                let inherent_impl_children = tcx
-                    .inherent_impls(def_id)
-                    .iter()
-                    .flat_map(|&impl_def_id| item_children_by_name(tcx, impl_def_id, segment));
-
-                let direct_children = item_children_by_name(tcx, def_id, segment);
-
-                inherent_impl_children.chain(direct_children)
-            })
-            .collect();
-    }
-
-    resolutions
+    def_path_res_with_base(tcx, crates, path)
 }
 
-fn find_primitive_impls<'tcx>(tcx: &TyCtxt<'tcx>, name: &str) -> impl Iterator<Item = DefId> + 'tcx {
+fn find_primitive_impls<'tcx>(tcx: TyCtxt<'tcx>, name: &str) -> impl Iterator<Item = DefId> + 'tcx {
     let ty = match name {
         "bool" => SimplifiedType::Bool,
         "char" => SimplifiedType::Char,
@@ -100,12 +74,13 @@ fn find_primitive_impls<'tcx>(tcx: &TyCtxt<'tcx>, name: &str) -> impl Iterator<I
         "u128" => SimplifiedType::Uint(UintTy::U128),
         "f32" => SimplifiedType::Float(FloatTy::F32),
         "f64" => SimplifiedType::Float(FloatTy::F64),
-        _ => return [].iter().copied(),
+        _ => {
+            return [].iter().copied();
+        },
     };
-
     tcx.incoherent_impls(ty).iter().copied()
 }
-
+*/
 fn non_local_item_children_by_name<'tcx>(tcx: &TyCtxt<'tcx>, def_id: DefId, name: Symbol) -> Vec<Res> {
     match tcx.def_kind(def_id) {
         DefKind::Mod | DefKind::Enum | DefKind::Trait => tcx
@@ -129,12 +104,12 @@ fn local_item_children_by_name<'tcx>(tcx: &TyCtxt<'tcx>, local_id: LocalDefId, n
     let hir = tcx.hir();
 
     let root_mod;
-    let item_kind = match hir.find_by_def_id(local_id) {
-        Some(Node::Crate(r#mod)) => {
+    let item_kind = match tcx.hir_node_by_def_id(local_id) {
+        Node::Crate(r#mod) => {
             root_mod = ItemKind::Mod(r#mod);
             &root_mod
         },
-        Some(Node::Item(item)) => &item.kind,
+        Node::Item(item) => &item.kind,
         _ => return Vec::new(),
     };
 

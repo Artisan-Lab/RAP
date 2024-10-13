@@ -2,6 +2,7 @@ use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
 use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
                         Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
 use rustc_target::abi::VariantIdx;
+use rustc_span::source_map::Spanned;
 
 use std::ops::Add;
 use z3::ast::{self, Ast};
@@ -1706,7 +1707,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
     pub(crate) fn check_fn_source(
         &mut self,
-        args: &Vec<Operand<'tcx>>,
+        //args: &Vec<Operand<'tcx>>,
+        args: &Box<[Spanned<Operand<'tcx>>]>,
         dest: &Place<'tcx>,
     ) -> bool {
 
@@ -1717,7 +1719,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             return false;
         }
 
-        match args[0] {
+        match args[0].node {
             Operand::Move(aplace) => {
                 let a_place_ty = aplace.ty(&self.body().local_decls, self.tcx());
                 let default_layout = self.extract_default_ty_layout(a_place_ty.ty, a_place_ty.variant_index);
@@ -1735,7 +1737,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
     pub(crate) fn check_fn_recovery(
         &mut self,
-        args: &Vec<Operand<'tcx>>,
+        //args: &Vec<Operand<'tcx>>,
+        args: &Box<[Spanned<Operand<'tcx>>]>,
         dest: &Place<'tcx>,
     ) -> (bool, Vec<usize>) {
 
@@ -1751,7 +1754,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let ty_with_idx = TyWithIndex::new(l_place_ty.ty, l_place_ty.variant_index);
 
         for arg in args {
-            match arg {
+            match arg.node {
                 Operand::Move(aplace) => {
                     let au:usize = aplace.local.as_usize();
                     let taint = &self.icx_slice().taint()[au];
@@ -1781,7 +1784,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         solver: &'ctx z3::Solver<'ctx>,
         term: Terminator<'tcx>,
         func: &Operand<'tcx>,
-        args: &Vec<Operand<'tcx>>,
+        //args: &Vec<Operand<'tcx>>,
+        args: &Box<[Spanned<Operand<'tcx>>]>,
         dest: &Place<'tcx>,
         bidx: usize,
     ) {
@@ -1795,7 +1799,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                         match id.index.as_usize() {
                             2171 => {
                                 // this for calling std::mem::drop(TY)
-                                match args[0] {
+                                match args[0].node {
                                     Operand::Move(aplace) => {
                                         let a_place_ty = dest.ty(&self.body().local_decls, self.tcx());
                                         let a_ty = a_place_ty.ty;
@@ -1827,7 +1831,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         if source_flag { self.add_taint(term); }
 
         for arg in args {
-            match arg {
+            match arg.node {
                 Operand::Move(aplace) => {
 
                     let alocal = aplace.local;
@@ -1865,7 +1869,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                             // this indicates that the operand is move without projection
                             if is_a_ptr {
                                 if recovery_flag.0 && recovery_flag.1.contains(&au) {
-                                    self.handle_drop(ctx, goal, solver, aplace, bidx, true);
+                                    self.handle_drop(ctx, goal, solver, &aplace, bidx, true);
                                     continue;
                                 }
 
@@ -1888,14 +1892,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 self.icx_slice_mut().var_mut()[au] = IntraVar::Init(a_new_bv);
                             } else {
                                 // if the aplace is a instance (move i => drop)
-                                self.handle_drop(ctx, goal, solver, aplace, bidx, false);
+                                self.handle_drop(ctx, goal, solver, &aplace, bidx, false);
                             }
                         },
                         1 => {
                             // this indicates that the operand is move without projection
                             if is_a_ptr {
                                 if recovery_flag.0 && recovery_flag.1.contains(&au) {
-                                    self.handle_drop(ctx, goal, solver, aplace, bidx, true);
+                                    self.handle_drop(ctx, goal, solver, &aplace, bidx, true);
                                     continue;
                                 }
                                 // if the aplace in field is a pointer (move a.f (ptr) => still hold)
@@ -1909,7 +1913,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 solver.assert(&update_a);
                             } else {
                                 // if the aplace is a instance (move i.f => i.f=0)
-                                self.handle_drop(ctx, goal, solver, aplace, bidx, false);
+                                self.handle_drop(ctx, goal, solver, &aplace, bidx, false);
                             }
                         },
                         _ => {
@@ -1947,7 +1951,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                             if is_a_ptr {
 
                                 if recovery_flag.0 && recovery_flag.1.contains(&au) {
-                                    self.handle_drop(ctx, goal, solver, aplace, bidx, true);
+                                    self.handle_drop(ctx, goal, solver, &aplace, bidx, true);
                                     continue;
                                 }
 
@@ -1975,7 +1979,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                                 if is_a_ptr {
                                     if recovery_flag.0 && recovery_flag.1.contains(&au) {
-                                        self.handle_drop(ctx, goal, solver, aplace, bidx, true);
+                                        self.handle_drop(ctx, goal, solver, &aplace, bidx, true);
                                         continue;
                                     }
                                 }

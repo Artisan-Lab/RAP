@@ -50,7 +50,7 @@ impl<'tcx> SafeDropGraph<'tcx>{
                         may_drop_flag += 1;
                     }
                     for arg in args {
-                        match arg {
+                        match arg.node {
                             Operand::Copy(ref p) => {
                                 let rv = self.projection(tcx, true, p.clone());
                                 self.uaf_check(rv, call.source_info.span, p.local.as_usize(), true);

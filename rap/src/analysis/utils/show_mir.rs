@@ -41,8 +41,6 @@ impl<'tcx> Display for TerminatorKind<'tcx>{
                 s += "Assert",
             TerminatorKind::Yield { .. } =>
                 s += "Yield",
-            TerminatorKind::GeneratorDrop =>
-                s += "GeneratorDrop",
             TerminatorKind::FalseEdge { .. } =>
                 s += "FalseEdge",
             TerminatorKind::FalseUnwind { .. } =>
@@ -53,6 +51,8 @@ impl<'tcx> Display for TerminatorKind<'tcx>{
                 s += "UnwindResume",
             TerminatorKind::UnwindTerminate( .. ) =>
                 s += "UnwindTerminate",
+            TerminatorKind::CoroutineDrop => 
+                s += "CoroutineDrop",
             TerminatorKind::Call { func, .. } => {
                 match func {
                     Operand::Constant(constant) => {
@@ -136,8 +136,6 @@ impl<'tcx> Display for Rvalue<'tcx> {
                 s += "Cast",
             Rvalue::BinaryOp( .. ) =>
                 s += "BinaryOp",
-            Rvalue::CheckedBinaryOp( .. ) =>
-                s += "CheckedBinaryOp",
             Rvalue::NullaryOp( .. ) =>
                 s += "NullaryOp",
             Rvalue::UnaryOp( .. ) =>
@@ -241,7 +239,7 @@ impl<'tcx> ShowMir<'tcx>{
        	let mir_keys = self.tcx.mir_keys(());
        	for each_mir in mir_keys {
             let def_id = each_mir.to_def_id();
-            let body = self.tcx.instance_mir(ty::InstanceDef::Item(def_id));
+            let body = self.tcx.instance_mir(ty::InstanceKind::Item(def_id));
             display_mir(def_id, body);
 	}
     }
