@@ -3,8 +3,7 @@ use super::graph::*;
 use crate::analysis::utils::intrinsic_id::*;
 
 impl<'tcx> SafeDropGraph<'tcx> {
-    //can also use the format to check.
-    //these function calls are the functions whose MIRs can not be fetched.
+    //these function calls are the functions whose MIRs can not be obtained.
     pub fn corner_handle(
         &mut self,
         _left_ssa: usize,
@@ -18,12 +17,8 @@ impl<'tcx> SafeDropGraph<'tcx> {
         //     let mut c = || {x+1;};
         //     c.call_mut(());
         // }
-        if def_id.index.as_usize() == CALL_MUT {
-            return true;
-        }
-
-        // CASE 2: function::iterator::next
-        if def_id.index.as_usize() == NEXT {
+        if def_id.index.as_usize() == CALL_MUT
+           || def_id.index.as_usize() == NEXT {
             return true;
         }
 

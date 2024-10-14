@@ -336,8 +336,10 @@ impl<'tcx> SafeDropGraph<'tcx> {
                         Operand::Constant(c) => {
                             match c.ty().kind() {
                                 ty::FnDef(id, ..) => {
-                                    // rap_info!("The ID of {:?} is {:?}", c, id);
-                                    if id.index.as_usize() == DROP || id.index.as_usize() == DROP_IN_PLACE {
+                                    //rap_info!("The ID of {:?} is {:?}", c, id);
+                                    if id.index.as_usize() == DROP 
+                                        || id.index.as_usize() == DROP_IN_PLACE
+                                        || id.index.as_usize() == MANUALLYDROP {
                                         cur_bb.drops.push(terminator.clone());
                                     }
                                 }

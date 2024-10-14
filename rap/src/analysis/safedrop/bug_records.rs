@@ -1,9 +1,8 @@
 use rustc_span::Span;
 use rustc_span::symbol::Symbol;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
-use crate::{rap_warn};
+use crate::rap_warn;
 
-//structure to record the existed bugs.
 pub struct BugRecords {
     pub df_bugs: FxHashMap<usize, Span>,
     pub df_bugs_unwind: FxHashMap<usize, Span>,
