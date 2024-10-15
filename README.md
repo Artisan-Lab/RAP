@@ -13,15 +13,31 @@ cd RAP
 
 ## Usage
 
-Navigate to your Rust project folder containing a `Cargo.toml` file. If your project includes a `rust-toolchain.toml` file, we recommend disabling or removing it.
+Install `nightly-2024-06-30` on which rap is compiled with. This just needs to do once on your machine. If the toolchain exists,
+this will do nothing.
+
 ```shell
-cargo rap -help
+rustup toolchain install nightly-2024-06-30 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
+```
+
+Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `cargo-rap` with [toolchain override shorthand syntax].
+
+[toolchain override shorthand syntax]: https://rust-lang.github.io/rustup/overrides.html#toolchain-override-shorthand
+
+```shell
+cargo +nightly-2024-06-30 rap # ... rest of options of cargo-rap
+```
+
+Check out supported options with `-help`:
+
+```shell
+cargo +nightly-2024-06-30 rap -help
 ```
 
 ### Use-After-Free Detection
 Detect bugs such as use-after-free and double free in Rust crates caused by unsafe code.
 ```shell
-cargo rap -uaf
+cargo +nightly-2024-06-30 rap -uaf
 ```
 
 If RAP gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
@@ -44,7 +60,7 @@ The feature is based on our SafeDrop paper, which was published in TOSEM.
 Detect memory leakage bugs caused by apis like [ManuallyDrop](https://doc.rust-lang.org/std/mem/struct.ManuallyDrop.html) and [into_raw()](https://doc.rust-lang.org/std/boxed/struct.Box.html#method.into_raw).
 
 ```shell
-cargo rap -mleak
+cargo +nightly-2024-06-30 rap -mleak
 ```
 
 The feature is based on our rCanary work, which was published in TSE
