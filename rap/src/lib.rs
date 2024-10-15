@@ -15,6 +15,7 @@ extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
 extern crate rustc_hir;
+extern crate rustc_errors;
 
 use rustc_middle::ty::TyCtxt;
 use rustc_driver::{Compilation, Callbacks};
