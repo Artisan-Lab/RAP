@@ -1,13 +1,17 @@
 use std::cell::Cell;
 use std::collections::HashSet;
 
-use rustc_index::IndexVec;
-use rustc_middle::mir::{TerminatorKind, StatementKind, Operand, Rvalue, Local, Const, BorrowKind, AggregateKind, Mutability, PlaceElem, Place};
-use rustc_middle::ty::TyKind;
 use rustc_hir::def_id::DefId;
+use rustc_index::IndexVec;
+use rustc_middle::mir::{
+    AggregateKind, BorrowKind, Const, Local, Mutability, Operand, Place, PlaceElem, Rvalue,
+    StatementKind, TerminatorKind,
+};
+use rustc_middle::ty::TyKind;
 
 #[derive(Clone, Debug)]
-pub enum NodeOp { //warning: the fields are related to the version of the backend rustc version
+pub enum NodeOp {
+    //warning: the fields are related to the version of the backend rustc version
     Nop,
     Err,
     //Rvalue
@@ -27,7 +31,7 @@ pub enum NodeOp { //warning: the fields are related to the version of the backen
     ShallowInitBox,
     CopyForDeref,
     //TerminatorKind
-    Call(DefId)
+    Call(DefId),
 }
 
 #[derive(Clone, Debug)]
@@ -48,16 +52,8 @@ pub enum EdgeOp {
 
 #[derive(Clone)]
 pub enum GraphEdge {
-    NodeEdge{
-        src: Local,
-        dst: Local,
-        op: EdgeOp,
-    },
-    ConstEdge{
-        src: String,
-        dst: Local,
-        op: EdgeOp,
-    }
+    NodeEdge { src: Local, dst: Local, op: EdgeOp },
+    ConstEdge { src: String, dst: Local, op: EdgeOp },
 }
 
 #[derive(Clone)]
@@ -69,7 +65,11 @@ pub struct GraphNode {
 
 impl GraphNode {
     pub fn new() -> Self {
-        Self { op: NodeOp::Nop, out_edges: vec![], in_edges: vec![] }
+        Self {
+            op: NodeOp::Nop,
+            out_edges: vec![],
+            in_edges: vec![],
+        }
     }
 }
 
@@ -86,18 +86,24 @@ pub struct Graph {
 
 impl Graph {
     pub fn new(def_id: DefId, argc: usize, n_locals: usize) -> Self {
-        Self { def_id, argc, nodes: GraphNodes::from_elem_n(GraphNode::new(), n_locals), edges: GraphEdges::new(), n_locals }
+        Self {
+            def_id,
+            argc,
+            nodes: GraphNodes::from_elem_n(GraphNode::new(), n_locals),
+            edges: GraphEdges::new(),
+            n_locals,
+        }
     }
 
     pub fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
-        let edge_idx = self.edges.push(GraphEdge::NodeEdge {src, dst, op});
+        let edge_idx = self.edges.push(GraphEdge::NodeEdge { src, dst, op });
         self.nodes[dst].in_edges.push(edge_idx);
         self.nodes[src].out_edges.push(edge_idx);
         edge_idx
     }
 
     pub fn add_const_edge(&mut self, src: String, dst: Local, op: EdgeOp) -> EdgeIdx {
-        let edge_idx = self.edges.push(GraphEdge::ConstEdge {src, dst, op});
+        let edge_idx = self.edges.push(GraphEdge::ConstEdge { src, dst, op });
         self.nodes[dst].in_edges.push(edge_idx);
         edge_idx
     }
@@ -107,11 +113,11 @@ impl Graph {
             Operand::Copy(place) => {
                 let src = self.parse_place(place);
                 self.add_node_edge(src, dst, EdgeOp::Copy);
-            },
+            }
             Operand::Move(place) => {
                 let src = self.parse_place(place);
                 self.add_node_edge(src, dst, EdgeOp::Move);
-            },
+            }
             Operand::Constant(boxed_const_op) => {
                 self.add_const_edge(boxed_const_op.const_.to_string(), dst, EdgeOp::Const);
             }
@@ -119,19 +125,21 @@ impl Graph {
     }
 
     pub fn parse_place(&mut self, place: &Place) -> Local {
-        fn parse_one_step(graph: &mut Graph, src: Local, place_elem: PlaceElem) -> Local{
+        fn parse_one_step(graph: &mut Graph, src: Local, place_elem: PlaceElem) -> Local {
             let dst = graph.nodes.push(GraphNode::new());
             match place_elem {
                 PlaceElem::Deref => {
                     graph.add_node_edge(src, dst, EdgeOp::Deref);
-                },
+                }
                 PlaceElem::Field(field_idx, _) => {
                     graph.add_node_edge(src, dst, EdgeOp::Field(format!("{:?}", field_idx)));
-                },
+                }
                 PlaceElem::Downcast(symbol, _) => {
                     graph.add_node_edge(src, dst, EdgeOp::Downcast(symbol.unwrap().to_string()));
-                },
-                _ => { todo!() }
+                }
+                _ => {
+                    todo!()
+                }
             }
             dst
         }
@@ -151,21 +159,21 @@ impl Graph {
                 Rvalue::Use(op) => {
                     self.add_operand(op, dst);
                     self.nodes[dst].op = NodeOp::Use;
-                },
+                }
                 Rvalue::Repeat(op, _) => {
                     self.add_operand(op, dst);
                     self.nodes[dst].op = NodeOp::Repeat;
-                },
+                }
                 Rvalue::Ref(_, borrow_kind, place) => {
                     let op = match borrow_kind {
                         BorrowKind::Shared => EdgeOp::Immut,
-                        BorrowKind::Mut {..} => EdgeOp::Mut,
+                        BorrowKind::Mut { .. } => EdgeOp::Mut,
                         BorrowKind::Fake(_) => EdgeOp::Nop, // todo
                     };
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::Ref;
-                },
+                }
                 Rvalue::AddressOf(mutability, place) => {
                     let op = match mutability {
                         Mutability::Not => EdgeOp::Immut,
@@ -174,67 +182,81 @@ impl Graph {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::AddressOf;
-                },
+                }
                 Rvalue::Len(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::Len;
-
-                },
+                }
                 Rvalue::Cast(_cast_kind, operand, _) => {
                     self.add_operand(operand, dst);
                     self.nodes[dst].op = NodeOp::Cast;
-                },
+                }
                 Rvalue::BinaryOp(_, operands) => {
                     self.add_operand(&operands.0, dst);
                     self.add_operand(&operands.1, dst);
                     self.nodes[dst].op = NodeOp::CheckedBinaryOp;
-                },
+                }
                 Rvalue::Aggregate(boxed_kind, operands) => {
                     for operand in operands.iter() {
                         self.add_operand(operand, dst);
                     }
                     match **boxed_kind {
-                        AggregateKind::Array(_) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Array) },
-                        AggregateKind::Tuple => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Tuple) },
-                        AggregateKind::Adt(def_id, ..) => { self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id)) },
-                        _ => todo!()
+                        AggregateKind::Array(_) => {
+                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Array)
+                        }
+                        AggregateKind::Tuple => {
+                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Tuple)
+                        }
+                        AggregateKind::Adt(def_id, ..) => {
+                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id))
+                        }
+                        _ => todo!(),
                     }
-                },
+                }
                 Rvalue::UnaryOp(_, operand) => {
                     self.add_operand(operand, dst);
                     self.nodes[dst].op = NodeOp::UnaryOp;
-                },
+                }
                 Rvalue::NullaryOp(_, ty) => {
                     self.add_const_edge(ty.to_string(), dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::NullaryOp;
-                },
-                Rvalue::ThreadLocalRef(_) => {todo!()},
+                }
+                Rvalue::ThreadLocalRef(_) => {
+                    todo!()
+                }
                 Rvalue::Discriminant(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::Discriminant;
-                },
+                }
                 Rvalue::ShallowInitBox(operand, _) => {
                     self.add_operand(operand, dst);
                     self.nodes[dst].op = NodeOp::ShallowInitBox;
-                },
+                }
                 Rvalue::CopyForDeref(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::CopyForDeref;
-                },
+                }
             };
         }
     }
 
     pub fn add_terminator_to_graph(&mut self, kind: &TerminatorKind) {
-        if let TerminatorKind::Call{func, args, destination, ..} = &kind {
+        if let TerminatorKind::Call {
+            func,
+            args,
+            destination,
+            ..
+        } = &kind
+        {
             if let Operand::Constant(boxed_cnst) = func {
                 if let Const::Val(_, ty) = boxed_cnst.const_ {
                     if let TyKind::FnDef(def_id, _) = ty.kind() {
                         let dst = destination.local;
-                        for op in args.iter() { //rustc version related
+                        for op in args.iter() {
+                            //rustc version related
                             self.add_operand(&op.node, dst);
                         }
                         self.nodes[dst].op = NodeOp::Call(*def_id);
@@ -251,21 +273,36 @@ impl Graph {
         let mut node_operator = |idx: Local| -> bool {
             let node = &self.nodes[idx];
             match node.op {
-                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => { //Nop means a orphan node or a parameter
+                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
+                    //Nop means a orphan node or a parameter
                     set.insert(idx);
                     true
-                },
+                }
                 _ => false,
             }
         };
         let mut edge_validator = |op: &EdgeOp| -> bool {
             match op {
                 EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => true,
-                EdgeOp::Nop | EdgeOp::Const | EdgeOp::Deref | EdgeOp::Downcast(_) | EdgeOp::Field(_) => false
+                EdgeOp::Nop
+                | EdgeOp::Const
+                | EdgeOp::Deref
+                | EdgeOp::Downcast(_)
+                | EdgeOp::Field(_) => false,
             }
         };
-        self.dfs(local, Direction::Upside, &mut node_operator, &mut edge_validator);
-        self.dfs(local, Direction::Downside, &mut node_operator, &mut edge_validator);
+        self.dfs(
+            local,
+            Direction::Upside,
+            &mut node_operator,
+            &mut edge_validator,
+        );
+        self.dfs(
+            local,
+            Direction::Downside,
+            &mut node_operator,
+            &mut edge_validator,
+        );
         set
     }
 
@@ -276,27 +313,43 @@ impl Graph {
             find.set(idx == target);
             !find.get() // if not found, move on
         };
-        let mut edge_validator = |_: &EdgeOp| -> bool {
-            true
-        };
-        self.dfs(idx_1, Direction::Downside, &mut node_operator, &mut edge_validator);
+        let mut edge_validator = |_: &EdgeOp| -> bool { true };
+        self.dfs(
+            idx_1,
+            Direction::Downside,
+            &mut node_operator,
+            &mut edge_validator,
+        );
         if !find.get() {
-            self.dfs(idx_1, Direction::Upside, &mut node_operator, &mut edge_validator);
+            self.dfs(
+                idx_1,
+                Direction::Upside,
+                &mut node_operator,
+                &mut edge_validator,
+            );
         }
         find.get()
     }
 
-    pub fn param_return_deps(&self) -> IndexVec<Local, bool> { //the length is argc + 1, because _0 depends on _0 itself.
+    pub fn param_return_deps(&self) -> IndexVec<Local, bool> {
+        //the length is argc + 1, because _0 depends on _0 itself.
         let _0 = Local::from_usize(0);
-        let deps = (0..self.argc + 1).map(|i| {
-            let _i = Local::from_usize(i);
-            self.is_connected(_i, _0)
-        }).collect();
+        let deps = (0..self.argc + 1)
+            .map(|i| {
+                let _i = Local::from_usize(i);
+                self.is_connected(_i, _0)
+            })
+            .collect();
         deps
     }
 
-    pub fn dfs<F, G>(&self, now: Local, direction: Direction, node_operator: &mut F, edge_validator: &mut G)
-    where 
+    pub fn dfs<F, G>(
+        &self,
+        now: Local,
+        direction: Direction,
+        node_operator: &mut F,
+        edge_validator: &mut G,
+    ) where
         F: FnMut(Local) -> bool,
         G: FnMut(&EdgeOp) -> bool,
     {
@@ -311,7 +364,7 @@ impl Graph {
                             }
                         }
                     }
-                },
+                }
                 Direction::Downside => {
                     for edge_idx in self.nodes[now].out_edges.iter() {
                         let edge = &self.edges[*edge_idx];
@@ -329,7 +382,8 @@ impl Graph {
 
 #[derive(Clone, Copy)]
 pub enum Direction {
-    Upside, Downside
+    Upside,
+    Downside,
 }
 
 #[derive(Clone, Copy, Debug)]

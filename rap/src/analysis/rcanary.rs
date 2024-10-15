@@ -2,11 +2,11 @@ pub mod ranalyzer;
 
 use rustc_middle::ty::TyCtxt;
 
-use std::collections::HashMap;
 use crate::Elapsed;
+use std::collections::HashMap;
 
-use ranalyzer::{MirGraph,FlowAnalysis,IcxSliceFroBlock, IntraFlowContext};
-use crate::analysis::core::heap_item::{TypeAnalysis, AdtOwner};
+use crate::analysis::core::heap_item::{AdtOwner, TypeAnalysis};
+use ranalyzer::{FlowAnalysis, IcxSliceFroBlock, IntraFlowContext, MirGraph};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone)]
@@ -18,7 +18,7 @@ pub struct rCanary<'tcx> {
 }
 
 impl<'tcx> rCanary<'tcx> {
-    pub fn new(tcx:TyCtxt<'tcx>) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
             adt_owner: HashMap::default(),
@@ -62,7 +62,7 @@ impl<'tcx> rCanary<'tcx> {
         self.elapsed.0 = self.elapsed.0 + time;
     }
 
-    pub fn mut_ref_time_build(&mut self) -> &mut i64{
+    pub fn mut_ref_time_build(&mut self) -> &mut i64 {
         &mut self.elapsed.0
     }
 
@@ -71,14 +71,13 @@ impl<'tcx> rCanary<'tcx> {
     }
 
     pub fn add_time_solve(&mut self, time: i64) {
-        self.elapsed.1 =  self.elapsed.1 + time;
+        self.elapsed.1 = self.elapsed.1 + time;
     }
 
-    pub fn mut_ref_time_solve(&mut self) -> &mut i64{
+    pub fn mut_ref_time_solve(&mut self) -> &mut i64 {
         &mut self.elapsed.1
     }
 }
-
 
 pub trait Tcx<'tcx, 'o, 'a> {
     fn tcx(&'o self) -> TyCtxt<'tcx>;

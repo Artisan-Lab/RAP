@@ -5,39 +5,38 @@
 pub mod analysis;
 pub mod utils;
 
-extern crate rustc_index;
-extern crate rustc_driver;
-extern crate rustc_interface;
-extern crate rustc_middle;
-extern crate rustc_metadata;
 extern crate rustc_data_structures;
+extern crate rustc_driver;
+extern crate rustc_errors;
+extern crate rustc_hir;
+extern crate rustc_index;
+extern crate rustc_interface;
+extern crate rustc_metadata;
+extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
-extern crate rustc_hir;
-extern crate rustc_errors;
 
-use rustc_middle::ty::TyCtxt;
-use rustc_driver::{Compilation, Callbacks};
-use rustc_interface::{Config, Queries};
+use analysis::core::alias::mop::MopAlias;
+use analysis::core::control_flow::callgraph::CallGraph;
+use analysis::core::dataflow::DataFlow;
+use analysis::rcanary::rCanary;
+use analysis::safedrop::SafeDrop;
+use analysis::senryx::SenryxCheck;
+use analysis::unsafety_isolation::{UigInstruction, UnsafetyIsolationCheck};
+use analysis::utils::show_mir::ShowMir;
+use rustc_data_structures::sync::Lrc;
+use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::interface::Compiler;
+use rustc_interface::{Config, Queries};
+use rustc_middle::ty::TyCtxt;
 use rustc_middle::util::Providers;
 use rustc_session::search_paths::PathKind;
-use rustc_data_structures::sync::Lrc;
 use std::path::PathBuf;
-use analysis::rcanary::rCanary;
-use analysis::unsafety_isolation::{UnsafetyIsolationCheck,UigInstruction};
-use analysis::senryx::SenryxCheck;
-use analysis::safedrop::SafeDrop;
-use analysis::core::control_flow::callgraph::CallGraph;
-use analysis::core::alias::mop::MopAlias;
-use analysis::core::dataflow::DataFlow;
-use analysis::utils::show_mir::ShowMir;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
-pub static RAP_DEFAULT_ARGS: &[&str] =
-    &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
+pub static RAP_DEFAULT_ARGS: &[&str] = &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
 
 pub type Elapsed = (i64, i64);
 
@@ -90,9 +89,10 @@ impl Callbacks for RapCallback {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         rap_info!("Execute after_analysis() of compiler callbacks");
-        queries.global_ctxt().unwrap().enter(
-            |tcx| start_analyzer(tcx, *self)
-        );
+        queries
+            .global_ctxt()
+            .unwrap()
+            .enter(|tcx| start_analyzer(tcx, *self));
         rap_info!("analysis done");
         Compilation::Continue
     }
@@ -123,7 +123,7 @@ impl RapCallback {
         self.safedrop
     }
 
-    pub fn enable_unsafety_isolation(&mut self, x:usize) {
+    pub fn enable_unsafety_isolation(&mut self, x: usize) {
         self.unsafety_isolation = x;
     }
 
@@ -155,7 +155,7 @@ impl RapCallback {
         self.show_mir
     }
 
-    pub fn enable_dataflow(&mut self, x:usize) {
+    pub fn enable_dataflow(&mut self, x: usize) {
         self.dataflow = x;
     }
 
@@ -197,14 +197,14 @@ pub fn compile_time_sysroot() -> Option<String> {
     Some(env)
 }
 
-
 pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
-    let _rcanary: Option<rCanary> =
-        if callback.is_rcanary_enabled() {
-            let mut rcx  = rCanary::new(tcx);
-            rcx.start();
-            Some(rcx)
-        } else { None };
+    let _rcanary: Option<rCanary> = if callback.is_rcanary_enabled() {
+        let mut rcx = rCanary::new(tcx);
+        rcx.start();
+        Some(rcx)
+    } else {
+        None
+    };
 
     if callback.is_mop_enabled() {
         MopAlias::new(tcx).start();
@@ -220,9 +220,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         2 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Doc),
         3 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Upg),
         4 => UnsafetyIsolationCheck::new(tcx).start(UigInstruction::Ucons),
-        _ => {} 
+        _ => {}
     }
-    
+
     if callback.is_senryx_enabled() {
         SenryxCheck::new(tcx).start();
     }

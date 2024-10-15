@@ -1,6 +1,6 @@
 use chrono::{Local, Timelike};
-use fern::{self, Dispatch};
 use fern::colors::{Color, ColoredLevelConfig};
+use fern::{self, Dispatch};
 use log::LevelFilter;
 
 #[derive(Debug, Copy, Clone, Hash)]
@@ -25,21 +25,28 @@ impl Verbosity {
             Verbosity::Info => dispatch.level(LevelFilter::Info),
             Verbosity::Debug => dispatch.level(LevelFilter::Debug),
             Verbosity::Trace => dispatch.level(LevelFilter::Trace),
-        };//.level_for("rap", LevelFilter::Debug);
+        }; //.level_for("rap", LevelFilter::Debug);
 
         let stderr_dispatch = Dispatch::new()
             .format(move |callback, args, record| {
                 let time_now = Local::now();
                 callback.finish(format_args!(
                     "{}{}:{}|RAP-FRONT|{}{}|: {}\x1B[0m",
-                    format_args!("\x1B[{}m",color_line.get_color(&record.level()).to_fg_str()),
+                    format_args!(
+                        "\x1B[{}m",
+                        color_line.get_color(&record.level()).to_fg_str()
+                    ),
                     time_now.hour(),
                     time_now.minute(),
                     color_level.color(record.level()),
-                    format_args!("\x1B[{}m",color_line.get_color(&record.level()).to_fg_str()),
+                    format_args!(
+                        "\x1B[{}m",
+                        color_line.get_color(&record.level()).to_fg_str()
+                    ),
                     args
                 ))
-            }).chain(std::io::stderr());
+            })
+            .chain(std::io::stderr());
 
         /* Note that we cannot dispatch to stdout due to some bugs */
         dispatch.chain(stderr_dispatch).apply()?;

@@ -13,7 +13,9 @@ pub struct Taint<'tcx> {
 
 impl<'tcx> Default for Taint<'tcx> {
     fn default() -> Self {
-        Self { set: HashSet::default() }
+        Self {
+            set: HashSet::default(),
+        }
     }
 }
 
@@ -50,7 +52,6 @@ pub enum IntraVar<'ctx> {
     Unsupported,
 }
 
-
 impl<'ctx> Default for IntraVar<'ctx> {
     fn default() -> Self {
         Self::Declared
@@ -58,7 +59,6 @@ impl<'ctx> Default for IntraVar<'ctx> {
 }
 
 impl<'ctx> IntraVar<'ctx> {
-
     pub fn is_declared(&self) -> bool {
         match *self {
             IntraVar::Declared => true,
@@ -90,10 +90,7 @@ impl<'ctx> IntraVar<'ctx> {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ContextTypeOwner<'tcx> {
-    Owned {
-        kind: OwnerKind,
-        ty: Ty<'tcx>,
-    },
+    Owned { kind: OwnerKind, ty: Ty<'tcx> },
     Unowned,
 }
 
@@ -113,14 +110,14 @@ impl<'tcx> Default for ContextTypeOwner<'tcx> {
 impl<'tcx> ContextTypeOwner<'tcx> {
     pub fn is_owned(&self) -> bool {
         match self {
-            ContextTypeOwner::Owned{ .. } => true,
+            ContextTypeOwner::Owned { .. } => true,
             ContextTypeOwner::Unowned => false,
         }
     }
 
     pub fn get_ty(&self) -> Option<Ty<'tcx>> {
         match *self {
-            ContextTypeOwner::Owned {ty, ..} => Some(ty),
+            ContextTypeOwner::Owned { ty, .. } => Some(ty),
             ContextTypeOwner::Unowned => None,
         }
     }

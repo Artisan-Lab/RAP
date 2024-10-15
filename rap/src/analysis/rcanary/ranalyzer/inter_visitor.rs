@@ -1,6 +1,6 @@
 use super::super::RcxMut;
-use crate::analysis::core::heap_item::mir_body;
 use super::FlowAnalysis;
+use crate::analysis::core::heap_item::mir_body;
 
 impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
     pub fn inter_run(&mut self) {
@@ -12,7 +12,9 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
             let def_id = each_mir.to_def_id();
             let body = mir_body(tcx, def_id);
 
-            if body.basic_blocks.is_cfg_cyclic() { continue; }
+            if body.basic_blocks.is_cfg_cyclic() {
+                continue;
+            }
 
             let mut cfg = z3::Config::new();
             cfg.set_model_generation(true);
@@ -22,7 +24,6 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
             //let goal = z3::Goal::new(&ctx, true, false, false);
             //let solver = z3::Solver::new(&ctx);
             //let inter_visitor = InterFlowAnalysis::new(self.rcx);
-
         }
     }
 }

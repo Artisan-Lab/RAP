@@ -3,12 +3,12 @@
 extern crate rustc_driver;
 extern crate rustc_session;
 
+use rap::rap_debug;
+use rap::utils::log::Verbosity;
+use rap::{compile_time_sysroot, RapCallback, RAP_DEFAULT_ARGS};
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyDiagCtxt;
 use std::env;
-use rap::{RapCallback, compile_time_sysroot, RAP_DEFAULT_ARGS};
-use rap::utils::log::Verbosity;
-use rap::{rap_debug};
 
 fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
     if let Some(sysroot) = compile_time_sysroot() {
@@ -24,7 +24,7 @@ fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
 
     let handler = EarlyDiagCtxt::new(ErrorOutputType::default());
     rustc_driver::init_rustc_env_logger(&handler);
-    rustc_driver::install_ice_hook("bug_report_url", |_|());
+    rustc_driver::install_ice_hook("bug_report_url", |_| ());
 
     let run_compiler = rustc_driver::RunCompiler::new(&args, callback);
     let exit_code = rustc_driver::catch_with_exit_code(move || run_compiler.run());
@@ -42,7 +42,7 @@ fn main() {
         match arg.as_str() {
             "-F" | "-uaf" => compiler.enable_safedrop(),
             "-M" | "-mleak" => compiler.enable_rcanary(),
-            "-alias=mop" => compiler.enable_mop(), 
+            "-alias=mop" => compiler.enable_mop(),
             "-dataflow" => compiler.enable_dataflow(1),
             "-dataflow=debug" => compiler.enable_dataflow(2),
             "-UI" | "-uig" => compiler.enable_unsafety_isolation(1),
@@ -53,16 +53,16 @@ fn main() {
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
             "-debug" => debug = true,
-            "-adt" => {},
-            "-z3" => {},
-            "-meta" => {},
+            "-adt" => {}
+            "-z3" => {}
+            "-meta" => {}
             _ => args.push(arg),
         }
     }
     if debug == true {
-	    Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
+        Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
     } else {
-	    Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
+        Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
     }
     rap_debug!("rap received arguments{:#?}", env::args());
     rap_debug!("arguments to rustc: {:?}", &args);

@@ -1,16 +1,23 @@
 use rustc_middle::mir::Operand;
 use rustc_span::source_map::Spanned;
 
-use super::contracts::{abstract_state::AbstractState, checker::{Checker, SliceFromRawPartsChecker}, contract::check_contract};
+use super::contracts::{
+    abstract_state::AbstractState,
+    checker::{Checker, SliceFromRawPartsChecker},
+    contract::check_contract,
+};
 
 //pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
-pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args: &Box<[Spanned<Operand>]>, abstate:&AbstractState, _ty: T) {
+pub fn match_unsafe_api_and_check_contracts<T>(
+    func_name: &str,
+    args: &Box<[Spanned<Operand>]>,
+    abstate: &AbstractState,
+    _ty: T,
+) {
     let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
     // println!("base name ---- {:?}",base_func_name);
     let checker: Option<Box<dyn Checker>> = match base_func_name {
-        "std::slice::from_raw_parts::" => {
-            Some(Box::new(SliceFromRawPartsChecker::<T>::new()))
-        }
+        "std::slice::from_raw_parts::" => Some(Box::new(SliceFromRawPartsChecker::<T>::new())),
         _ => None,
     };
 
@@ -25,11 +32,11 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
         for contract in contracts_vec {
             let arg_place = get_arg_place(&args[*idx].node);
             if arg_place == 0 {
-                return 
+                return;
             }
-            if let Some(abstate_item) = abstate.state_map.get(&arg_place){
-                if !check_contract(*contract, abstate_item){
-                    println!("Checking contract failed! ---- {:?}",contract);
+            if let Some(abstate_item) = abstate.state_map.get(&arg_place) {
+                if !check_contract(*contract, abstate_item) {
+                    println!("Checking contract failed! ---- {:?}", contract);
                 }
             }
         }
@@ -38,8 +45,8 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
 
 pub fn get_arg_place(arg: &Operand) -> usize {
     match arg {
-        Operand::Move(place) => { place.local.as_usize() }
-        Operand::Copy(place) => { place.local.as_usize() }
-        _ => { 0 }
+        Operand::Move(place) => place.local.as_usize(),
+        Operand::Copy(place) => place.local.as_usize(),
+        _ => 0,
     }
 }

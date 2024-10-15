@@ -4,25 +4,28 @@ use crate::analysis::safedrop::graph::SafeDropGraph;
 
 use super::contracts::abstract_state::AbstractState;
 use super::matcher::match_unsafe_api_and_check_contracts;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
+    mir::{
+        self, AggregateKind, BasicBlock, BasicBlockData, Operand, Place, ProjectionElem, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
+    },
     ty,
     ty::GenericArgKind,
-    mir::{self, ProjectionElem, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
-use rustc_hir::def_id::DefId;
 
-pub struct BodyVisitor<'tcx>  {
+pub struct BodyVisitor<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub def_id: DefId,
     pub safedrop_graph: SafeDropGraph<'tcx>,
-    pub abstract_states: HashMap<usize,AbstractState>,
+    pub abstract_states: HashMap<usize, AbstractState>,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> Self{
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> Self {
         let body = tcx.optimized_mir(def_id);
-        Self{
+        Self {
             tcx,
             def_id,
             safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
@@ -36,15 +39,25 @@ impl<'tcx> BodyVisitor<'tcx> {
         for (index, path_info) in paths.iter().enumerate() {
             self.abstract_states.insert(index, AbstractState::new());
             for block_index in path_info.iter() {
-                if block_index >= &body.basic_blocks.len(){
+                if block_index >= &body.basic_blocks.len() {
                     continue;
                 }
-                self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*block_index)].clone(), index, *block_index);
-                let tem_scc_sub_blocks = self.safedrop_graph.blocks[*block_index].scc_sub_blocks.clone();
+                self.path_analyze_block(
+                    &body.basic_blocks[BasicBlock::from_usize(*block_index)].clone(),
+                    index,
+                    *block_index,
+                );
+                let tem_scc_sub_blocks = self.safedrop_graph.blocks[*block_index]
+                    .scc_sub_blocks
+                    .clone();
                 // println!("father block {:?} scc sub blocks {:?}", block_index, tem_scc_sub_blocks);
-                if tem_scc_sub_blocks.len() > 0{
+                if tem_scc_sub_blocks.len() > 0 {
                     for sub_block in &tem_scc_sub_blocks {
-                        self.path_analyze_block(&body.basic_blocks[BasicBlock::from_usize(*sub_block)].clone(), index, *block_index);
+                        self.path_analyze_block(
+                            &body.basic_blocks[BasicBlock::from_usize(*sub_block)].clone(),
+                            index,
+                            *block_index,
+                        );
                     }
                 }
             }
@@ -52,23 +65,46 @@ impl<'tcx> BodyVisitor<'tcx> {
         self.abstract_states_mop();
     }
 
-    pub fn path_analyze_block(&mut self, block:&BasicBlockData<'tcx>, path_index:usize, bb_index: usize,) {
+    pub fn path_analyze_block(
+        &mut self,
+        block: &BasicBlockData<'tcx>,
+        path_index: usize,
+        bb_index: usize,
+    ) {
         for statement in block.statements.iter().rev() {
-            self.path_analyze_statement(statement,path_index);
+            self.path_analyze_statement(statement, path_index);
         }
         self.path_analyze_terminator(&block.terminator(), path_index, bb_index);
     }
 
-    pub fn path_analyze_terminator(&mut self, terminator:&Terminator<'tcx>, path_index:usize, _bb_index: usize) {
+    pub fn path_analyze_terminator(
+        &mut self,
+        terminator: &Terminator<'tcx>,
+        path_index: usize,
+        _bb_index: usize,
+    ) {
         match &terminator.kind {
-            TerminatorKind::Call{func, args, destination: _, target: _, ..} => {
-                let func_name = format!("{:?}",func);
-                if let Operand::Constant(func_constant) = func{
-                    if let ty::FnDef(ref _callee_def_id, raw_list) = func_constant.const_.ty().kind() {
+            TerminatorKind::Call {
+                func,
+                args,
+                destination: _,
+                target: _,
+                ..
+            } => {
+                let func_name = format!("{:?}", func);
+                if let Operand::Constant(func_constant) = func {
+                    if let ty::FnDef(ref _callee_def_id, raw_list) =
+                        func_constant.const_.ty().kind()
+                    {
                         for generic_arg in raw_list.iter() {
                             match generic_arg.unpack() {
                                 GenericArgKind::Type(ty) => {
-                                    match_unsafe_api_and_check_contracts(func_name.as_str(), args, &self.abstract_states.get(&path_index).unwrap(), ty);
+                                    match_unsafe_api_and_check_contracts(
+                                        func_name.as_str(),
+                                        args,
+                                        &self.abstract_states.get(&path_index).unwrap(),
+                                        ty,
+                                    );
                                 }
                                 _ => {}
                             }
@@ -81,90 +117,84 @@ impl<'tcx> BodyVisitor<'tcx> {
         }
     }
 
-    pub fn path_analyze_statement(&mut self, statement:&Statement<'tcx>, _path_index:usize) {
+    pub fn path_analyze_statement(&mut self, statement: &Statement<'tcx>, _path_index: usize) {
         match statement.kind {
-            StatementKind::Assign(
-                box(ref lplace, ref rvalue)
-            ) => {
+            StatementKind::Assign(box (ref lplace, ref rvalue)) => {
                 self.path_analyze_assign(lplace, rvalue, _path_index);
             }
-            StatementKind::Intrinsic(
-                box ref intrinsic
-            ) => {
-                match intrinsic{
-                    mir::NonDivergingIntrinsic::CopyNonOverlapping(cno) => {
-                        if cno.src.place().is_some() && cno.dst.place().is_some() {
-                            let src_place_local = cno.src.place().unwrap().local.as_usize();
-                            let dst_place_local = cno.dst.place().unwrap().local.as_usize();
-                            let _src_pjc_local = self.handle_projection(true, src_place_local, cno.src.place().unwrap().clone());
-                            let _dst_pjc_local = self.handle_projection(true, dst_place_local, cno.dst.place().unwrap().clone());
-                        }
+            StatementKind::Intrinsic(box ref intrinsic) => match intrinsic {
+                mir::NonDivergingIntrinsic::CopyNonOverlapping(cno) => {
+                    if cno.src.place().is_some() && cno.dst.place().is_some() {
+                        let src_place_local = cno.src.place().unwrap().local.as_usize();
+                        let dst_place_local = cno.dst.place().unwrap().local.as_usize();
+                        let _src_pjc_local = self.handle_projection(
+                            true,
+                            src_place_local,
+                            cno.src.place().unwrap().clone(),
+                        );
+                        let _dst_pjc_local = self.handle_projection(
+                            true,
+                            dst_place_local,
+                            cno.dst.place().unwrap().clone(),
+                        );
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
     }
 
-    pub fn path_analyze_assign(&mut self, lplace: &Place<'tcx>, rvalue: &Rvalue<'tcx>, _path_index: usize) {
+    pub fn path_analyze_assign(
+        &mut self,
+        lplace: &Place<'tcx>,
+        rvalue: &Rvalue<'tcx>,
+        _path_index: usize,
+    ) {
         let llocal = lplace.local.as_usize();
         let _lpjc_local = self.handle_projection(false, llocal, lplace.clone());
         match rvalue {
-            Rvalue::Use(op) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
-                    }
-                    _ => {} 
+            Rvalue::Use(op) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let rlocal = rplace.local.as_usize();
+                    let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
                 }
-            }
-            Rvalue::Repeat(op,_const) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
-                    }
-                    _ => {}
+                _ => {}
+            },
+            Rvalue::Repeat(op, _const) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let rlocal = rplace.local.as_usize();
+                    let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
                 }
-            }
-            Rvalue::Ref(_,_,rplace) => {
+                _ => {}
+            },
+            Rvalue::Ref(_, _, rplace) => {
                 let rlocal = rplace.local.as_usize();
                 let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
             }
-            Rvalue::AddressOf(_,rplace) => {
+            Rvalue::AddressOf(_, rplace) => {
                 let rlocal = rplace.local.as_usize();
                 let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
             }
-            Rvalue::Cast(_cast_kind,op,_ty) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
-                    }
-                    _ => {}
+            Rvalue::Cast(_cast_kind, op, _ty) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let rlocal = rplace.local.as_usize();
+                    let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
                 }
-            }
-            Rvalue::BinaryOp(_bin_op,box(ref _op1, ref _op2)) => {
-                
-            }
-            Rvalue::ShallowInitBox(op,_ty) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
-                    }
-                    _ => {}
+                _ => {}
+            },
+            Rvalue::BinaryOp(_bin_op, box (ref _op1, ref _op2)) => {}
+            Rvalue::ShallowInitBox(op, _ty) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let rlocal = rplace.local.as_usize();
+                    let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
                 }
-            }
-            Rvalue::Aggregate(box ref agg_kind, _op_vec) => {
-                match agg_kind {
-                    AggregateKind::Array(_ty) => {
-                    }
-                    _ => {}
-                }
-            }
+                _ => {}
+            },
+            Rvalue::Aggregate(box ref agg_kind, _op_vec) => match agg_kind {
+                AggregateKind::Array(_ty) => {}
+                _ => {}
+            },
             // Rvalue::Discriminant(_place) => {
             //     println!("{}:{:?}",llocal,rvalue);
             // }
@@ -172,17 +202,18 @@ impl<'tcx> BodyVisitor<'tcx> {
         }
     }
 
-    pub fn handle_projection(&mut self, _is_right: bool, local: usize, place: Place<'tcx>) -> usize{
+    pub fn handle_projection(
+        &mut self,
+        _is_right: bool,
+        local: usize,
+        place: Place<'tcx>,
+    ) -> usize {
         let _init_local = local;
         let current_local = local;
-        for projection in place.projection{
-            match projection{
-                ProjectionElem::Deref => {
-                    
-                }
-                ProjectionElem::Field(_field, _ty) =>{
-                    
-                }
+        for projection in place.projection {
+            match projection {
+                ProjectionElem::Deref => {}
+                ProjectionElem::Field(_field, _ty) => {}
                 _ => {}
             }
         }
@@ -205,7 +236,9 @@ impl<'tcx> BodyVisitor<'tcx> {
                 if let Some(existing_state_item) = result_state.state_map.get_mut(&var_index) {
                     existing_state_item.meet_state_item(state_item);
                 } else {
-                    result_state.state_map.insert(*var_index, state_item.clone());
+                    result_state
+                        .state_map
+                        .insert(*var_index, state_item.clone());
                 }
             }
         }
@@ -216,17 +249,21 @@ impl<'tcx> BodyVisitor<'tcx> {
         let body = self.tcx.optimized_mir(def_id);
         let bb_len = body.basic_blocks.len();
         for i in 0..bb_len {
-            let callees = Self::get_terminator_callee(body.basic_blocks[BasicBlock::from_usize(i)].clone().terminator());
+            let callees = Self::get_terminator_callee(
+                body.basic_blocks[BasicBlock::from_usize(i)]
+                    .clone()
+                    .terminator(),
+            );
             results.extend(callees);
         }
         results
     }
 
-    pub fn get_terminator_callee(terminator:&Terminator<'tcx>) -> Vec<String> {
+    pub fn get_terminator_callee(terminator: &Terminator<'tcx>) -> Vec<String> {
         let mut results = Vec::new();
         match &terminator.kind {
-            TerminatorKind::Call{func, ..} => {
-                let func_name = format!("{:?}",func);
+            TerminatorKind::Call { func, .. } => {
+                let func_name = format!("{:?}", func);
                 results.push(func_name);
             }
             _ => {}

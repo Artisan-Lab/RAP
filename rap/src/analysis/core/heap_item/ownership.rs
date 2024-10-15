@@ -94,8 +94,10 @@ impl OwnershipLayoutResult {
         self.owned = o;
     }
 
-    pub fn update_from_default_ownership_visitor<'tcx, 'a>(&mut self, default_ownership: &mut DefaultOwnership<'tcx, 'a>) {
-
+    pub fn update_from_default_ownership_visitor<'tcx, 'a>(
+        &mut self,
+        default_ownership: &mut DefaultOwnership<'tcx, 'a>,
+    ) {
         if default_ownership.is_owning_true() || default_ownership.is_ptr_true() {
             self.set_requirement(true);
         }
@@ -108,5 +110,4 @@ impl OwnershipLayoutResult {
 
         self.set_param(default_ownership.get_param());
     }
-
 }

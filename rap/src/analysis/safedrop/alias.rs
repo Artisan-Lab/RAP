@@ -1,13 +1,13 @@
+use rustc_middle::mir::{Operand, Place, ProjectionElem, TerminatorKind};
 use rustc_middle::ty;
 use rustc_middle::ty::TyCtxt;
-use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
 
-use crate::rap_error;
-use super::types::*;
 use super::graph::*;
+use super::types::*;
 use crate::analysis::core::alias::{FnMap, RetAlias};
+use crate::rap_error;
 
-impl<'tcx> SafeDropGraph<'tcx>{
+impl<'tcx> SafeDropGraph<'tcx> {
     /* alias analysis for a single block */
     pub fn alias_bb(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>) {
         for stmt in self.blocks[bb_index].const_value.clone() {
@@ -21,25 +21,39 @@ impl<'tcx> SafeDropGraph<'tcx>{
                 AssignType::Variant => {
                     self.values[lv_aliaset_idx].alias[0] = rv_aliaset_idx;
                     continue;
-                },
+                }
                 AssignType::InitBox => {
                     lv_aliaset_idx = *self.values[lv_aliaset_idx].fields.get(&0).unwrap();
-                },
-                _ => { }, // Copy or Move
+                }
+                _ => {} // Copy or Move
             }
-            self.uaf_check(rv_aliaset_idx, assign.span, assign.rv.local.as_usize(), false);
+            self.uaf_check(
+                rv_aliaset_idx,
+                assign.span,
+                assign.rv.local.as_usize(),
+                false,
+            );
             self.fill_birth(lv_aliaset_idx, self.scc_indices[bb_index] as isize);
             if self.values[lv_aliaset_idx].local != self.values[rv_aliaset_idx].local {
                 self.merge_alias(lv_aliaset_idx, rv_aliaset_idx);
             }
-        }        
+        }
     }
 
     /* Check the aliases introduced by the terminators (function call) of a scc block */
-    pub fn alias_bbcall(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap){
+    pub fn alias_bbcall(&mut self, bb_index: usize, tcx: TyCtxt<'tcx>, fn_map: &FnMap) {
         let cur_block = self.blocks[bb_index].clone();
         for call in cur_block.calls {
-            if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
+            if let TerminatorKind::Call {
+                ref func,
+                ref args,
+                ref destination,
+                target: _,
+                unwind: _,
+                call_source: _,
+                fn_span: _,
+            } = call.kind
+            {
                 if let Operand::Constant(ref constant) = func {
                     let lv = self.projection(tcx, false, destination.clone());
                     self.values[lv].birth = self.scc_indices[bb_index] as isize;
@@ -58,7 +72,7 @@ impl<'tcx> SafeDropGraph<'tcx>{
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
                                 }
-                            },
+                            }
                             Operand::Move(ref p) => {
                                 let rv = self.projection(tcx, true, p.clone());
                                 self.uaf_check(rv, call.source_info.span, p.local.as_usize(), true);
@@ -66,14 +80,14 @@ impl<'tcx> SafeDropGraph<'tcx>{
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
                                 }
-                            },
+                            }
                             Operand::Constant(_) => {
                                 merge_vec.push(0);
-                            },
+                            }
                         }
                     }
                     if let ty::FnDef(ref target_id, _) = constant.const_.ty().kind() {
-                         if may_drop_flag > 1 {
+                        if may_drop_flag > 1 {
                             if tcx.is_mir_available(*target_id) {
                                 if fn_map.contains_key(&target_id) {
                                     let assignments = fn_map.get(&target_id).unwrap();
@@ -84,15 +98,17 @@ impl<'tcx> SafeDropGraph<'tcx>{
                                         self.merge(assign, &merge_vec);
                                     }
                                 }
-                            }
-                            else {
+                            } else {
                                 if self.values[lv].may_drop {
-                                    if self.corner_handle(lv, &merge_vec, *target_id){
+                                    if self.corner_handle(lv, &merge_vec, *target_id) {
                                         continue;
                                     }
-                                    let mut right_set = Vec::new(); 
+                                    let mut right_set = Vec::new();
                                     for rv in &merge_vec {
-                                        if self.values[*rv].may_drop && lv != *rv && self.values[lv].is_ptr(){
+                                        if self.values[*rv].may_drop
+                                            && lv != *rv
+                                            && self.values[lv].is_ptr()
+                                        {
                                             right_set.push(*rv);
                                         }
                                     }
@@ -150,7 +166,8 @@ impl<'tcx> SafeDropGraph<'tcx>{
                         let param_env = tcx.param_env(self.def_id);
                         let need_drop = ty.needs_drop(tcx, param_env);
                         let may_drop = !is_not_drop(tcx, ty);
-                        let mut node = ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
+                        let mut node =
+                            ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
                         node.kind = kind(ty);
                         node.birth = self.values[proj_id].birth;
                         node.field_id = field_idx;
@@ -173,9 +190,14 @@ impl<'tcx> SafeDropGraph<'tcx>{
         } else {
             self.values[lv].alias = self.values[rv].alias.clone();
         }
-        for field in self.values[rv].fields.clone().into_iter(){
+        for field in self.values[rv].fields.clone().into_iter() {
             if !self.values[lv].fields.contains_key(&field.0) {
-                let mut node = ValueNode::new(self.values.len(), self.values[lv].local, self.values[field.1].need_drop, self.values[field.1].may_drop);
+                let mut node = ValueNode::new(
+                    self.values.len(),
+                    self.values[lv].local,
+                    self.values[field.1].need_drop,
+                    self.values[field.1].may_drop,
+                );
                 node.kind = self.values[field.1].kind;
                 node.birth = self.values[lv].birth;
                 node.field_id = field.0;

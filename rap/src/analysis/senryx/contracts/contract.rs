@@ -7,45 +7,46 @@ pub enum Contract {
     StateCheck { op: Op, state: StateType },
 }
 
-
 pub fn check_contract(contract: Contract, abstate_item: &AbstractStateItem) -> bool {
     match contract {
-        Contract::ValueCheck {op, value} => {
+        Contract::ValueCheck { op, value } => {
             return handle_value_op(&abstate_item.value, op, value);
-        },
-        Contract::StateCheck {op, state} => {
+        }
+        Contract::StateCheck { op, state } => {
             for ab_state in &abstate_item.state {
                 if handle_state_op(*ab_state, op, state) {
                     return true;
                 }
             }
             return false;
-        },
+        }
     }
 }
 
-
-
-pub fn handle_value_op<T: std::cmp::PartialEq + std::cmp::PartialOrd>(left:&(T,T), op:Op, right:T) -> bool {
+pub fn handle_value_op<T: std::cmp::PartialEq + std::cmp::PartialOrd>(
+    left: &(T, T),
+    op: Op,
+    right: T,
+) -> bool {
     match op {
         Op::EQ => {
             return left.0 == right;
-        },
+        }
         Op::NE => {
             return left.0 != right;
-        },
+        }
         Op::LT => {
             return left.1 < right;
-        },
+        }
         Op::GT => {
             return left.0 > right;
-        },
+        }
         Op::LE => {
             return left.1 <= right;
-        },
+        }
         Op::GE => {
             return left.0 >= right;
-        },
+        }
     }
 }
 
@@ -59,4 +60,3 @@ pub fn handle_state_op(left: StateType, op: Op, right: StateType) -> bool {
         Op::NE => !left.equal(right),
     }
 }
-

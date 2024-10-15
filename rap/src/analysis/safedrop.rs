@@ -1,18 +1,18 @@
-pub mod safedrop;
-pub mod graph;
+pub mod alias;
 pub mod bug_records;
 pub mod check_bugs;
 pub mod corner_handle;
+pub mod graph;
+pub mod safedrop;
 pub mod types;
-pub mod alias;
 
-use rustc_middle::ty::TyCtxt;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 
-use graph::SafeDropGraph;
-use safedrop::*;
 use crate::analysis::core::alias::mop::MopAlias;
 use crate::analysis::core::alias::FnMap;
+use graph::SafeDropGraph;
+use safedrop::*;
 
 pub struct SafeDrop<'tcx> {
     pub tcx: TyCtxt<'tcx>,
@@ -20,7 +20,7 @@ pub struct SafeDrop<'tcx> {
 
 impl<'tcx> SafeDrop<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
-        Self{ tcx }
+        Self { tcx }
     }
     pub fn start(&self) {
         let mut mop = MopAlias::new(self.tcx);
@@ -44,11 +44,10 @@ pub fn query_safedrop<'tcx>(tcx: TyCtxt<'tcx>, fn_map: &FnMap, def_id: DefId) ->
         let mut safedrop_graph = SafeDropGraph::new(&body, tcx, def_id);
         safedrop_graph.solve_scc();
         safedrop_graph.check(0, tcx, fn_map);
-        if safedrop_graph.visit_times <= VISIT_LIMIT { 
-            safedrop_graph.report_bugs(); 
-        } else { 
-            println!("Over visited: {:?}", def_id); 
+        if safedrop_graph.visit_times <= VISIT_LIMIT {
+            safedrop_graph.report_bugs();
+        } else {
+            println!("Over visited: {:?}", def_id);
         }
     }
 }
-
