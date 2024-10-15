@@ -5,7 +5,6 @@ use rustc_middle::ty::{self, Ty, TyCtxt, TyKind};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
-
 use std::collections::{HashMap, HashSet};
 use std::env;
 //use stopwatch::Stopwatch;
@@ -76,7 +75,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     // The main phase and the starter function of Type Collector.
     // RAP will construct an instance of struct TypeCollector and call self.start to make analysis starting.
     pub fn start(&mut self) {
-
         //let mut sw = Stopwatch::start_new();
 
         // Get the analysis result from rap phase llvm
@@ -124,16 +122,16 @@ impl HeapItem {
     /// ```
     pub fn is_adt<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+            TyKind::Adt(adtdef, ..) => {
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
                 for i in ans.iter() {
-                    if i.0 == RawTypeOwner::Owned { return Ok(true); }
+                    if i.0 == RawTypeOwner::Owned {
+                        return Ok(true);
+                    }
                 }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -161,15 +159,17 @@ impl HeapItem {
     /// ```
     pub fn is_struct<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_struct() && !adtdef.is_union() { return Err("The input is not a struct") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
-                if ans[0].0 == RawTypeOwner::Owned { return Ok(true); }
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_struct() && !adtdef.is_union() {
+                    return Err("The input is not a struct");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
+                if ans[0].0 == RawTypeOwner::Owned {
+                    return Ok(true);
+                }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -199,17 +199,19 @@ impl HeapItem {
     /// ```
     pub fn is_enum<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
                 for i in ans.iter() {
-                    if i.0 == RawTypeOwner::Owned { return Ok(true); }
+                    if i.0 == RawTypeOwner::Owned {
+                        return Ok(true);
+                    }
                 }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -237,18 +239,26 @@ impl HeapItem {
     /// use rap::analysis::core::heap_item::HeapItem;
     /// let ans = HeapItem::is_enum_vidx(rcanary.rcx, vec.ty, 1);
     /// ```
-    pub fn is_enum_vidx<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, idx: usize) -> Result<bool, &'static str> {
+    pub fn is_enum_vidx<'tcx>(
+        rcx: &rCanary<'tcx>,
+        ty: Ty<'tcx>,
+        idx: usize,
+    ) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
-                if idx > ans.len() { return Err("The index is not a valid variance"); }
-                if ans[idx].0 == RawTypeOwner::Owned { return Ok(true); }
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
+                if idx > ans.len() {
+                    return Err("The index is not a valid variance");
+                }
+                if ans[idx].0 == RawTypeOwner::Owned {
+                    return Ok(true);
+                }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -275,21 +285,27 @@ impl HeapItem {
     /// use rap::analysis::core::heap_item::HeapItem;
     /// let ans = HeapItem::is_enum_flattened(rcanary.rcx, vec.ty);
     /// ```
-    pub fn is_enum_flattened<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<Vec<bool>, &'static str> {
+    pub fn is_enum_flattened<'tcx>(
+        rcx: &rCanary<'tcx>,
+        ty: Ty<'tcx>,
+    ) -> Result<Vec<bool>, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
                 let mut v = Vec::with_capacity(ans.len());
                 for i in ans.iter() {
-                    if i.0 == RawTypeOwner::Owned { v.push(true); }
-                    else { v.push(false); }
+                    if i.0 == RawTypeOwner::Owned {
+                        v.push(true);
+                    } else {
+                        v.push(false);
+                    }
                 }
                 Ok(v)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 }
@@ -328,16 +344,16 @@ impl IsolatedParameter {
     /// ```
     pub fn is_adt<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+            TyKind::Adt(adtdef, ..) => {
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
                 for i in ans.iter() {
-                    if i.1.iter().any(|&x| x == true) { return Ok(true); }
+                    if i.1.iter().any(|&x| x == true) {
+                        return Ok(true);
+                    }
                 }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -366,15 +382,17 @@ impl IsolatedParameter {
     /// ```
     pub fn is_struct<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_struct() && !adtdef.is_union() { return Err("The input is not a struct") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
-                if ans[0].1.iter().any(|&x| x == true) { return Ok(true); }
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_struct() && !adtdef.is_union() {
+                    return Err("The input is not a struct");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
+                if ans[0].1.iter().any(|&x| x == true) {
+                    return Ok(true);
+                }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -406,17 +424,19 @@ impl IsolatedParameter {
     /// ```
     pub fn is_enum<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
                 for i in ans.iter() {
-                    if i.1.iter().any(|&x| x == true) { return Ok(true); }
+                    if i.1.iter().any(|&x| x == true) {
+                        return Ok(true);
+                    }
                 }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -445,18 +465,26 @@ impl IsolatedParameter {
     ///  use rap::analysis::core::heap_item::IsolatedParameter;
     ///  let ans = IsolatedParameter::is_enum_vidx(rcanary.rcx, vec.ty, 1);
     /// ```
-    pub fn is_enum_vidx<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, idx: usize) -> Result<bool, &'static str> {
+    pub fn is_enum_vidx<'tcx>(
+        rcx: &rCanary<'tcx>,
+        ty: Ty<'tcx>,
+        idx: usize,
+    ) -> Result<bool, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
-                if idx > ans.len() { return Err("The index is not a valid variance"); }
-                if ans[idx].1.iter().any(|&x| x == true) { return Ok(true); }
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
+                if idx > ans.len() {
+                    return Err("The index is not a valid variance");
+                }
+                if ans[idx].1.iter().any(|&x| x == true) {
+                    return Ok(true);
+                }
                 Ok(false)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 
@@ -486,20 +514,23 @@ impl IsolatedParameter {
     ///  use rap::analysis::core::heap_item::IsolatedParameter;
     ///  let ans = IsolatedParameter::is_enum_flattened(rcanary.rcx, vec.ty);
     /// ```
-    pub fn is_enum_flattened<'tcx>(rcx: &rCanary<'tcx>, ty: Ty<'tcx>) -> Result<Vec<Vec<bool>>, &'static str> {
+    pub fn is_enum_flattened<'tcx>(
+        rcx: &rCanary<'tcx>,
+        ty: Ty<'tcx>,
+    ) -> Result<Vec<Vec<bool>>, &'static str> {
         match ty.kind() {
-            TyKind::Adt( adtdef, .. ) => {
-                if !adtdef.is_enum() { return Err("The input is not an enum") }
-                let ans = rcx.adt_owner().get(&adtdef.0.0.did).unwrap();
-                let mut v:Vec<Vec<bool>> = Vec::default();
+            TyKind::Adt(adtdef, ..) => {
+                if !adtdef.is_enum() {
+                    return Err("The input is not an enum");
+                }
+                let ans = rcx.adt_owner().get(&adtdef.0 .0.did).unwrap();
+                let mut v: Vec<Vec<bool>> = Vec::default();
                 for i in ans.iter() {
                     v.push(i.1.clone());
                 }
                 Ok(v)
-            },
-            _ => {
-                Err("The input is not an ADT")
-            },
+            }
+            _ => Err("The input is not an ADT"),
         }
     }
 }
@@ -527,13 +558,9 @@ struct IsolatedParam {
 }
 
 impl IsolatedParam {
-
-    pub fn new(
-        len: usize
-    ) -> Self
-    {
+    pub fn new(len: usize) -> Self {
         Self {
-            record: vec![false ; len],
+            record: vec![false; len],
         }
     }
 
@@ -565,9 +592,7 @@ impl<'tcx> IsolatedParamFieldSubst {
     pub fn contains_param(&self) -> bool {
         !self.parameters.is_empty()
     }
-
 }
-
 
 #[derive(Clone)]
 struct IsolatedParamPropagation<'tcx, 'a> {
@@ -583,9 +608,8 @@ impl<'tcx, 'a> IsolatedParamPropagation<'tcx, 'a> {
         tcx: TyCtxt<'tcx>,
         record: Vec<bool>,
         source_enum: bool,
-        ref_adt_owner: &'a AdtOwner
-    ) -> Self
-    {
+        ref_adt_owner: &'a AdtOwner,
+    ) -> Self {
         Self {
             tcx,
             record,
@@ -614,7 +638,6 @@ impl<'tcx, 'a> IsolatedParamPropagation<'tcx, 'a> {
     pub fn owner(&self) -> &'a AdtOwner {
         self.ref_adt_owner
     }
-
 }
 
 #[derive(Clone)]
@@ -626,12 +649,7 @@ struct OwnerPropagation<'tcx, 'a> {
 }
 
 impl<'tcx, 'a> OwnerPropagation<'tcx, 'a> {
-    pub fn new(
-        tcx: TyCtxt<'tcx>,
-        ownership: RawTypeOwner,
-        ref_adt_owner: &'a AdtOwner
-    ) -> Self
-    {
+    pub fn new(tcx: TyCtxt<'tcx>, ownership: RawTypeOwner, ref_adt_owner: &'a AdtOwner) -> Self {
         Self {
             tcx,
             ownership,
@@ -655,7 +673,6 @@ impl<'tcx, 'a> OwnerPropagation<'tcx, 'a> {
     pub fn owner(&self) -> &'a AdtOwner {
         self.ref_adt_owner
     }
-
 }
 
 #[derive(Clone)]
@@ -669,11 +686,7 @@ pub struct DefaultOwnership<'tcx, 'a> {
 }
 
 impl<'tcx, 'a> DefaultOwnership<'tcx, 'a> {
-    pub fn new(
-        tcx: TyCtxt<'tcx>,
-        ref_adt_owner: &'a AdtOwner
-    ) -> Self
-    {
+    pub fn new(tcx: TyCtxt<'tcx>, ref_adt_owner: &'a AdtOwner) -> Self {
         Self {
             tcx,
             unique: HashSet::new(),
@@ -735,7 +748,6 @@ impl<'tcx, 'a> DefaultOwnership<'tcx, 'a> {
     pub fn owner(&self) -> &'a AdtOwner {
         self.ref_adt_owner
     }
-
 }
 
 #[derive(Clone)]
@@ -746,10 +758,7 @@ pub struct FindPtr<'tcx> {
 }
 
 impl<'tcx> FindPtr<'tcx> {
-    pub fn new(
-        tcx: TyCtxt<'tcx>,
-    ) -> Self
-    {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
             unique: Unique::default(),
@@ -780,7 +789,7 @@ impl<'tcx> FindPtr<'tcx> {
 
 pub fn is_display_verbose() -> bool {
     match env::var_os("ADT_DISPLAY") {
-        Some(_)  => true,
+        Some(_) => true,
         _ => false,
     }
 }
@@ -796,12 +805,12 @@ pub struct IndexedTy<'tcx>(pub Option<(usize, &'tcx TyKind<'tcx>, Option<usize>,
 impl<'tcx> IndexedTy<'tcx> {
     pub fn new(ty: Ty<'tcx>, vidx: Option<VariantIdx>) -> Self {
         match &ty.kind() {
-            TyKind::Tuple( list ) => {
-                IndexedTy(Some((list.len(), &ty.kind(), None, true)))
-            },
+            TyKind::Tuple(list) => IndexedTy(Some((list.len(), &ty.kind(), None, true))),
             TyKind::Adt(adtdef, ..) => {
                 if adtdef.is_enum() {
-                    if vidx.is_none() { return IndexedTy(None); }
+                    if vidx.is_none() {
+                        return IndexedTy(None);
+                    }
                     let idx = vidx.unwrap();
                     let len = adtdef.variants()[idx].fields.len();
                     IndexedTy(Some((len, &ty.kind(), Some(idx.index()), true)))
@@ -809,37 +818,32 @@ impl<'tcx> IndexedTy<'tcx> {
                     let len = adtdef.variants()[VariantIdx::from_usize(0)].fields.len();
                     IndexedTy(Some((len, &ty.kind(), None, true)))
                 }
-            },
-            TyKind::Array( .. )
-            | TyKind::Param( .. )
-            | TyKind::RawPtr( .. )
-            | TyKind::Ref( .. ) => {
+            }
+            TyKind::Array(..) | TyKind::Param(..) | TyKind::RawPtr(..) | TyKind::Ref(..) => {
                 IndexedTy(Some((1, &ty.kind(), None, true)))
-            },
+            }
             TyKind::Bool
             | TyKind::Char
-            | TyKind::Int( .. )
-            | TyKind::Uint( .. )
-            | TyKind::Float( .. )
+            | TyKind::Int(..)
+            | TyKind::Uint(..)
+            | TyKind::Float(..)
             | TyKind::Str
-            | TyKind::Slice( .. ) => {
-                IndexedTy(Some((1, &ty.kind(), None, false)))
-            },
+            | TyKind::Slice(..) => IndexedTy(Some((1, &ty.kind(), None, false))),
             _ => IndexedTy(None),
         }
     }
 
     // 0->unsupported, 1->trivial, 2-> needed
     pub fn get_priority(&self) -> usize {
-        if self.0.is_none() { return 0; }
+        if self.0.is_none() {
+            return 0;
+        }
         match self.0.unwrap().0 {
             0 => 1,
-            _ => {
-                match self.0.unwrap().3 {
-                    true => 2,
-                    false => 1,
-                }
-            }
+            _ => match self.0.unwrap().3 {
+                true => 2,
+                false => 1,
+            },
         }
     }
 }

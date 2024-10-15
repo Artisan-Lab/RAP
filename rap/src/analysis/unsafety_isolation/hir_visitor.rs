@@ -1,9 +1,7 @@
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::{
-    def_id::DefId,
-    intravisit,
-    intravisit::Visitor,
-    Block, BodyId, Body, HirId, Impl, ItemKind, ExprKind, QPath,
+    def_id::DefId, intravisit, intravisit::Visitor, Block, Body, BodyId, ExprKind, HirId, Impl,
+    ItemKind, QPath,
 };
 use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::{self, Ty, TyCtxt};
@@ -44,7 +42,7 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
                 let key = Some(self_ty.hir_id);
                 let entry = self.hash_map.entry(key).or_insert(Vec::new());
                 entry.extend(impl_items.iter().filter_map(|impl_item_ref| {
-                    if let rustc_hir::AssocItemKind::Fn{has_self:_} = impl_item_ref.kind {
+                    if let rustc_hir::AssocItemKind::Fn { has_self: _ } = impl_item_ref.kind {
                         let hir_id = impl_item_ref.id.hir_id();
                         hir_map
                             .maybe_body_owned_by(hir_id.owner.def_id)
@@ -58,7 +56,7 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
                 let key = None;
                 let entry = self.hash_map.entry(key).or_insert(Vec::new());
                 entry.extend(trait_items.iter().filter_map(|trait_item_ref| {
-                    if let rustc_hir::AssocItemKind::Fn{has_self:_} = trait_item_ref.kind {
+                    if let rustc_hir::AssocItemKind::Fn { has_self: _ } = trait_item_ref.kind {
                         let hir_id = trait_item_ref.id.hir_id();
                         hir_map
                             .maybe_body_owned_by(hir_id.owner.def_id)
@@ -90,7 +88,6 @@ impl<'tcx> Visitor<'tcx> for RelatedFnCollector<'tcx> {
     }
 }
 
-
 pub struct ContainsUnsafe<'tcx> {
     tcx: TyCtxt<'tcx>,
     function_unsafe: bool,
@@ -98,7 +95,7 @@ pub struct ContainsUnsafe<'tcx> {
 }
 
 impl<'tcx> ContainsUnsafe<'tcx> {
-    pub fn contains_unsafe(tcx: TyCtxt<'tcx>, body_id: BodyId) -> (bool,bool) {
+    pub fn contains_unsafe(tcx: TyCtxt<'tcx>, body_id: BodyId) -> (bool, bool) {
         let mut visitor = ContainsUnsafe {
             tcx,
             function_unsafe: false,
@@ -115,8 +112,8 @@ impl<'tcx> ContainsUnsafe<'tcx> {
     fn body_unsafety(&self, body: &'tcx Body<'tcx>) -> bool {
         let did = body.value.hir_id.owner.to_def_id();
         let sig = self.tcx.fn_sig(did);
-        if let rustc_hir::Safety::Unsafe = sig.skip_binder().safety(){
-            return true
+        if let rustc_hir::Safety::Unsafe = sig.skip_binder().safety() {
+            return true;
         }
         false
     }

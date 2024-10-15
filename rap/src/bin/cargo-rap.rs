@@ -1,18 +1,18 @@
-/* 
+/*
     This is a cargo program to start RAP.
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
-use rap::{rap_info,rap_debug,rap_error};
-use rap::utils::log::{Verbosity,rap_error_and_exit};
-use std::env;
-use std::process::{self,Command};
-use std::iter::TakeWhile;
-use std::path::{PathBuf,Path};
-use std::time::Duration;
-use std::fmt::{Display,Formatter};
+use cargo_metadata::{Metadata, MetadataCommand};
+use rap::utils::log::{rap_error_and_exit, Verbosity};
+use rap::{rap_debug, rap_error, rap_info};
 use rustc_version::VersionMeta;
+use std::env;
+use std::fmt::{Display, Formatter};
+use std::iter::TakeWhile;
+use std::path::{Path, PathBuf};
+use std::process::{self, Command};
+use std::time::Duration;
 use wait_timeout::ChildExt;
-use cargo_metadata::{Metadata,MetadataCommand};
 
 const RAP_HELP: &str = r#"
 Usage:
@@ -101,19 +101,20 @@ fn version_info() -> VersionMeta {
 /*
     The function finds a package under the current directory.
 */
-fn find_targets(metadata:&mut Metadata) -> Vec<cargo_metadata::Target> {
-   	rap_info!("Search local targets for analysis.");
+fn find_targets(metadata: &mut Metadata) -> Vec<cargo_metadata::Target> {
+    rap_info!("Search local targets for analysis.");
     let current_dir = env::current_dir();
     let current_dir = current_dir.as_ref().expect("Cannot read current dir.");
     let mut pkg_iter = metadata.packages.iter().filter(|package| {
-        let package_dir = Path::new(&package.manifest_path).parent()
+        let package_dir = Path::new(&package.manifest_path)
+            .parent()
             .expect("Failed to find parent directory.");
-    	rap_debug!("Package_dir: {:?}.", package_dir);
-        //FIXME: do we need to handle sub directories? 
+        rap_debug!("Package_dir: {:?}.", package_dir);
+        //FIXME: do we need to handle sub directories?
         package_dir == current_dir || package_dir.starts_with(&current_dir.to_str().unwrap())
     });
     let mut targets = Vec::new();
-    while let Some(pkg) = pkg_iter.next(){
+    while let Some(pkg) = pkg_iter.next() {
         rap_info!("Find a new pakage: {:?}.", pkg.name);
         let mut pkg_targets: Vec<_> = pkg.targets.clone().into_iter().collect();
         // Ensure `lib` is compiled before `bin`
@@ -123,22 +124,17 @@ fn find_targets(metadata:&mut Metadata) -> Vec<cargo_metadata::Target> {
     targets
 }
 
-fn is_identified_target(
-    target: &cargo_metadata::Target,
-    cmd: &mut Command
-) -> bool {
+fn is_identified_target(target: &cargo_metadata::Target, cmd: &mut Command) -> bool {
     match TargetKind::from(target) {
         TargetKind::Library => {
             cmd.arg("--lib");
             true
-        },
+        }
         TargetKind::Bin => {
             cmd.arg("--bin").arg(&target.name);
             true
-        },
-        TargetKind::Unspecified => {
-            false
         }
+        TargetKind::Unspecified => false,
     }
 }
 
@@ -149,12 +145,12 @@ fn run_cmd(mut cmd: Command) {
             if !status.success() {
                 process::exit(status.code().unwrap());
             }
-        },
+        }
         Err(err) => panic!("Error in running {:?} {}.", cmd, err),
     }
 }
 
-fn cleanup(){ 
+fn cleanup() {
     let mut cmd = Command::new("cargo");
     cmd.arg("clean");
     run_cmd(cmd);
@@ -166,29 +162,36 @@ fn phase_cargo_rap() {
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
     let Some(arg) = args.next() else {
         rap_error!("Expect command: e.g., `cargo rap -help`.");
-	return ;
+        return;
     };
     match arg.as_str() {
-        "-V" | "-version" => { rap_info!("{}", RAP_VERSION); return; },
-        "-H" | "-help" | "--help" => { rap_info!("{}", RAP_HELP); return; },
-	    _ => {},
+        "-V" | "-version" => {
+            rap_info!("{}", RAP_VERSION);
+            return;
+        }
+        "-H" | "-help" | "--help" => {
+            rap_info!("{}", RAP_HELP);
+            return;
+        }
+        _ => {}
     }
     cleanup(); // clean up the directory before building.
 
     let cmd = MetadataCommand::new();
     rap_debug!("Please run `cargo metadata` if this step takes too long");
-    let mut metadata = match cmd.exec() { // execute command: `cargo metadata'
+    let mut metadata = match cmd.exec() {
+        // execute command: `cargo metadata'
         Ok(metadata) => metadata,
         Err(e) => rap_error_and_exit(format!("Cannot obtain cargo metadata: {}.", e)),
     };
 
     let targets = find_targets(&mut metadata);
     for target in targets {
-	/*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
+        /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
         let mut cmd = Command::new("cargo");
-        cmd.arg("check"); 
+        cmd.arg("check");
 
-	/* We only process bin and lib targets, and ignore others */
+        /* We only process bin and lib targets, and ignore others */
         if !is_identified_target(&target, &mut cmd) {
             rap_debug!("Ignore the target because it is neither bin or lib.");
             continue;
@@ -196,7 +199,7 @@ fn phase_cargo_rap() {
 
         /* set the target as a filter for phase_rustc_rap */
         let host = version_info().host;
-        if  get_arg_flag_value("--target").is_none() {
+        if get_arg_flag_value("--target").is_none() {
             cmd.arg("--target");
             cmd.arg(&host);
         }
@@ -217,13 +220,17 @@ fn phase_cargo_rap() {
         cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
 
         rap_debug!("Command is: {:?}.", cmd);
-        rap_info!("Running rap for target {}:{}", TargetKind::from(&target), &target.name);
+        rap_info!(
+            "Running rap for target {}:{}",
+            TargetKind::from(&target),
+            &target.name
+        );
 
-        let mut child = cmd
-            .spawn()
-            .expect("Could not run cargo check.");
-        match child.wait_timeout(Duration::from_secs(60 * 60)) // 1 hour timeout
-            .expect("Failed to wait for subprocess.") {
+        let mut child = cmd.spawn().expect("Could not run cargo check.");
+        match child
+            .wait_timeout(Duration::from_secs(60 * 60)) // 1 hour timeout
+            .expect("Failed to wait for subprocess.")
+        {
             Some(status) => {
                 if !status.success() {
                     rap_error_and_exit("Finished with non-zero exit code.");
@@ -235,7 +242,6 @@ fn phase_cargo_rap() {
                 rap_error_and_exit("Process killed due to timeout.");
             }
         };
-
     }
 }
 
@@ -256,13 +262,14 @@ fn phase_rustc_wrapper() {
             Some(path) => path,
             None => return false,
         };
-        let entry_path:&Path = arg_path.as_ref();
+        let entry_path: &Path = arg_path.as_ref();
         entry_path.is_relative()
     }
 
     fn is_crate_type_lib() -> bool {
         fn any_arg_flag<F>(name: &str, mut check: F) -> bool
-            where F: FnMut(&str) -> bool,
+        where
+            F: FnMut(&str) -> bool,
         {
             // Stop searching at `--`.
             let mut args = std::env::args().take_while(|val| val != "--");
@@ -326,7 +333,10 @@ enum TargetKind {
 
 impl Display for TargetKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
+        write!(
+            f,
+            "{}",
+            match self {
                 TargetKind::Library => "lib",
                 TargetKind::Bin => "bin",
                 TargetKind::Unspecified => "unspecified",
@@ -337,7 +347,11 @@ impl Display for TargetKind {
 
 impl From<&cargo_metadata::Target> for TargetKind {
     fn from(target: &cargo_metadata::Target) -> Self {
-        if target.kind.iter().any(|s| s == "lib" || s == "rlib" || s == "staticlib") {
+        if target
+            .kind
+            .iter()
+            .any(|s| s == "lib" || s == "rlib" || s == "staticlib")
+        {
             TargetKind::Library
         } else if target.kind.iter().any(|s| s == "bin") {
             TargetKind::Bin
@@ -356,7 +370,7 @@ impl TargetKind {
 fn main() {
     /* This function will be enteredd twice:
        1. When we run `cargo rap ...`, cargo dispatches the execution to cargo-rap.
-	  In this step, we set RUSTC_WRAPPER to cargo-rap, and execute `cargo check ...` command;
+      In this step, we set RUSTC_WRAPPER to cargo-rap, and execute `cargo check ...` command;
        2. Cargo check actually triggers `path/cargo-rap path/rustc` according to RUSTC_WRAPPER.
           Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
     */
@@ -366,8 +380,10 @@ fn main() {
 
     let first_arg = env::args().nth(1);
     match first_arg.unwrap() {
-       s if s.ends_with("rap") => phase_cargo_rap(),
-       s if s.ends_with("rustc") => phase_rustc_wrapper(),
-       _ => rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument."),
+        s if s.ends_with("rap") => phase_cargo_rap(),
+        s if s.ends_with("rustc") => phase_rustc_wrapper(),
+        _ => {
+            rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.")
+        }
     }
 }

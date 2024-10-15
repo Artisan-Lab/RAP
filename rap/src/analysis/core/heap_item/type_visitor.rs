@@ -1,27 +1,29 @@
-use rustc_middle::ty::{self, Ty, TyCtxt, TyKind, GenericArgKind, TypeVisitor, TypeVisitable, TypeSuperVisitable};
+use rustc_middle::mir::visit::{TyContext, Visitor};
+use rustc_middle::mir::{
+    BasicBlock, BasicBlockData, Body, Local, LocalDecl, Operand, TerminatorKind,
+};
 use rustc_middle::ty::EarlyBinder;
-use rustc_middle::mir::visit::{Visitor, TyContext};
-use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Local, LocalDecl, Operand, TerminatorKind};
+use rustc_middle::ty::{
+    self, GenericArgKind, Ty, TyCtxt, TyKind, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
-use std::collections::HashMap;
 use colorful::{Color, Colorful};
+use std::collections::HashMap;
 
-use crate::rap_debug;
-use crate::analysis::rcanary::RcxMut;
 use super::*;
+use crate::analysis::rcanary::RcxMut;
+use crate::rap_debug;
 
 // This function is aiming at resolving problems due to 'TyContext' not implementing 'Clone' trait,
 // thus we call function 'copy_ty_context' to simulate 'self.clone()'.
 #[inline(always)]
 pub(crate) fn copy_ty_context(tc: &TyContext) -> TyContext {
     match tc {
-        TyContext::LocalDecl { local, source_info } => {
-            TyContext::LocalDecl {
-                local: local.clone(),
-                source_info: source_info.clone(),
-            }
+        TyContext::LocalDecl { local, source_info } => TyContext::LocalDecl {
+            local: local.clone(),
+            source_info: source_info.clone(),
         },
         _ => unreachable!(),
     }
@@ -42,10 +44,10 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     //
     // Those 2 parts can accelerate heap-ownership inference in the data-flow analysis.
     pub fn visitor(&mut self) {
-
         #[inline(always)]
         fn start_channel<M>(mut method: M, v_did: &Vec<DefId>)
-            where M: FnMut(DefId) -> (),
+        where
+            M: FnMut(DefId) -> (),
         {
             for did in v_did {
                 method(*did);
@@ -55,12 +57,18 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         #[inline(always)]
         fn show_owner(ref_type_analysis: &mut TypeAnalysis) {
             for elem in ref_type_analysis.adt_owner() {
-                let name = format!("{:?}", EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0)));
+                let name = format!(
+                    "{:?}",
+                    EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0))
+                );
                 let owning = format!("{:?}", elem.1);
-                rap_debug!("{} {}", name.color(Color::Orange1), owning.color(Color::Yellow3a));
+                rap_debug!(
+                    "{} {}",
+                    name.color(Color::Orange1),
+                    owning.color(Color::Yellow3a)
+                );
             }
         }
-
 
         // Get the Global TyCtxt from rustc
         // Grasp all mir Keys defined in current crate
@@ -108,7 +116,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     // the final result for <A, B, T, S> is <true, true, false, true>.
     #[inline(always)]
     fn extract_raw_generic(&mut self, did: DefId) {
-
         // Get the definition and subset reference from adt did
         let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
@@ -129,7 +136,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         }
 
         self.adt_owner_mut().insert(did, v_res);
-
     }
 
     // Extract all params in the adt types like param 'T' and then propagate from the bottom to top.
@@ -162,7 +168,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     // the final result for <A, B, T, S> is <true, true, false, true>.
     #[inline(always)]
     fn extract_raw_generic_prop(&mut self, did: DefId) {
-
         // Get the definition and subset reference from adt did
         let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
@@ -181,25 +186,24 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                 self.tcx(),
                 res.1.clone(),
                 source_enum,
-                self.adt_owner()
+                self.adt_owner(),
             );
 
             for field in &variant.fields {
                 let field_ty = field.ty(self.tcx(), substs);
                 field_ty.visit_with(&mut raw_generic_prop);
             }
-            v_res[variant_index as usize] = (RawTypeOwner::Unowned, raw_generic_prop.record_mut().clone());
+            v_res[variant_index as usize] =
+                (RawTypeOwner::Unowned, raw_generic_prop.record_mut().clone());
         }
 
         self.adt_owner_mut().insert(did, v_res);
-
     }
 
     // Extract all types that include PhantomData<T> which T must be a raw Param
     // Consider these types as a unit to guide the traversal over adt types
     #[inline(always)]
     fn extract_phantom_unit(&mut self, did: DefId) {
-
         // Get ty from defid and the ty is made up with generic type
         let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
@@ -225,11 +229,11 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                             // Extract all generic args in the type
                             for generic_arg in *field_substs {
                                 match generic_arg.unpack() {
-                                    GenericArgKind::Type( g_ty ) => {
-                                        let mut raw_generic_field_subst = IsolatedParamFieldSubst::new();
+                                    GenericArgKind::Type(g_ty) => {
+                                        let mut raw_generic_field_subst =
+                                            IsolatedParamFieldSubst::new();
                                         g_ty.visit_with(&mut raw_generic_field_subst);
                                         if raw_generic_field_subst.contains_param() {
-
                                             {
                                                 // To enhance the soundness of phantom unit, the struct should have a
                                                 // pointer to store T
@@ -238,18 +242,27 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                                                     let field_ty = field.ty(self.tcx(), substs);
                                                     let mut find_ptr = FindPtr::new(self.tcx());
                                                     field_ty.visit_with(&mut find_ptr);
-                                                    if find_ptr.has_ptr() { has_ptr = true; break; }
+                                                    if find_ptr.has_ptr() {
+                                                        has_ptr = true;
+                                                        break;
+                                                    }
                                                 }
-                                                if has_ptr == false { return; }
+                                                if has_ptr == false {
+                                                    return;
+                                                }
                                             }
 
                                             res.0 = RawTypeOwner::Owned;
                                             self.adt_owner_mut().insert(did, vec![res.clone()]);
                                             return;
                                         }
-                                    },
-                                    GenericArgKind::Lifetime( .. ) => { return; },
-                                    GenericArgKind::Const( .. ) => { return; },
+                                    }
+                                    GenericArgKind::Lifetime(..) => {
+                                        return;
+                                    }
+                                    GenericArgKind::Const(..) => {
+                                        return;
+                                    }
                                 }
                             }
                         }
@@ -262,7 +275,6 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
 
     #[inline(always)]
     fn extract_owner_prop(&mut self, did: DefId) {
-
         // Get the definition and subset reference from adt did
         let ty = EarlyBinder::skip_binder(self.tcx().type_of(did));
         let (adt_def, substs) = match ty.kind() {
@@ -275,11 +287,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         for (variant_index, variant) in adt_def.variants().iter().enumerate() {
             let res = v_res[variant_index as usize].clone();
 
-            let mut owner_prop = OwnerPropagation::new(
-                self.tcx(),
-                res.0,
-                self.adt_owner()
-            );
+            let mut owner_prop = OwnerPropagation::new(self.tcx(), res.0, self.adt_owner());
 
             for field in &variant.fields {
                 let field_ty = field.ty(self.tcx(), substs);
@@ -292,10 +300,8 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
     }
 }
 
-
 impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
     fn visit_body(&mut self, body: &Body<'tcx>) {
-
         for (local, local_decl) in body.local_decls.iter().enumerate() {
             self.visit_local_decl(Local::from(local), local_decl);
         }
@@ -303,41 +309,31 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
         for (block, data) in body.basic_blocks.iter().enumerate() {
             self.visit_basic_block_data(BasicBlock::from(block), data);
         }
-
     }
 
-    fn visit_basic_block_data(
-        &mut self,
-        _block: BasicBlock,
-        data: &BasicBlockData<'tcx>
-    ) {
+    fn visit_basic_block_data(&mut self, _block: BasicBlock, data: &BasicBlockData<'tcx>) {
         let term = data.terminator();
         match &term.kind {
-            TerminatorKind::Call { func, .. } => {
-                match func {
-                    Operand::Constant(constant) => {
-                        match constant.ty().kind() {
-                            ty::FnDef(def_id, ..) => {
-                                if self.tcx().is_mir_available(*def_id) && self.fn_set_mut().insert(*def_id) {
-                                    let body = mir_body(self.tcx(), *def_id);
-                                    self.visit_body(body);
-                                }
-                            },
-                            _ => (),
+            TerminatorKind::Call { func, .. } => match func {
+                Operand::Constant(constant) => match constant.ty().kind() {
+                    ty::FnDef(def_id, ..) => {
+                        if self.tcx().is_mir_available(*def_id) && self.fn_set_mut().insert(*def_id)
+                        {
+                            let body = mir_body(self.tcx(), *def_id);
+                            self.visit_body(body);
                         }
-                    },
+                    }
                     _ => (),
-                }
+                },
+                _ => (),
             },
             _ => (),
         }
     }
 
     fn visit_ty(&mut self, ty: Ty<'tcx>, ty_context: TyContext) {
-
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-
                 if self.ty_map().get(&ty).is_some() {
                     return;
                 }
@@ -345,94 +341,82 @@ impl<'tcx, 'a> Visitor<'tcx> for TypeAnalysis<'tcx, 'a> {
                 self.adt_recorder_mut().insert(adtdef.did());
 
                 for field in adtdef.all_fields() {
-                    self.visit_ty(field.ty(self.tcx(), substs) ,copy_ty_context(&ty_context))
+                    self.visit_ty(field.ty(self.tcx(), substs), copy_ty_context(&ty_context))
                 }
 
                 for ty in substs.types() {
                     self.visit_ty(ty, copy_ty_context(&ty_context));
                 }
-            },
+            }
             TyKind::Array(ty, ..) => {
                 self.visit_ty(*ty, ty_context);
-            },
+            }
             TyKind::Slice(ty) => {
                 self.visit_ty(*ty, ty_context);
-            },
+            }
             TyKind::RawPtr(ty, _) => {
                 self.visit_ty(*ty, ty_context);
-            },
+            }
             TyKind::Ref(_, ty, ..) => {
                 self.visit_ty(*ty, ty_context);
-            },
+            }
             TyKind::Tuple(tuple_fields) => {
                 for field in tuple_fields.iter() {
                     self.visit_ty(field, copy_ty_context(&ty_context));
                 }
-            },
+            }
             _ => return,
         }
     }
 
     fn visit_local_decl(&mut self, local: Local, local_decl: &LocalDecl<'tcx>) {
-        let ty_context = TyContext::LocalDecl{local, source_info: local_decl.source_info};
+        let ty_context = TyContext::LocalDecl {
+            local,
+            source_info: local_decl.source_info,
+        };
         self.visit_ty(local_decl.ty, ty_context);
     }
-
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParam {
-
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
         match ty.kind() {
-            TyKind::Array( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
+            TyKind::Array(..) => ty.super_visit_with(self),
+            TyKind::Tuple(..) => ty.super_visit_with(self),
             TyKind::Param(param_ty) => {
                 self.record_mut()[param_ty.index as usize] = true;
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
             _ => {
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
         }
     }
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
-
     #[inline(always)]
-    fn visit_ty(&mut self, ty:Ty<'tcx>) -> Self::Result {
+    fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
         match ty.kind() {
-            TyKind::Array( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Adt( .. ) => {
-                ty.super_visit_with(self)
-            }
+            TyKind::Array(..) => ty.super_visit_with(self),
+            TyKind::Tuple(..) => ty.super_visit_with(self),
+            TyKind::Adt(..) => ty.super_visit_with(self),
             TyKind::Param(param_ty) => {
                 self.parameters_mut().insert(param_ty.index as usize);
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
             _ => {
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
         }
     }
-
 }
 
-impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a>  {
-
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> {
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
     //     Some(self.tcx)
@@ -440,52 +424,58 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
 
     #[inline(always)]
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
-
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-                if substs.len() == 0 { 
-                    //return ControlFlow::Break(()); 
+                if substs.len() == 0 {
+                    //return ControlFlow::Break(());
                     ()
                 }
 
-                if !self.source_enum() && adtdef.is_enum() { 
-                    //return ControlFlow::Break(()); 
+                if !self.source_enum() && adtdef.is_enum() {
+                    //return ControlFlow::Break(());
                     ()
                 }
 
-                if !self.unique_mut().insert(adtdef.did()) { 
-                    //return ControlFlow::Continue(()); 
+                if !self.unique_mut().insert(adtdef.did()) {
+                    //return ControlFlow::Continue(());
                     ()
                 }
 
                 let mut map_raw_generic_field_subst = HashMap::new();
                 for (index, subst) in substs.iter().enumerate() {
                     match subst.unpack() {
-                        GenericArgKind::Lifetime( .. ) => continue,
-                        GenericArgKind::Const( .. ) => continue,
+                        GenericArgKind::Lifetime(..) => continue,
+                        GenericArgKind::Const(..) => continue,
                         GenericArgKind::Type(g_ty) => {
                             let mut raw_generic_field_subst = IsolatedParamFieldSubst::new();
                             g_ty.visit_with(&mut raw_generic_field_subst);
-                            if !raw_generic_field_subst.contains_param() { continue; }
-                            map_raw_generic_field_subst.insert(index as usize, raw_generic_field_subst);
+                            if !raw_generic_field_subst.contains_param() {
+                                continue;
+                            }
+                            map_raw_generic_field_subst
+                                .insert(index as usize, raw_generic_field_subst);
                         }
                     }
                 }
-                if map_raw_generic_field_subst.is_empty() { 
-                    //return ControlFlow::Break(()); 
+                if map_raw_generic_field_subst.is_empty() {
+                    //return ControlFlow::Break(());
                     ()
                 }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
-                if get_ans.len() == 0 { 
-                    //return ControlFlow::Break(()); 
+                if get_ans.len() == 0 {
+                    //return ControlFlow::Break(());
                     ()
                 }
                 let get_ans = get_ans[0].clone();
 
-                for (index, flag) in  get_ans.1.iter().enumerate() {
+                for (index, flag) in get_ans.1.iter().enumerate() {
                     if *flag && map_raw_generic_field_subst.contains_key(&index) {
-                        for elem in map_raw_generic_field_subst.get(&index).unwrap().parameters() {
+                        for elem in map_raw_generic_field_subst
+                            .get(&index)
+                            .unwrap()
+                            .parameters()
+                        {
                             self.record[*elem] = true;
                         }
                     }
@@ -500,23 +490,17 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
 
                 ty.super_visit_with(self)
             }
-            TyKind::Array( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
+            TyKind::Array(..) => ty.super_visit_with(self),
+            TyKind::Tuple(..) => ty.super_visit_with(self),
             _ => {
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
         }
     }
-
 }
 
 impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
-
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
     //     Some(self.tcx)
@@ -524,22 +508,21 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
 
     #[inline(always)]
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
-
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-                if !self.unique_mut().insert(adtdef.did()) { 
-                    //return ControlFlow::Continue(()); 
+                if !self.unique_mut().insert(adtdef.did()) {
+                    //return ControlFlow::Continue(());
                     ()
                 }
 
-                if adtdef.is_enum() { 
-                    //return ControlFlow::Break(()); 
+                if adtdef.is_enum() {
+                    //return ControlFlow::Break(());
                     ()
                 }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
-                if get_ans.len() == 0 { 
-                    //return ControlFlow::Break(()); 
+                if get_ans.len() == 0 {
+                    //return ControlFlow::Break(());
                     ()
                 }
                 let get_ans = get_ans[0].clone();
@@ -561,31 +544,25 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
                 self.unique_mut().remove(&adtdef.did());
 
                 ty.super_visit_with(self)
-            },
-            TyKind::Array( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
+            }
+            TyKind::Array(..) => ty.super_visit_with(self),
+            TyKind::Tuple(..) => ty.super_visit_with(self),
             _ => {
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
         }
     }
 }
 
 impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
-
     #[inline(always)]
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
         match ty.kind() {
-            TyKind::Adt( adtdef, substs ) => {
-
+            TyKind::Adt(adtdef, substs) => {
                 if adtdef.is_struct() {
-                    if !self.unique_mut().insert(adtdef.did()) { 
-                        //return ControlFlow::Continue(()); 
+                    if !self.unique_mut().insert(adtdef.did()) {
+                        //return ControlFlow::Continue(());
                         ()
                     }
 
@@ -597,32 +574,27 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
                 }
                 //ControlFlow::Continue(())
                 ()
-
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::RawPtr( .. ) => {
+            }
+            TyKind::Tuple(..) => ty.super_visit_with(self),
+            TyKind::RawPtr(..) => {
                 self.set_ptr(true);
                 //ControlFlow::Break(())
                 ()
-            },
-            TyKind::Ref( .. ) => {
+            }
+            TyKind::Ref(..) => {
                 self.set_ptr(true);
                 //ControlFlow::Break(())
                 ()
-            },
+            }
             _ => {
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
         }
     }
-
 }
 
-impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
-
+impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a> {
     // #[inline(always)]
     // fn tcx_for_anon_const_substs(&self) -> Option<TyCtxt<'tcx>> {
     //     Some(self.tcx)
@@ -630,25 +602,23 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
 
     #[inline(always)]
     fn visit_ty(&mut self, ty: Ty<'tcx>) -> Self::Result {
-
         match ty.kind() {
             TyKind::Adt(adtdef, substs) => {
-
                 if adtdef.is_enum() {
                     //return ControlFlow::Break(());
                     ()
                 }
 
-                if !self.unique_mut().insert(adtdef.did()) { 
-                    //return ControlFlow::Continue(()); 
+                if !self.unique_mut().insert(adtdef.did()) {
+                    //return ControlFlow::Continue(());
                     ()
                 }
 
                 let get_ans = self.owner().get(&adtdef.did()).unwrap();
 
                 // handle the secene of Zero Sized Types
-                if get_ans.len() == 0 { 
-                    //return ControlFlow::Break(()); 
+                if get_ans.len() == 0 {
+                    //return ControlFlow::Break(());
                     ()
                 }
                 let (unit_res, generic_list) = get_ans[0].clone();
@@ -658,7 +628,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
                         self.set_res(RawTypeOwner::Owned);
                         //return ControlFlow::Break(())
                         ()
-                    },
+                    }
                     RawTypeOwner::Unowned => {
                         for (index, each_generic) in generic_list.iter().enumerate() {
                             if *each_generic == false {
@@ -671,41 +641,36 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a>   {
                         }
                     }
                     _ => {
-                      unreachable!();
-                    },
+                        unreachable!();
+                    }
                 }
                 //ControlFlow::Continue(())
                 ()
-            },
-            TyKind::Array( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Tuple( .. ) => {
-                ty.super_visit_with(self)
-            },
-            TyKind::Param( .. ) => {
+            }
+            TyKind::Array(..) => ty.super_visit_with(self),
+            TyKind::Tuple(..) => ty.super_visit_with(self),
+            TyKind::Param(..) => {
                 self.set_param(true);
                 self.set_res(RawTypeOwner::Owned);
                 //ControlFlow::Break(())
                 ()
-            },
-            TyKind::RawPtr( .. ) => {
+            }
+            TyKind::RawPtr(..) => {
                 self.set_ptr(true);
                 //ControlFlow::Continue(())
                 ()
-            },
-            TyKind::Ref( .. ) => {
+            }
+            TyKind::Ref(..) => {
                 self.set_ptr(true);
                 //ControlFlow::Continue(())
                 ()
-            },
+            }
             _ => {
                 //ControlFlow::Continue(())
-                () 
-            },
+                ()
+            }
         }
     }
-
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Default)]
@@ -714,12 +679,12 @@ pub struct TyWithIndex<'tcx>(pub Option<(usize, &'tcx TyKind<'tcx>, Option<usize
 impl<'tcx> TyWithIndex<'tcx> {
     pub fn new(ty: Ty<'tcx>, vidx: Option<VariantIdx>) -> Self {
         match &ty.kind() {
-            TyKind::Tuple( list ) => {
-                TyWithIndex(Some((list.len(), &ty.kind(), None, true)))
-            },
+            TyKind::Tuple(list) => TyWithIndex(Some((list.len(), &ty.kind(), None, true))),
             TyKind::Adt(adtdef, ..) => {
                 if adtdef.is_enum() {
-                    if vidx.is_none() { return TyWithIndex(None); }
+                    if vidx.is_none() {
+                        return TyWithIndex(None);
+                    }
                     let idx = vidx.unwrap();
                     let len = adtdef.variants()[idx].fields.len();
                     TyWithIndex(Some((len, &ty.kind(), Some(idx.index()), true)))
@@ -727,37 +692,32 @@ impl<'tcx> TyWithIndex<'tcx> {
                     let len = adtdef.variants()[VariantIdx::from_usize(0)].fields.len();
                     TyWithIndex(Some((len, &ty.kind(), None, true)))
                 }
-            },
-            TyKind::Array( .. )
-            | TyKind::Param( .. )
-            | TyKind::RawPtr( .. )
-            | TyKind::Ref( .. ) => {
+            }
+            TyKind::Array(..) | TyKind::Param(..) | TyKind::RawPtr(..) | TyKind::Ref(..) => {
                 TyWithIndex(Some((1, &ty.kind(), None, true)))
-            },
+            }
             TyKind::Bool
             | TyKind::Char
-            | TyKind::Int( .. )
-            | TyKind::Uint( .. )
-            | TyKind::Float( .. )
+            | TyKind::Int(..)
+            | TyKind::Uint(..)
+            | TyKind::Float(..)
             | TyKind::Str
-            | TyKind::Slice( .. ) => {
-                TyWithIndex(Some((1, &ty.kind(), None, false)))
-            },
+            | TyKind::Slice(..) => TyWithIndex(Some((1, &ty.kind(), None, false))),
             _ => TyWithIndex(None),
         }
     }
 
     // 0->unsupported, 1->trivial, 2-> needed
     pub fn get_priority(&self) -> usize {
-        if self.0.is_none() { return 0; }
+        if self.0.is_none() {
+            return 0;
+        }
         match self.0.unwrap().0 {
             0 => 1,
-            _ => {
-                match self.0.unwrap().3 {
-                    true => 2,
-                    false => 1,
-                }
-            }
+            _ => match self.0.unwrap().3 {
+                true => 2,
+                false => 1,
+            },
         }
     }
 }

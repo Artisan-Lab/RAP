@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
 use super::state_lattice::Lattice;
 
@@ -53,29 +56,24 @@ pub enum InitState {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AbstractStateItem {
-    pub value: (Value,Value),
+    pub value: (Value, Value),
     pub state: HashSet<StateType>,
 }
 
 impl AbstractStateItem {
-    pub fn new(value:(Value,Value), state: HashSet<StateType>) -> Self {
-        Self {
-            value,
-            state,
-        }
+    pub fn new(value: (Value, Value), state: HashSet<StateType>) -> Self {
+        Self { value, state }
     }
 
-    pub fn meet_state_item(&mut self, other_state:&AbstractStateItem) {
+    pub fn meet_state_item(&mut self, other_state: &AbstractStateItem) {
         let mut new_state = HashSet::new();
 
         // visit 'self.state' and 'other_state.state'，matching states and calling meet method
         for state_self in &self.state {
             // if find the same state type in 'other_state', then meet it;
-            if let Some(matching_state) = other_state
-                .state
-                .iter()
-                .find(|state_other| std::mem::discriminant(*state_other) == std::mem::discriminant(state_self))
-            {
+            if let Some(matching_state) = other_state.state.iter().find(|state_other| {
+                std::mem::discriminant(*state_other) == std::mem::discriminant(state_self)
+            }) {
                 let merged_state = match (state_self, matching_state) {
                     (StateType::AllocatedState(s1), StateType::AllocatedState(s2)) => {
                         StateType::AllocatedState(s1.meet(*s2))
@@ -83,7 +81,7 @@ impl AbstractStateItem {
                     (StateType::AlignState(s1), StateType::AlignState(s2)) => {
                         StateType::AlignState(s1.meet(*s2))
                     }
-                    _ => continue, 
+                    _ => continue,
                 };
                 new_state.insert(merged_state);
             } else {
@@ -98,7 +96,7 @@ impl AbstractStateItem {
 }
 
 pub struct AbstractState {
-    pub state_map: HashMap<usize,AbstractStateItem>,
+    pub state_map: HashMap<usize, AbstractStateItem>,
 }
 
 impl AbstractState {

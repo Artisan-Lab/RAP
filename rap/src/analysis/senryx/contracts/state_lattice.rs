@@ -67,13 +67,21 @@ impl Lattice for AllocatedState {
             (AllocatedState::Bottom, _) => other,
             (_, AllocatedState::Bottom) => *self,
             (AllocatedState::Top, _) | (_, AllocatedState::Top) => AllocatedState::Top,
-            (AllocatedState::Borrowed, AllocatedState::Moved) | (AllocatedState::Moved, AllocatedState::Borrowed) => AllocatedState::Top,
-            (AllocatedState::Alloc, AllocatedState::SpecificAlloc) | (AllocatedState::SpecificAlloc, AllocatedState::Alloc) => AllocatedState::SpecificAlloc,
+            (AllocatedState::Borrowed, AllocatedState::Moved)
+            | (AllocatedState::Moved, AllocatedState::Borrowed) => AllocatedState::Top,
+            (AllocatedState::Alloc, AllocatedState::SpecificAlloc)
+            | (AllocatedState::SpecificAlloc, AllocatedState::Alloc) => {
+                AllocatedState::SpecificAlloc
+            }
             (state1, state2) if state1 == state2 => state1,
-            (AllocatedState::Alloc, AllocatedState::Borrowed) | (AllocatedState::Borrowed, AllocatedState::Alloc) => AllocatedState::Borrowed,
-            (AllocatedState::Alloc, AllocatedState::Moved) | (AllocatedState::Moved, AllocatedState::Alloc) => AllocatedState::Moved,
-            (AllocatedState::SpecificAlloc, AllocatedState::Borrowed) | (AllocatedState::Borrowed, AllocatedState::SpecificAlloc) => AllocatedState::Borrowed,
-            (AllocatedState::Moved, AllocatedState::SpecificAlloc) | (AllocatedState::SpecificAlloc, AllocatedState::Moved) => AllocatedState::Moved,
+            (AllocatedState::Alloc, AllocatedState::Borrowed)
+            | (AllocatedState::Borrowed, AllocatedState::Alloc) => AllocatedState::Borrowed,
+            (AllocatedState::Alloc, AllocatedState::Moved)
+            | (AllocatedState::Moved, AllocatedState::Alloc) => AllocatedState::Moved,
+            (AllocatedState::SpecificAlloc, AllocatedState::Borrowed)
+            | (AllocatedState::Borrowed, AllocatedState::SpecificAlloc) => AllocatedState::Borrowed,
+            (AllocatedState::Moved, AllocatedState::SpecificAlloc)
+            | (AllocatedState::SpecificAlloc, AllocatedState::Moved) => AllocatedState::Moved,
             _ => AllocatedState::Top,
         }
     }
@@ -85,11 +93,19 @@ impl Lattice for AllocatedState {
             (AllocatedState::Bottom, _) | (_, AllocatedState::Bottom) => AllocatedState::Bottom,
             (AllocatedState::Borrowed, AllocatedState::Moved)
             | (AllocatedState::Moved, AllocatedState::Borrowed) => AllocatedState::Bottom,
-            (AllocatedState::Alloc, AllocatedState::SpecificAlloc) | (AllocatedState::SpecificAlloc, AllocatedState::Alloc) => AllocatedState::Alloc,
+            (AllocatedState::Alloc, AllocatedState::SpecificAlloc)
+            | (AllocatedState::SpecificAlloc, AllocatedState::Alloc) => AllocatedState::Alloc,
             (state1, state2) if state1 == state2 => state1,
-            (AllocatedState::Alloc, AllocatedState::Borrowed) | (AllocatedState::Borrowed, AllocatedState::Alloc) => AllocatedState::Alloc,
-            (AllocatedState::SpecificAlloc, AllocatedState::Borrowed) | (AllocatedState::Borrowed, AllocatedState::SpecificAlloc) => AllocatedState::SpecificAlloc,
-            (AllocatedState::Moved, AllocatedState::SpecificAlloc) | (AllocatedState::SpecificAlloc, AllocatedState::Moved) => AllocatedState::SpecificAlloc,
+            (AllocatedState::Alloc, AllocatedState::Borrowed)
+            | (AllocatedState::Borrowed, AllocatedState::Alloc) => AllocatedState::Alloc,
+            (AllocatedState::SpecificAlloc, AllocatedState::Borrowed)
+            | (AllocatedState::Borrowed, AllocatedState::SpecificAlloc) => {
+                AllocatedState::SpecificAlloc
+            }
+            (AllocatedState::Moved, AllocatedState::SpecificAlloc)
+            | (AllocatedState::SpecificAlloc, AllocatedState::Moved) => {
+                AllocatedState::SpecificAlloc
+            }
             _ => AllocatedState::Bottom,
         }
     }

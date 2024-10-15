@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use std::fmt::Write;
 use crate::analysis::unsafety_isolation::UnsafetyIsolationCheck;
 use rustc_hir::def_id::DefId;
+use std::collections::HashSet;
+use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub struct UigUnit {
@@ -17,16 +17,16 @@ pub enum UigOp {
     TypeCount,
 }
 
-impl<'tcx> UnsafetyIsolationCheck<'tcx>{
-    pub fn generate_uig(&mut self, op:UigOp) -> Vec<String> {
+impl<'tcx> UnsafetyIsolationCheck<'tcx> {
+    pub fn generate_uig(&mut self, op: UigOp) -> Vec<String> {
         let nodes = self.nodes.clone();
         let mut graphs = Vec::new();
 
         for node in &nodes {
-            if node.callees.len() <= 0{
-                println!("{:?}",node.node_id);
+            if node.callees.len() <= 0 {
+                println!("{:?}", node.node_id);
             }
-            for callee in &node.callees{
+            for callee in &node.callees {
                 let mut subgraph_nodes = HashSet::new();
                 subgraph_nodes.insert(node.node_id);
                 subgraph_nodes.insert(*callee);
@@ -46,11 +46,12 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                     caller_cons,
                     callee_cons,
                 };
-                if op == UigOp::DrawPic{
-                    let graph = self.generate_dot_desc(subgraph_nodes,false,Some(uig_unit.clone()));
+                if op == UigOp::DrawPic {
+                    let graph =
+                        self.generate_dot_desc(subgraph_nodes, false, Some(uig_unit.clone()));
                     graphs.push(graph);
                 } else {
-                    println!("{:?}",uig_unit);
+                    println!("{:?}", uig_unit);
                     self.uigs.push(uig_unit.clone());
                 }
             }
@@ -83,14 +84,19 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                         }
                     }
                 }
-                let graph = self.generate_dot_desc(subgraph_nodes,true,None);
+                let graph = self.generate_dot_desc(subgraph_nodes, true, None);
                 graphs.push(graph);
             }
         }
         graphs
     }
-    
-    pub fn generate_dot_desc(&self,subgraph_nodes:HashSet<DefId>, upg_flag: bool,uig_unit_op:Option<UigUnit>) -> String {
+
+    pub fn generate_dot_desc(
+        &self,
+        subgraph_nodes: HashSet<DefId>,
+        upg_flag: bool,
+        uig_unit_op: Option<UigUnit>,
+    ) -> String {
         let mut dot = String::new();
         writeln!(dot, "digraph APIs {{").unwrap();
         writeln!(dot, "    rankdir=LR;").unwrap();
@@ -109,10 +115,10 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
             let node = self.nodes.iter().find(|n| n.node_id == node_id).unwrap();
             let color = if node.node_unsafety { "red" } else { "black" };
             let shape = match node.node_type {
-                0 => "doublecircle",  // constructor
-                1 => "ellipse",       // method
-                2 => "box",           // function
-                _ => "ellipse",       // default to method if unknown
+                0 => "doublecircle", // constructor
+                1 => "ellipse",      // method
+                2 => "box",          // function
+                _ => "ellipse",      // default to method if unknown
             };
             let node_tuple = (node.node_name.clone(), shape.to_string(), color.to_string());
             if node.is_crate_api {
@@ -130,10 +136,14 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                 }
                 for &cons in &node.constructors {
                     if let Some(constructor) = self.nodes.iter().find(|n| n.node_id == cons) {
-                        edges.push(( constructor.node_name.clone(), node.node_name.clone(), "dashed"));
+                        edges.push((
+                            constructor.node_name.clone(),
+                            node.node_name.clone(),
+                            "dashed",
+                        ));
                     }
                 }
-            } 
+            }
         }
         if !upg_flag {
             // process UIG edges
@@ -150,18 +160,28 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
                 edges.push((callee_cons_name, callee_name.clone(), "dashed"));
             }
         }
-        
+
         // Write crate nodes dot description
         writeln!(dot, "    subgraph cluster_above {{").unwrap();
         for (name, shape, color) in above_nodes {
-            writeln!(dot, "        \"{}\" [shape={}, style=filled, color={}, fillcolor=white];", name, shape, color).unwrap();
+            writeln!(
+                dot,
+                "        \"{}\" [shape={}, style=filled, color={}, fillcolor=white];",
+                name, shape, color
+            )
+            .unwrap();
         }
         writeln!(dot, "    }}").unwrap();
 
         // Write extern nodes dot description
         writeln!(dot, "    subgraph cluster_below {{").unwrap();
         for (name, shape, color) in below_nodes {
-            writeln!(dot, "        \"{}\" [shape={}, style=filled, color={}, fillcolor=white];", name, shape, color).unwrap();
+            writeln!(
+                dot,
+                "        \"{}\" [shape={}, style=filled, color={}, fillcolor=white];",
+                name, shape, color
+            )
+            .unwrap();
         }
         writeln!(dot, "    }}").unwrap();
 
@@ -175,81 +195,122 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
 
     // type_vec[ 0:sf-uf, 1:sf-um, 2:sm-uf, 3:sm-um, 4:sm(uc)-uf, 5:sf-um(uc), 6:sm-um(uc), 7:sm(uc)-um, 8:sm(uc)-um(uc) ]
     pub fn uig_type_count(&self) {
-        let mut type_vec = vec![0;10];
+        let mut type_vec = vec![0; 10];
         for uig in &self.uigs {
             let caller_type = self.get_node_type_by_def_id(uig.caller.clone());
             let callee_type = self.get_node_type_by_def_id(uig.callee.clone());
             let mut caller_cons_unsafety = false;
             let mut callee_cons_unsafety = false;
             if uig.caller_cons.is_empty() {
-                if uig.callee_cons.is_empty() {  // caller\callee cons empty [0,0]
-                    Self::update_type_vec(&mut type_vec, caller_type, callee_type, caller_cons_unsafety, callee_cons_unsafety);
-                } else {                        // caller\callee cons empty [0,1]
+                if uig.callee_cons.is_empty() {
+                    // caller\callee cons empty [0,0]
+                    Self::update_type_vec(
+                        &mut type_vec,
+                        caller_type,
+                        callee_type,
+                        caller_cons_unsafety,
+                        callee_cons_unsafety,
+                    );
+                } else {
+                    // caller\callee cons empty [0,1]
                     for callee_cons_id in &uig.callee_cons {
-                        callee_cons_unsafety = self.get_node_unsafety_by_def_id(callee_cons_id.clone());
-                        Self::update_type_vec(&mut type_vec, caller_type, callee_type, caller_cons_unsafety, callee_cons_unsafety);
+                        callee_cons_unsafety =
+                            self.get_node_unsafety_by_def_id(callee_cons_id.clone());
+                        Self::update_type_vec(
+                            &mut type_vec,
+                            caller_type,
+                            callee_type,
+                            caller_cons_unsafety,
+                            callee_cons_unsafety,
+                        );
                     }
                 }
             } else {
                 for caller_cons_id in &uig.caller_cons {
                     caller_cons_unsafety = self.get_node_unsafety_by_def_id(caller_cons_id.clone());
-                    if uig.callee_cons.is_empty() {   // caller\callee cons empty [1,0]
-                        Self::update_type_vec(&mut type_vec, caller_type, callee_type, caller_cons_unsafety, callee_cons_unsafety);
-                    } else {                          // caller\callee cons empty [1,1]
+                    if uig.callee_cons.is_empty() {
+                        // caller\callee cons empty [1,0]
+                        Self::update_type_vec(
+                            &mut type_vec,
+                            caller_type,
+                            callee_type,
+                            caller_cons_unsafety,
+                            callee_cons_unsafety,
+                        );
+                    } else {
+                        // caller\callee cons empty [1,1]
                         for callee_cons_id in &uig.callee_cons {
-                            callee_cons_unsafety = self.get_node_unsafety_by_def_id(callee_cons_id.clone());
-                            Self::update_type_vec(&mut type_vec, caller_type, callee_type, caller_cons_unsafety, callee_cons_unsafety);
+                            callee_cons_unsafety =
+                                self.get_node_unsafety_by_def_id(callee_cons_id.clone());
+                            Self::update_type_vec(
+                                &mut type_vec,
+                                caller_type,
+                                callee_type,
+                                caller_cons_unsafety,
+                                callee_cons_unsafety,
+                            );
                         }
                     }
                 }
             }
         }
-        println!("{:?}",type_vec);
+        println!("{:?}", type_vec);
     }
 
-    pub fn update_type_vec(vec:&mut Vec<usize>, caller_type:usize, callee_type:usize, caller_cons_unsafety:bool, callee_cons_unsafety:bool) {
-        let index = match (caller_type,callee_type,caller_cons_unsafety,callee_cons_unsafety) {
-            (0,0,_,_) => 0,
-            (0,2,_,_) => 0,
-            (2,0,_,_) => 0,
-            (2,2,_,_) => 0,
-            (2,1,_,false) => 1,
-            (0,1,_,false) => 1,
-            (1,0|2,false,_) => 2,
-            (1,1,false,false) => 3,
-            (1,0|2,true,_) => 4,
-            (0|2,1,_,true) => 5,
-            (1,1,false,true) => 6,
-            (1,1,true,false) => 7,
-            (1,1,true,true) => 8,
+    pub fn update_type_vec(
+        vec: &mut Vec<usize>,
+        caller_type: usize,
+        callee_type: usize,
+        caller_cons_unsafety: bool,
+        callee_cons_unsafety: bool,
+    ) {
+        let index = match (
+            caller_type,
+            callee_type,
+            caller_cons_unsafety,
+            callee_cons_unsafety,
+        ) {
+            (0, 0, _, _) => 0,
+            (0, 2, _, _) => 0,
+            (2, 0, _, _) => 0,
+            (2, 2, _, _) => 0,
+            (2, 1, _, false) => 1,
+            (0, 1, _, false) => 1,
+            (1, 0 | 2, false, _) => 2,
+            (1, 1, false, false) => 3,
+            (1, 0 | 2, true, _) => 4,
+            (0 | 2, 1, _, true) => 5,
+            (1, 1, false, true) => 6,
+            (1, 1, true, false) => 7,
+            (1, 1, true, true) => 8,
             _ => 9,
             // _ => panic!("Invalid combination"),
         };
         vec[index] = vec[index] + 1;
     }
 
-    pub fn get_node_name_by_def_id(&self, def_id: DefId) -> String{
+    pub fn get_node_name_by_def_id(&self, def_id: DefId) -> String {
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
             return node.node_name.clone();
         }
         String::new()
     }
 
-    pub fn get_node_type_by_def_id(&self, def_id: DefId) -> usize{
+    pub fn get_node_type_by_def_id(&self, def_id: DefId) -> usize {
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
             return node.node_type;
         }
         2
     }
 
-    pub fn get_node_unsafety_by_def_id(&self, def_id: DefId) -> bool{
+    pub fn get_node_unsafety_by_def_id(&self, def_id: DefId) -> bool {
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
             return node.node_unsafety;
         }
         false
     }
 
-    pub fn get_adjacent_nodes_by_def_id(&self, def_id: DefId) -> Vec<DefId>{
+    pub fn get_adjacent_nodes_by_def_id(&self, def_id: DefId) -> Vec<DefId> {
         let mut nodes = Vec::new();
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
             nodes.extend(node.callees.clone());
@@ -260,7 +321,7 @@ impl<'tcx> UnsafetyIsolationCheck<'tcx>{
         nodes
     }
 
-    pub fn get_constructor_nodes_by_def_id(&self, def_id: DefId) -> Vec<DefId>{
+    pub fn get_constructor_nodes_by_def_id(&self, def_id: DefId) -> Vec<DefId> {
         let mut nodes = Vec::new();
         if let Some(node) = self.nodes.iter().find(|n| n.node_id == def_id) {
             nodes.extend(node.constructors.clone());

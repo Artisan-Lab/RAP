@@ -1,17 +1,17 @@
-use rustc_middle::ty::TyCtxt;
+use rustc_errors;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{CrateNum, DefId, LocalDefId, LOCAL_CRATE};
 use rustc_hir::PrimTy;
-use rustc_errors;
-use rustc_span::symbol::{Ident, Symbol};
-use rustc_middle::ty::fast_reject::SimplifiedType;
 use rustc_hir::{ImplItemRef, ItemKind, Mutability, Node, OwnerId, TraitItemRef};
+use rustc_middle::ty::fast_reject::SimplifiedType;
+use rustc_middle::ty::TyCtxt;
 use rustc_middle::ty::{FloatTy, IntTy, UintTy};
+use rustc_span::symbol::{Ident, Symbol};
 
 pub fn def_path_last_def_id<'tcx>(tcx: &TyCtxt<'tcx>, path: &[&str]) -> DefId {
     def_path_def_ids(tcx, path).last().unwrap()
 }
-    
+
 pub struct DefPath {
     def_ids: Vec<DefId>,
 }
@@ -24,7 +24,7 @@ impl DefPath {
         if def_ids.len() == 0 {
             panic!("Fail to parse def path {}", raw);
         }
-        DefPath {def_ids}
+        DefPath { def_ids }
     }
 
     pub fn last_def_id(&self) -> DefId {
@@ -32,16 +32,17 @@ impl DefPath {
     }
 }
 
-/* Modified from Clippy 
+/* Modified from Clippy
  * https://github.com/rust-lang/rust-clippy/blob/6d61bd/clippy_utils/src/lib.rs
  * Note: Commit 6b61bd matches rustc nightly 2024-06-30
  * */
 
 /// Resolves a def path like `std::vec::Vec` to its [`DefId`]s, see [`def_path_res`].
 pub fn def_path_def_ids(tcx: &TyCtxt<'_>, path: &[&str]) -> impl Iterator<Item = DefId> {
-    def_path_res(tcx, path).into_iter().filter_map(|res| res.opt_def_id())
+    def_path_res(tcx, path)
+        .into_iter()
+        .filter_map(|res| res.opt_def_id())
 }
-
 
 pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
     fn find_crates(tcx: TyCtxt<'_>, name: Symbol) -> impl Iterator<Item = DefId> + '_ {
@@ -55,7 +56,7 @@ pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
     let (base, mut path) = match *path {
         [primitive] => {
             return vec![PrimTy::from_name(Symbol::intern(primitive)).map_or(Res::Err, Res::PrimTy)];
-        },
+        }
         [base, ref path @ ..] => (base, path),
         _ => return Vec::new(),
     };
@@ -101,7 +102,10 @@ pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
     resolutions
 }
 
-fn find_primitive_impls<'tcx>(tcx: &TyCtxt<'tcx>, name: &str) -> impl Iterator<Item = DefId> + 'tcx {
+fn find_primitive_impls<'tcx>(
+    tcx: &TyCtxt<'tcx>,
+    name: &str,
+) -> impl Iterator<Item = DefId> + 'tcx {
     let ty = match name {
         "bool" => SimplifiedType::Bool,
         "char" => SimplifiedType::Char,
@@ -132,7 +136,7 @@ fn find_primitive_impls<'tcx>(tcx: &TyCtxt<'tcx>, name: &str) -> impl Iterator<I
                 .into_iter()
                 .flatten()
                 .copied();
-        },
+        }
     };
 
     tcx.incoherent_impls(ty).into_iter().flatten().copied()
@@ -165,7 +169,7 @@ fn local_item_children_by_name(tcx: &TyCtxt<'_>, local_id: LocalDefId, name: Sym
         Node::Crate(r#mod) => {
             root_mod = ItemKind::Mod(r#mod);
             &root_mod
-        },
+        }
         Node::Item(item) => &item.kind,
         _ => return Vec::new(),
     };

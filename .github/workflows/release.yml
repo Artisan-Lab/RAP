@@ -16,6 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Code Formatting Check
+      run: cd rap && cargo fmt --check
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
