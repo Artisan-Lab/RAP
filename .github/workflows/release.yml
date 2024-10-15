@@ -2,7 +2,7 @@ name: Rap-booting and testing
 
 on:
   push:
-    branches: [ "main", "fix-toolchain" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
