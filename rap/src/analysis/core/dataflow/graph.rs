@@ -270,63 +270,36 @@ impl Graph {
 
     pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
         let mut set = HashSet::new();
-        let mut node_operator = |idx: Local| -> bool {
+        let mut node_operator = |idx: Local| -> DFSStatus {
             let node = &self.nodes[idx];
             match node.op {
-                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
-                    //Nop means a orphan node or a parameter
+                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => { //Nop means an orphan node or a parameter
                     set.insert(idx);
-                    true
-                }
-                _ => false,
+                    DFSStatus::Continue
+                },
+                _ => DFSStatus::Stop,
             }
         };
-        let mut edge_validator = |op: &EdgeOp| -> bool {
-            match op {
-                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => true,
-                EdgeOp::Nop
-                | EdgeOp::Const
-                | EdgeOp::Deref
-                | EdgeOp::Downcast(_)
-                | EdgeOp::Field(_) => false,
-            }
-        };
-        self.dfs(
-            local,
-            Direction::Upside,
-            &mut node_operator,
-            &mut edge_validator,
-        );
-        self.dfs(
-            local,
-            Direction::Downside,
-            &mut node_operator,
-            &mut edge_validator,
-        );
+        self.dfs(local, Direction::Upside, &mut node_operator, &mut Self::equivalent_edge_validator, true);
+        self.dfs(local, Direction::Downside, &mut node_operator, &mut Self::equivalent_edge_validator, true);
         set
     }
 
     pub fn is_connected(&self, idx_1: Local, idx_2: Local) -> bool {
         let target = idx_2;
         let find = Cell::new(false);
-        let mut node_operator = |idx: Local| -> bool {
+        let mut node_operator = |idx: Local| -> DFSStatus {
             find.set(idx == target);
-            !find.get() // if not found, move on
+            if find.get() {
+                DFSStatus::Stop
+            }
+            else { // if not found, move on
+                DFSStatus::Continue
+            }
         };
-        let mut edge_validator = |_: &EdgeOp| -> bool { true };
-        self.dfs(
-            idx_1,
-            Direction::Downside,
-            &mut node_operator,
-            &mut edge_validator,
-        );
+        self.dfs(idx_1, Direction::Downside, &mut node_operator, &mut Self::always_true_edge_validator, false);
         if !find.get() {
-            self.dfs(
-                idx_1,
-                Direction::Upside,
-                &mut node_operator,
-                &mut edge_validator,
-            );
+            self.dfs(idx_1, Direction::Upside, &mut node_operator, &mut Self::always_true_edge_validator, false);
         }
         find.get()
     }
@@ -343,24 +316,27 @@ impl Graph {
         deps
     }
 
-    pub fn dfs<F, G>(
-        &self,
-        now: Local,
-        direction: Direction,
-        node_operator: &mut F,
-        edge_validator: &mut G,
-    ) where
-        F: FnMut(Local) -> bool,
-        G: FnMut(&EdgeOp) -> bool,
+    // This function uses precedence traversal.
+    // The node operator and edge validator decide how far the traversal can reach.
+    // `traverse_all` decides if a branch finds the target successfully, whether the traversal will continue or not.
+    // For example, if you need to instantly stop the traversal once finding a certain node, then set `traverse_all` to false.
+    // If you want to traverse all the reachable nodes which are decided by the operator and validator, then set `traverse_all` to true.
+    pub fn dfs<F, G>(&self, now: Local, direction: Direction, node_operator: &mut F, edge_validator: &mut G, traverse_all: bool) -> DFSStatus
+    where 
+        F: FnMut(Local) -> DFSStatus,
+        G: FnMut(&EdgeOp) -> DFSStatus,
     {
-        if node_operator(now) {
+        if matches!(node_operator(now), DFSStatus::Continue) {
             match direction {
                 Direction::Upside => {
                     for edge_idx in self.nodes[now].in_edges.iter() {
                         let edge = &self.edges[*edge_idx];
                         if let GraphEdge::NodeEdge { src, op, .. } = edge {
-                            if edge_validator(op) {
-                                self.dfs(*src, direction, node_operator, edge_validator);
+                            if matches!(edge_validator(op), DFSStatus::Continue) {
+                                let result = self.dfs(*src, direction, node_operator, edge_validator, traverse_all);
+                                if matches!(result, DFSStatus::Stop) && !traverse_all {
+                                    return DFSStatus::Stop;
+                                }
                             }
                         }
                     }
@@ -369,14 +345,34 @@ impl Graph {
                     for edge_idx in self.nodes[now].out_edges.iter() {
                         let edge = &self.edges[*edge_idx];
                         if let GraphEdge::NodeEdge { op, dst, .. } = edge {
-                            if edge_validator(op) {
-                                self.dfs(*dst, direction, node_operator, edge_validator);
+                            if matches!(edge_validator(op), DFSStatus::Continue) {
+                                let result = self.dfs(*dst, direction, node_operator, edge_validator, traverse_all);
+                                if matches!(result, DFSStatus::Stop) && !traverse_all {
+                                    return DFSStatus::Stop;
+                                }
                             }
                         }
                     }
                 }
             };
+            DFSStatus::Continue
         }
+        else {
+            DFSStatus::Stop
+        }
+    }
+}
+
+impl Graph {
+    pub fn equivalent_edge_validator(op: &EdgeOp) -> DFSStatus {
+        match op {
+            EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => DFSStatus::Continue,
+            EdgeOp::Nop | EdgeOp::Const | EdgeOp::Deref | EdgeOp::Downcast(_) | EdgeOp::Field(_) => DFSStatus::Stop
+        }
+    }
+
+    pub fn always_true_edge_validator(_: &EdgeOp) -> DFSStatus {
+        DFSStatus::Continue
     }
 }
 
@@ -384,6 +380,10 @@ impl Graph {
 pub enum Direction {
     Upside,
     Downside,
+}
+
+pub enum DFSStatus {
+    Continue, Stop
 }
 
 #[derive(Clone, Copy, Debug)]
