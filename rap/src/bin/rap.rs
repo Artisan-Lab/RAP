@@ -3,9 +3,7 @@
 extern crate rustc_driver;
 extern crate rustc_session;
 
-use rap::rap_debug;
-use rap::utils::log::Verbosity;
-use rap::{compile_time_sysroot, RapCallback, RAP_DEFAULT_ARGS};
+use rap::{compile_time_sysroot, rap_debug, utils::log::init_log, RapCallback, RAP_DEFAULT_ARGS};
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyDiagCtxt;
 use std::env;
@@ -35,7 +33,6 @@ fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
 
 fn main() {
     // Parse the arguments from env.
-    let mut debug = false;
     let mut args = vec![];
     let mut compiler = RapCallback::default();
     for arg in env::args() {
@@ -52,18 +49,13 @@ fn main() {
             "-senryx" => compiler.enable_senryx(),
             "-callgraph" => compiler.enable_callgraph(),
             "-mir" => compiler.enable_show_mir(),
-            "-debug" => debug = true,
             "-adt" => {}
             "-z3" => {}
             "-meta" => {}
             _ => args.push(arg),
         }
     }
-    if debug == true {
-        Verbosity::init_log(Verbosity::Debug).expect("Failed to init debugging log");
-    } else {
-        Verbosity::init_log(Verbosity::Info).expect("Failed to init info log");
-    }
+    _ = init_log().inspect_err(|err| eprintln!("Failed to init log: {err}"));
     rap_debug!("rap received arguments{:#?}", env::args());
     rap_debug!("arguments to rustc: {:?}", &args);
 

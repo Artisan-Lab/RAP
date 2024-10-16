@@ -3,7 +3,7 @@
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
 use cargo_metadata::{Metadata, MetadataCommand};
-use rap::utils::log::{rap_error_and_exit, Verbosity};
+use rap::utils::log::{init_log, rap_error_and_exit};
 use rap::{rap_debug, rap_error, rap_info};
 use rustc_version::VersionMeta;
 use std::env;
@@ -35,7 +35,6 @@ General command:
     -V or -version:  show the version of RAP
 
 Debugging options:
-    -debug	         show the debug-level logs
     -mir             print the MIR of each function
 "#;
 
@@ -374,8 +373,9 @@ fn main() {
        2. Cargo check actually triggers `path/cargo-rap path/rustc` according to RUSTC_WRAPPER.
           Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
     */
-    // Init the log_system; Use Verbosity::Debug for printing debugging messages.
-    Verbosity::init_log(Verbosity::Info).expect("Failed to init log.");
+
+    // Init the log_system
+    init_log().expect("Failed to init log.");
     rap_debug!("Enter cargo-rap; Received args: {:?}", env::args());
 
     let first_arg = env::args().nth(1);
