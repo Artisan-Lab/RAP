@@ -4,7 +4,7 @@ pub mod mop;
 pub mod types;
 
 use crate::analysis::core::alias::FnMap;
-use crate::rap_info;
+use crate::rap_debug;
 use crate::utils::source::*;
 use graph::MopGraph;
 use rustc_data_structures::fx::FxHashMap;
@@ -34,12 +34,12 @@ impl<'tcx> MopAlias<'tcx> {
                 self.query_mop(local_def_id.to_def_id());
             }
         }
-        rap_info!("Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.");
+        // Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.
         for (fn_id, fn_alias) in &self.fn_map {
             let fn_name = get_fn_name(self.tcx, *fn_id);
             if fn_alias.alias_vec.len() > 0 {
-                rap_info!("{:?},{:?}", fn_name, fn_id);
-                rap_info!("{}", fn_alias);
+                rap_debug!("{:?},{:?}", fn_name, fn_id);
+                rap_debug!("{}", fn_alias);
             }
         }
         return &self.fn_map;
@@ -47,7 +47,7 @@ impl<'tcx> MopAlias<'tcx> {
 
     pub fn query_mop(&mut self, def_id: DefId) -> () {
         let fn_name = get_fn_name(self.tcx, def_id);
-        rap_info!("query_mop: {:?}", fn_name);
+        rap_debug!("query_mop: {:?}", fn_name);
         /* filter const mir */
         if let Some(_other) = self.tcx.hir().body_const_context(def_id.expect_local()) {
             return;
