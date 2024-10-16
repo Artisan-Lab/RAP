@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::Local;
 use fern::colors::{Color, ColoredLevelConfig};
 use fern::{self, Dispatch};
 use log::LevelFilter;
@@ -26,17 +26,16 @@ pub fn init_log() -> Result<(), fern::InitError> {
         .trace(Color::BrightBlack);
 
     let color_level = color_line.info(Color::Green);
-
     let stderr_dispatch = Dispatch::new()
         .format(move |callback, args, record| {
-            let now = Utc::now();
+            let now = Local::now();
             callback.finish(format_args!(
                 "{}{}|RAP|{}{}|: {}\x1B[0m",
                 format_args!(
                     "\x1B[{}m",
                     color_line.get_color(&record.level()).to_fg_str()
                 ),
-                now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                now.format("%H:%M:%S%.3f").to_string(),
                 color_level.color(record.level()),
                 format_args!(
                     "\x1B[{}m",
