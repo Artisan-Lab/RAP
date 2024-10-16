@@ -1,8 +1,11 @@
-pub mod visitor;
 pub mod contracts;
 pub mod matcher;
+pub mod visitor;
 
-use crate::analysis::unsafety_isolation::{hir_visitor::{ContainsUnsafe, RelatedFnCollector}, UnsafetyIsolationCheck};
+use crate::analysis::unsafety_isolation::{
+    hir_visitor::{ContainsUnsafe, RelatedFnCollector},
+    UnsafetyIsolationCheck,
+};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use visitor::BodyVisitor;
@@ -11,24 +14,23 @@ pub struct SenryxCheck<'tcx> {
     pub tcx: TyCtxt<'tcx>,
 }
 
-impl<'tcx> SenryxCheck<'tcx>{
-    pub fn new(tcx: TyCtxt<'tcx>) -> Self{
-        Self{
-            tcx,
-        }
+impl<'tcx> SenryxCheck<'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
+        Self { tcx }
     }
 
     pub fn start(&self) {
         let related_items = RelatedFnCollector::collect(self.tcx);
         let hir_map = self.tcx.hir();
         for (_, &ref vec) in &related_items {
-            for (body_id, _span) in vec{
-                let (function_unsafe, block_unsafe) = ContainsUnsafe::contains_unsafe(self.tcx, *body_id);
+            for (body_id, _span) in vec {
+                let (function_unsafe, block_unsafe) =
+                    ContainsUnsafe::contains_unsafe(self.tcx, *body_id);
                 let def_id = hir_map.body_owner_def_id(*body_id).to_def_id();
                 if block_unsafe {
                     self.check_soundness(def_id);
                 }
-                if function_unsafe{
+                if function_unsafe {
                     self.annotate_safety(def_id);
                 }
             }
@@ -37,12 +39,18 @@ impl<'tcx> SenryxCheck<'tcx>{
 
     pub fn check_soundness(&self, def_id: DefId) {
         self.pre_handle_type(def_id);
-        println!("Find unsound safe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
+        println!(
+            "Find unsound safe api, def_id: {:?}, location: {:?}, ",
+            def_id, def_id
+        );
     }
 
     pub fn annotate_safety(&self, def_id: DefId) {
         self.pre_handle_type(def_id);
-        println!("Annotate unsafe api, def_id: {:?}, location: {:?}, ",def_id, def_id);
+        println!(
+            "Annotate unsafe api, def_id: {:?}, location: {:?}, ",
+            def_id, def_id
+        );
     }
 
     pub fn pre_handle_type(&self, def_id: DefId) {
@@ -65,5 +73,4 @@ impl<'tcx> SenryxCheck<'tcx>{
             body_visitor.path_forward_check();
         }
     }
-
 }

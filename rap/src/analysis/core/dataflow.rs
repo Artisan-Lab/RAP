@@ -1,14 +1,14 @@
-pub mod graph;
 pub mod debug;
+pub mod graph;
 
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use std::fs::File;
 
+use rustc_hir::def_id::DefId;
 use rustc_middle::mir::Body;
 use rustc_middle::ty::TyCtxt;
-use rustc_hir::def_id::DefId;
 
 use graph::Graph;
 
@@ -20,7 +20,11 @@ pub struct DataFlow<'tcx> {
 
 impl<'tcx> DataFlow<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, debug: bool) -> Self {
-        Self { tcx: tcx, graphs: HashMap::new(), debug }
+        Self {
+            tcx: tcx,
+            graphs: HashMap::new(),
+            debug,
+        }
     }
 
     pub fn start(&mut self) {
@@ -56,14 +60,14 @@ impl<'tcx> DataFlow<'tcx> {
         let dir_name = "DataflowGraph";
 
         Command::new("rm")
-        .args(&["-rf", dir_name])
-        .output()
-        .expect("Failed to remove directory.");
+            .args(&["-rf", dir_name])
+            .output()
+            .expect("Failed to remove directory.");
 
         Command::new("mkdir")
-        .args(&[dir_name])
-        .output()
-        .expect("Failed to create directory.");
+            .args(&[dir_name])
+            .output()
+            .expect("Failed to create directory.");
 
         for (def_id, graph) in self.graphs.iter() {
             let name = self.tcx.def_path_str(def_id);
@@ -71,15 +75,13 @@ impl<'tcx> DataFlow<'tcx> {
             let png_file_name = format!("DataflowGraph/{}.png", &name);
             let mut file = File::create(&dot_file_name).expect("Unable to create file.");
             let dot = graph.to_dot_graph(&self.tcx);
-            file.write_all(dot.as_bytes()).expect("Unable to write data.");
+            file.write_all(dot.as_bytes())
+                .expect("Unable to write data.");
 
             Command::new("dot")
-            .args(&["-Tpng", &dot_file_name, "-o", &png_file_name])
-            .output()
-            .expect("Failed to execute Graphviz dot command.");
+                .args(&["-Tpng", &dot_file_name, "-o", &png_file_name])
+                .output()
+                .expect("Failed to execute Graphviz dot command.");
         }
     }
 }
-
-
-

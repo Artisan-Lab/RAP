@@ -1,12 +1,12 @@
-use rustc_middle::ty;
-use rustc_middle::mir::{TerminatorKind, Operand, Place, ProjectionElem};
-use rustc_data_structures::fx::FxHashSet;
-use rustc_hir::def_id::DefId;
-use crate::rap_error;
 use super::graph::*;
 use super::types::*;
 use crate::analysis::core::alias::{FnMap, RetAlias};
 use crate::analysis::utils::intrinsic_id::*;
+use crate::rap_error;
+use rustc_data_structures::fx::FxHashSet;
+use rustc_hir::def_id::DefId;
+use rustc_middle::mir::{Operand, Place, ProjectionElem, TerminatorKind};
+use rustc_middle::ty;
 
 impl<'tcx> MopGraph<'tcx> {
     /* alias analysis for a single block */
@@ -22,23 +22,37 @@ impl<'tcx> MopGraph<'tcx> {
                 AssignType::Variant => {
                     self.values[lv_aliaset_idx].alias[0] = rv_aliaset_idx;
                     continue;
-                },
+                }
                 AssignType::InitBox => {
                     lv_aliaset_idx = *self.values[lv_aliaset_idx].fields.get(&0).unwrap();
-                },
-                _ => { }, // Copy or Move
+                }
+                _ => {} // Copy or Move
             }
             if self.values[lv_aliaset_idx].local != self.values[rv_aliaset_idx].local {
                 self.merge_alias(lv_aliaset_idx, rv_aliaset_idx);
             }
-        }        
+        }
     }
 
     /* Check the aliases introduced by the terminators (function call) of a scc block */
-    pub fn alias_bbcall(&mut self, bb_index: usize, fn_map: &mut FnMap, recursion_set: &mut FxHashSet<DefId>) {
+    pub fn alias_bbcall(
+        &mut self,
+        bb_index: usize,
+        fn_map: &mut FnMap,
+        recursion_set: &mut FxHashSet<DefId>,
+    ) {
         let cur_block = self.blocks[bb_index].clone();
         for call in cur_block.calls {
-            if let TerminatorKind::Call { ref func, ref args, ref destination, target:_, unwind: _, call_source: _, fn_span: _ } = call.kind {
+            if let TerminatorKind::Call {
+                ref func,
+                ref args,
+                ref destination,
+                target: _,
+                unwind: _,
+                call_source: _,
+                fn_span: _,
+            } = call.kind
+            {
                 if let Operand::Constant(ref constant) = func {
                     let lv = self.projection(false, destination.clone());
                     let mut merge_vec = Vec::new();
@@ -55,17 +69,17 @@ impl<'tcx> MopGraph<'tcx> {
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
                                 }
-                            },
+                            }
                             Operand::Move(ref p) => {
                                 let rv = self.projection(true, p.clone());
                                 merge_vec.push(rv);
                                 if self.values[rv].may_drop {
                                     may_drop_flag += 1;
                                 }
-                            },
+                            }
                             Operand::Constant(_) => {
                                 merge_vec.push(0);
-                            },
+                            }
                         }
                     }
                     if let ty::FnDef(ref target_id, _) = constant.const_.ty().kind() {
@@ -81,11 +95,10 @@ impl<'tcx> MopGraph<'tcx> {
                                         }
                                         self.merge(assign, &merge_vec);
                                     }
-                                }
-                                else{
+                                } else {
                                     /* Fixed-point iteration: this is not perfect */
-                                    if recursion_set.contains(&target_id){
-                                         continue;
+                                    if recursion_set.contains(&target_id) {
+                                        continue;
                                     }
                                     recursion_set.insert(*target_id);
                                     let mut mop_graph = MopGraph::new(self.tcx, *target_id);
@@ -93,7 +106,7 @@ impl<'tcx> MopGraph<'tcx> {
                                     mop_graph.check(0, fn_map, recursion_set);
                                     let ret_alias = mop_graph.ret_alias.clone();
                                     for assign in ret_alias.alias_vec.iter() {
-                                        if !assign.valuable(){
+                                        if !assign.valuable() {
                                             continue;
                                         }
                                         self.merge(assign, &merge_vec);
@@ -101,17 +114,20 @@ impl<'tcx> MopGraph<'tcx> {
                                     fn_map.insert(*target_id, ret_alias);
                                     recursion_set.remove(target_id);
                                 }
-                            }
-                            else {
+                            } else {
                                 if self.values[lv].may_drop {
-                                    if target_id.index.as_usize() == CALL_MUT 
-                                        || target_id.index.as_usize() == NEXT {
+                                    if target_id.index.as_usize() == CALL_MUT
+                                        || target_id.index.as_usize() == NEXT
+                                    {
                                         continue;
                                     }
 
-                                    let mut right_set = Vec::new(); 
+                                    let mut right_set = Vec::new();
                                     for rv in &merge_vec {
-                                        if self.values[*rv].may_drop && lv != *rv && self.values[lv].is_ptr(){
+                                        if self.values[*rv].may_drop
+                                            && lv != *rv
+                                            && self.values[lv].is_ptr()
+                                        {
                                             right_set.push(*rv);
                                         }
                                     }
@@ -155,7 +171,8 @@ impl<'tcx> MopGraph<'tcx> {
                         let param_env = self.tcx.param_env(self.def_id);
                         let need_drop = ty.needs_drop(self.tcx, param_env);
                         let may_drop = !is_not_drop(self.tcx, ty);
-                        let mut node = ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
+                        let mut node =
+                            ValueNode::new(new_id, local, need_drop, need_drop || may_drop);
                         node.kind = kind(ty);
                         node.field_id = field_idx;
                         self.values[proj_id].fields.insert(field_idx, node.index);
@@ -177,9 +194,14 @@ impl<'tcx> MopGraph<'tcx> {
         } else {
             self.values[lv].alias = self.values[rv].alias.clone();
         }
-        for field in self.values[rv].fields.clone().into_iter(){
+        for field in self.values[rv].fields.clone().into_iter() {
             if !self.values[lv].fields.contains_key(&field.0) {
-                let mut node = ValueNode::new(self.values.len(), self.values[lv].local, self.values[field.1].need_drop, self.values[field.1].may_drop);
+                let mut node = ValueNode::new(
+                    self.values.len(),
+                    self.values[lv].local,
+                    self.values[field.1].need_drop,
+                    self.values[field.1].may_drop,
+                );
                 node.kind = self.values[field.1].kind;
                 node.field_id = field.0;
                 self.values[lv].fields.insert(field.0, node.index);
@@ -237,16 +259,21 @@ impl<'tcx> MopGraph<'tcx> {
                 if node.alias[0] != node.index || node.alias.len() > 1 {
                     for alias in node.alias.clone() {
                         if results_nodes[alias].local <= self.arg_size
-                        && alias != node.index
-                        && node.local != results_nodes[alias].local {
+                            && alias != node.index
+                            && node.local != results_nodes[alias].local
+                        {
                             let left_node = node;
                             let right_node = &results_nodes[alias];
-                            let mut new_alias = RetAlias::new( 
-                                left_node.local, left_node.may_drop, left_node.need_drop,
-                                right_node.local, right_node.may_drop, right_node.need_drop
-			                );
-                            new_alias.left_field_seq = self.get_field_seq(left_node); 
-                            new_alias.right_field_seq = self.get_field_seq(right_node); 
+                            let mut new_alias = RetAlias::new(
+                                left_node.local,
+                                left_node.may_drop,
+                                left_node.need_drop,
+                                right_node.local,
+                                right_node.may_drop,
+                                right_node.need_drop,
+                            );
+                            new_alias.left_field_seq = self.get_field_seq(left_node);
+                            new_alias.right_field_seq = self.get_field_seq(right_node);
                             self.ret_alias.alias_vec.push(new_alias);
                         }
                     }
@@ -255,12 +282,12 @@ impl<'tcx> MopGraph<'tcx> {
         }
     }
 
-    pub fn get_field_seq(&self, value: &ValueNode)-> Vec<usize> { 
+    pub fn get_field_seq(&self, value: &ValueNode) -> Vec<usize> {
         let mut field_id_seq = vec![];
         let mut node_ref = value;
         while node_ref.field_id != usize::MAX {
             field_id_seq.push(node_ref.field_id);
-            node_ref = &self.values[value.father]; 
+            node_ref = &self.values[value.father];
         }
         return field_id_seq;
     }

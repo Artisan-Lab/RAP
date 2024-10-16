@@ -1,21 +1,23 @@
+use rustc_middle::mir::{
+    BasicBlock, BasicBlockData, Body, Local, Operand, Place, ProjectionElem, Rvalue, Statement,
+    StatementKind, Terminator, TerminatorKind,
+};
 use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
-use rustc_middle::mir::{Body, BasicBlock, BasicBlockData, Statement, StatementKind,
-                        Terminator, Place, Rvalue, Local, Operand, ProjectionElem, TerminatorKind};
-use rustc_target::abi::VariantIdx;
 use rustc_span::source_map::Spanned;
+use rustc_target::abi::VariantIdx;
 
+use colorful::{Color, Colorful};
 use std::ops::Add;
 use z3::ast::{self, Ast};
-use colorful::{Color, Colorful};
 
-use crate::{rap_debug, rap_error, rap_warn};
-use super::super::{Rcx, RcxMut, IcxMut, IcxSliceMut};
-use crate::analysis::core::heap_item::*;
+use super::super::{IcxMut, IcxSliceMut, Rcx, RcxMut};
+use super::is_z3_goal_verbose;
+use super::ownership::IntraVar;
+use super::{FlowAnalysis, IcxSliceFroBlock, IntraFlowAnalysis};
 use crate::analysis::core::heap_item::ownership::*;
 use crate::analysis::core::heap_item::type_visitor::*;
-use super::{IntraFlowAnalysis, FlowAnalysis, IcxSliceFroBlock};
-use super::ownership::IntraVar;
-use super::is_z3_goal_verbose;
+use crate::analysis::core::heap_item::*;
+use crate::{rap_debug, rap_error, rap_warn};
 // Fixme: arg.0
 // Fixme: arg enum
 
@@ -27,7 +29,7 @@ pub enum AsgnKind {
     Cast,
 }
 
-impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
+impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
     pub fn intra_run(&mut self) {
         let tcx = self.tcx();
         let mir_keys = tcx.mir_keys(());
@@ -35,7 +37,9 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
         for each_mir in mir_keys {
             let def_id = each_mir.to_def_id();
             let body = mir_body(tcx, def_id);
-            if body.basic_blocks.is_cfg_cyclic() { continue; }
+            if body.basic_blocks.is_cfg_cyclic() {
+                continue;
+            }
 
             let mut cfg = z3::Config::new();
             cfg.set_model_generation(true);
@@ -44,7 +48,7 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
             let goal = z3::Goal::new(&ctx, true, false, false);
             let solver = z3::Solver::new(&ctx);
 
-            let mut intra_visitor = IntraFlowAnalysis::new(self.rcx,def_id);
+            let mut intra_visitor = IntraFlowAnalysis::new(self.rcx, def_id);
             intra_visitor.visit_body(&ctx, &goal, &solver, body);
 
             let sec_build = intra_visitor.get_time_build();
@@ -52,13 +56,11 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a>{
 
             self.rcx_mut().add_time_build(sec_build);
             self.rcx_mut().add_time_solve(sec_solve);
-
         }
     }
 }
 
 impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
-
     pub(crate) fn visit_body(
         &mut self,
         ctx: &'ctx z3::Context,
@@ -66,13 +68,11 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         solver: &'ctx z3::Solver<'ctx>,
         body: &'tcx Body<'tcx>,
     ) {
-        let topo:Vec<usize> = self.graph().get_topo().iter().map(|id| *id).collect();
-        for bidx in topo
-        {
+        let topo: Vec<usize> = self.graph().get_topo().iter().map(|id| *id).collect();
+        for bidx in topo {
             let data = &body.basic_blocks[BasicBlock::from(bidx)];
             self.visit_block_data(ctx, goal, solver, data, bidx);
         }
-
     }
 
     pub(crate) fn visit_block_data(
@@ -92,7 +92,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.visit_terminator(ctx, goal, solver, data.terminator(), bidx);
 
         self.reprocess_for_basic_block(bidx);
-
     }
 
     pub(crate) fn preprocess_for_basic_block(
@@ -100,9 +99,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         ctx: &'ctx z3::Context,
         goal: &'ctx z3::Goal<'ctx>,
         solver: &'ctx z3::Solver<'ctx>,
-        bidx: usize
+        bidx: usize,
     ) {
-
         // For node 0 there is no pre node existed!
         if bidx == 0 {
             let mut icx_slice = IcxSliceFroBlock::new_for_block_0(self.body().local_decls.len());
@@ -151,7 +149,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
         if pre.len() > 1 {
             // collect all pre nodes and generate their icx slice into a vector
-            let mut v_pre_collect:Vec<IcxSliceFroBlock> = Vec::default();
+            let mut v_pre_collect: Vec<IcxSliceFroBlock> = Vec::default();
             for idx in pre {
                 v_pre_collect.push(IcxSliceFroBlock::new_out(self.icx_mut(), *idx));
             }
@@ -162,10 +160,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
             // for all variables
             for var_idx in 0..var_len {
-
                 // the bv and len is using to generate new constrain
                 // the ty is to check the consistency among the branches
-                let mut using_for_and_bv:Option<ast::BV> = None;
+                let mut using_for_and_bv: Option<ast::BV> = None;
                 let mut ty = TyWithIndex::default();
                 let mut len = 0;
 
@@ -226,7 +223,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 *self.icx_slice_mut() = ans_icx_slice.clone();
             }
         } else {
-            if pre.len() == 0 { rap_error!("The pre node is empty, check the logic is safe to launch."); }
+            if pre.len() == 0 {
+                rap_error!("The pre node is empty, check the logic is safe to launch.");
+            }
             self.icx_mut().derive_from_pre_node(pre[0], bidx);
             self.icx_slice = IcxSliceFroBlock::new_in(self.icx_mut(), bidx);
         }
@@ -234,10 +233,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // rap_debug!("{:?} in {}", self.icx_slice(), bidx);
     }
 
-    pub(crate) fn reprocess_for_basic_block(
-        &mut self,
-        bidx: usize
-    ) {
+    pub(crate) fn reprocess_for_basic_block(&mut self, bidx: usize) {
         let icx_slice = self.icx_slice().clone();
         self.icx_slice = IcxSliceFroBlock::default();
         self.icx_mut().derive_from_icx_slice(icx_slice, bidx);
@@ -252,14 +248,11 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         bidx: usize,
         sidx: usize,
     ) {
-
         match &stmt.kind {
-            StatementKind::Assign(
-                box(ref place, ref rvalue)
-            ) => {
+            StatementKind::Assign(box (ref place, ref rvalue)) => {
                 help_debug_goal_stmt(ctx, goal, bidx, sidx);
 
-                let disc:Disc = None;
+                let disc: Disc = None;
 
                 // if l_local_ty.is_enum() {
                 //     let stmt_disc = sidx + 1;
@@ -287,10 +280,16 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 // }
 
                 self.visit_assign(ctx, goal, solver, place, rvalue, disc, bidx, sidx);
-                rap_debug!("IcxSlice in Assign: {} {}: {:?}\n{:?}\n", bidx, sidx, stmt.kind, self.icx_slice());
-            },
-            StatementKind::StorageLive(_local) => { },
-            StatementKind::StorageDead(_local) => { },
+                rap_debug!(
+                    "IcxSlice in Assign: {} {}: {:?}\n{:?}\n",
+                    bidx,
+                    sidx,
+                    stmt.kind,
+                    self.icx_slice()
+                );
+            }
+            StatementKind::StorageLive(_local) => {}
+            StatementKind::StorageDead(_local) => {}
             _ => (),
         }
     }
@@ -302,26 +301,43 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         solver: &'ctx z3::Solver<'ctx>,
         term: &'tcx Terminator<'tcx>,
         bidx: usize,
-    ){
-
+    ) {
         help_debug_goal_term(ctx, goal, bidx);
 
         match &term.kind {
             TerminatorKind::Drop { place, .. } => {
                 self.handle_drop(ctx, goal, solver, place, bidx, false);
-            },
-            TerminatorKind::Call { func, args, destination, .. } => {
-                self.handle_call(ctx, goal, solver, term.clone(), &func, &args, &destination, bidx);
-            },
+            }
+            TerminatorKind::Call {
+                func,
+                args,
+                destination,
+                ..
+            } => {
+                self.handle_call(
+                    ctx,
+                    goal,
+                    solver,
+                    term.clone(),
+                    &func,
+                    &args,
+                    &destination,
+                    bidx,
+                );
+            }
             TerminatorKind::Return => {
                 self.handle_return(ctx, goal, solver, bidx);
             }
             _ => (),
         }
 
-        rap_debug!("IcxSlice in Terminator: {}: {:?}\n{:?}\n", bidx, term.kind, self.icx_slice());
+        rap_debug!(
+            "IcxSlice in Terminator: {}: {:?}\n{:?}\n",
+            bidx,
+            term.kind,
+            self.icx_slice()
+        );
     }
-
 
     pub(crate) fn visit_assign(
         &mut self,
@@ -332,9 +348,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rvalue: &Rvalue<'tcx>,
         disc: Disc,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
-        let lvalue_has_projection  = has_projection(lplace);
+        let lvalue_has_projection = has_projection(lplace);
 
         match rvalue {
             Rvalue::Use(op) => {
@@ -343,69 +359,160 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     Operand::Copy(rplace) => {
                         let rvalue_has_projection = has_projection(rplace);
                         match (lvalue_has_projection, rvalue_has_projection) {
-                            (true, true) => { self.handle_copy_field_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (true, false) => { self.handle_copy_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (false, true) => { self.handle_copy_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                            (false, false) => { self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                            (true, true) => {
+                                self.handle_copy_field_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (true, false) => {
+                                self.handle_copy_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (false, true) => {
+                                self.handle_copy_from_field(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
+                            (false, false) => {
+                                self.handle_copy(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
                         }
-                    },
+                    }
                     Operand::Move(rplace) => {
                         let rvalue_has_projection = has_projection(rplace);
                         match (lvalue_has_projection, rvalue_has_projection) {
-                            (true, true) => { self.handle_move_field_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (true, false) => { self.handle_move_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (false, true) => { self.handle_move_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                            (false, false) => { self.handle_move(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                            (true, true) => {
+                                self.handle_move_field_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (true, false) => {
+                                self.handle_move_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (false, true) => {
+                                self.handle_move_from_field(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
+                            (false, false) => {
+                                self.handle_move(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
                         }
-                    },
+                    }
                     _ => (),
                 }
-            },
+            }
             Rvalue::Ref(.., rplace) => {
                 let kind = AsgnKind::Reference;
                 let rvalue_has_projection = has_projection(rplace);
                 match (lvalue_has_projection, rvalue_has_projection) {
-                    (true, true) => { self.handle_copy_field_to_field(ctx, goal, solver, kind, lplace, rplace,disc,  bidx, sidx); },
-                    (true, false) => { self.handle_copy_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                    (false, true) => { self.handle_copy_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                    (false, false) => { self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                    (true, true) => {
+                        self.handle_copy_field_to_field(
+                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                        );
+                    }
+                    (true, false) => {
+                        self.handle_copy_to_field(
+                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                        );
+                    }
+                    (false, true) => {
+                        self.handle_copy_from_field(
+                            ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                        );
+                    }
+                    (false, false) => {
+                        self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx);
+                    }
                 }
-            },
+            }
             Rvalue::AddressOf(.., rplace) => {
                 let kind = AsgnKind::Reference;
                 let rvalue_has_projection = has_projection(rplace);
                 match (lvalue_has_projection, rvalue_has_projection) {
-                    (true, true) => { self.handle_copy_field_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                    (true, false) => { self.handle_copy_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                    (false, true) => { self.handle_copy_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                    (false, false) => { self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                    (true, true) => {
+                        self.handle_copy_field_to_field(
+                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                        );
+                    }
+                    (true, false) => {
+                        self.handle_copy_to_field(
+                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                        );
+                    }
+                    (false, true) => {
+                        self.handle_copy_from_field(
+                            ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                        );
+                    }
+                    (false, false) => {
+                        self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx);
+                    }
                 }
-            },
+            }
             Rvalue::Cast(_cast_kind, op, ..) => {
                 let kind = AsgnKind::Cast;
                 match op {
                     Operand::Copy(rplace) => {
                         let rvalue_has_projection = has_projection(rplace);
                         match (lvalue_has_projection, rvalue_has_projection) {
-                            (true, true) => { self.handle_copy_field_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (true, false) => { self.handle_copy_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (false, true) => { self.handle_copy_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                            (false, false) => { self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                            (true, true) => {
+                                self.handle_copy_field_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (true, false) => {
+                                self.handle_copy_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (false, true) => {
+                                self.handle_copy_from_field(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
+                            (false, false) => {
+                                self.handle_copy(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
                         }
-                    },
+                    }
                     Operand::Move(rplace) => {
                         let rvalue_has_projection = has_projection(rplace);
                         match (lvalue_has_projection, rvalue_has_projection) {
-                            (true, true) => { self.handle_move_field_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (true, false) => { self.handle_move_to_field(ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx); },
-                            (false, true) => { self.handle_move_from_field(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
-                            (false, false) => { self.handle_move(ctx, goal, solver, kind, lplace, rplace, bidx, sidx); },
+                            (true, true) => {
+                                self.handle_move_field_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (true, false) => {
+                                self.handle_move_to_field(
+                                    ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
+                                );
+                            }
+                            (false, true) => {
+                                self.handle_move_from_field(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
+                            (false, false) => {
+                                self.handle_move(
+                                    ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
+                                );
+                            }
                         }
-                    },
+                    }
                     _ => (),
                 }
-
-            },
+            }
             _ => (),
         }
     }
@@ -419,16 +526,17 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         lplace: &Place<'tcx>,
         rplace: &Place<'tcx>,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -449,7 +557,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let rlen = self.icx_slice().len()[ru];
 
         // extract the original z3 ast of the variable needed to prepare generating new
-        let l_ori_bv :ast::BV;
+        let l_ori_bv: ast::BV;
         let r_ori_bv = self.icx_slice_mut().var_mut()[ru].extract();
 
         let mut is_ctor = true;
@@ -479,15 +587,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     self.handle_intra_var_unsupported(lu);
                     self.handle_intra_var_unsupported(ru);
                     return;
-                },
+                }
                 1 => {
                     return;
-                },
+                }
                 2 => {
                     // update the layout of lvalue due to it is an instance
                     self.icx_slice_mut().ty_mut()[lu] = self.icx_slice().ty()[ru].clone();
                     self.icx_slice_mut().layout_mut()[lu] = self.icx_slice().layout()[ru].clone();
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -536,9 +644,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
-
 
     pub(crate) fn handle_move(
         &mut self,
@@ -549,16 +655,17 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         lplace: &Place<'tcx>,
         rplace: &Place<'tcx>,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -579,7 +686,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let rlen = self.icx_slice().len()[ru];
 
         // extract the original z3 ast of the variable needed to prepare generating new
-        let l_ori_bv :ast::BV;
+        let l_ori_bv: ast::BV;
         let r_ori_bv = self.icx_slice_mut().var_mut()[ru].extract();
 
         let mut is_ctor = true;
@@ -609,15 +716,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     self.handle_intra_var_unsupported(lu);
                     self.handle_intra_var_unsupported(ru);
                     return;
-                },
+                }
                 1 => {
                     return;
-                },
+                }
                 2 => {
                     // update the layout of lvalue due to it is an instance
                     self.icx_slice_mut().ty_mut()[lu] = self.icx_slice().ty()[ru].clone();
                     self.icx_slice_mut().layout_mut()[lu] = self.icx_slice().layout()[ru].clone();
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -656,7 +763,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_copy_from_field(
@@ -668,18 +774,19 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         lplace: &Place<'tcx>,
         rplace: &Place<'tcx>,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y=x.f => l=r.f
         // this local of rvalue is not x.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -747,15 +854,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     self.handle_intra_var_unsupported(lu);
                     self.handle_intra_var_unsupported(ru);
                     return;
-                },
+                }
                 1 => {
                     return;
-                },
+                }
                 2 => {
                     // update the layout of lvalue due to it is an instance
                     self.icx_slice_mut().ty_mut()[lu] = ty_with_vidx;
                     self.icx_slice_mut().layout_mut()[lu] = default_ownership.layout().clone();
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -789,11 +896,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // this is for l'=extend(r.f)
         // note that we extract the ownership of the ori r.f and apply (extend) it to new lvalue
         // like l'=r.f=1 => l' [1111] and default layout [****]
-        let rust_bv_for_op_and = if self.icx_slice().taint()[ru].is_tainted()
-        {
+        let rust_bv_for_op_and = if self.icx_slice().taint()[ru].is_tainted() {
             rustbv_merge(
                 &ownership_layout_to_rustbv(default_ownership.layout()),
-                &self.generate_ptr_layout(rpj_ty.ty, rpj_ty.variant_index)
+                &self.generate_ptr_layout(rpj_ty.ty, rpj_ty.variant_index),
             )
         } else {
             ownership_layout_to_rustbv(default_ownership.layout())
@@ -801,13 +907,17 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
         let extract_from_field = r_ori_bv.extract(index_needed as u32, index_needed as u32);
-        let repeat_field = if llen>1 { extract_from_field.sign_ext((llen-1) as u32) } else { extract_from_field };
+        let repeat_field = if llen > 1 {
+            extract_from_field.sign_ext((llen - 1) as u32)
+        } else {
+            extract_from_field
+        };
         let after_op_and = z3_bv_for_op_and.bvand(&repeat_field);
         let l_extend_owning = l_new_bv._safe_eq(&after_op_and).unwrap();
         // this is for r.f'=0
         // like r.1'=0 => ori and new => [0110] and [1011] => [0010]
         // note that we calculate the index of r.f and use bit vector 'and' to update the ownership
-        let mut rust_bv_for_op_and = vec![ true ; rlen ];
+        let mut rust_bv_for_op_and = vec![true; rlen];
         rust_bv_for_op_and[index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, rlen as u32);
@@ -828,7 +938,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_move_from_field(
@@ -840,18 +949,19 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         lplace: &Place<'tcx>,
         rplace: &Place<'tcx>,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y=move x.f => l=move r.f
         // this local of rvalue is not x.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -925,15 +1035,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     self.handle_intra_var_unsupported(lu);
                     self.handle_intra_var_unsupported(ru);
                     return;
-                },
+                }
                 1 => {
                     return;
-                },
+                }
                 2 => {
                     // update the layout of lvalue due to it is an instance
                     self.icx_slice_mut().ty_mut()[lu] = ty_with_vidx;
                     self.icx_slice_mut().layout_mut()[lu] = default_ownership.layout().clone();
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -959,11 +1069,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // this is for l'=extend(r.f)
         // note that we extract the ownership of the ori r.f and apply (extend) it to new lvalue
         // like l'=r.f=1 => l' [1111] and default layout [****]
-        let rust_bv_for_op_and = if self.icx_slice().taint()[ru].is_tainted()
-        {
+        let rust_bv_for_op_and = if self.icx_slice().taint()[ru].is_tainted() {
             rustbv_merge(
                 &ownership_layout_to_rustbv(default_ownership.layout()),
-                &self.generate_ptr_layout(rpj_ty.ty, rpj_ty.variant_index)
+                &self.generate_ptr_layout(rpj_ty.ty, rpj_ty.variant_index),
             )
         } else {
             ownership_layout_to_rustbv(default_ownership.layout())
@@ -971,14 +1080,18 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
         let extract_from_field = r_ori_bv.extract(index_needed as u32, index_needed as u32);
-        let repeat_field = if llen>1 { extract_from_field.sign_ext((llen-1) as u32) } else { extract_from_field };
+        let repeat_field = if llen > 1 {
+            extract_from_field.sign_ext((llen - 1) as u32)
+        } else {
+            extract_from_field
+        };
         let after_op_and = z3_bv_for_op_and.bvand(&repeat_field);
         let l_extend_owning = l_new_bv._safe_eq(&after_op_and).unwrap();
 
         // this is for r.f'=0
         // like r.1'=0 => ori and new => [0110] and [1011] => [0010]
         // note that we calculate the index of r.f and use bit vector 'and' to update the ownership
-        let mut rust_bv_for_op_and = vec![ true ; rlen ];
+        let mut rust_bv_for_op_and = vec![true; rlen];
         rust_bv_for_op_and[index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, rlen as u32);
@@ -994,7 +1107,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_copy_to_field(
@@ -1007,18 +1119,19 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rplace: &Place<'tcx>,
         mut disc: Disc,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y.f= x => l.f= r
         // this local of lvalue is not y.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -1043,25 +1156,27 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 disc = lpj_fields.downcast();
                 let ty_with_index = TyWithIndex::new(l_local_ty, disc);
 
-                if ty_with_index.0.is_none() { return; }
+                if ty_with_index.0.is_none() {
+                    return;
+                }
 
                 // variant.len = 1 && field[0]
                 if lpj_fields.index_needed() == 0 && ty_with_index.0.unwrap().0 == 1 {
                     self.handle_copy(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                     return;
                 }
-            },
+            }
             (true, false) => {
                 // .f => normal field access
-            },
+            }
             (false, true) => {
                 // .v => not
                 return;
-            },
+            }
             (false, false) => {
                 self.handle_copy(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
         }
 
         let index_needed = lpj_fields.index_needed();
@@ -1133,10 +1248,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // this is for r'=r
         let r_owning = r_new_bv._safe_eq(&r_ori_bv).unwrap();
         //this is for l.f'=0
-        let mut rust_bv_for_op_and = vec![ true ; llen ];
+        let mut rust_bv_for_op_and = vec![true; llen];
         rust_bv_for_op_and[index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
-        let z3_bv_for_op_and =  ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
+        let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
         let after_op_and = l_ori_bv.bvand(&z3_bv_for_op_and);
         let lpj_non_owning = l_new_bv._safe_eq(&after_op_and).unwrap();
 
@@ -1154,14 +1269,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let disjunction_r = r_ori_bv.bvredor();
         let mut final_bv: ast::BV;
 
-        if index_needed < llen-1 {
-            let end_part = l_ori_bv.extract((llen-1) as u32, (index_needed+1) as u32);
+        if index_needed < llen - 1 {
+            let end_part = l_ori_bv.extract((llen - 1) as u32, (index_needed + 1) as u32);
             final_bv = end_part.concat(&disjunction_r);
         } else {
             final_bv = disjunction_r;
         }
         if index_needed > 0 {
-            let begin_part = l_ori_bv.extract((index_needed-1) as u32, 0);
+            let begin_part = l_ori_bv.extract((index_needed - 1) as u32, 0);
             final_bv = final_bv.concat(&begin_part);
         }
 
@@ -1181,7 +1296,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_move_to_field(
@@ -1194,18 +1308,19 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rplace: &Place<'tcx>,
         mut disc: Disc,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y.f=move x => l.f=move r
         // this local of lvalue is not y.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -1230,25 +1345,27 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 disc = lpj_fields.downcast();
                 let ty_with_index = TyWithIndex::new(l_local_ty, disc);
 
-                if ty_with_index.0.is_none() { return; }
+                if ty_with_index.0.is_none() {
+                    return;
+                }
 
                 // variant.len = 1 && field[0]
                 if lpj_fields.index_needed() == 0 && ty_with_index.0.unwrap().0 == 1 {
                     self.handle_move(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                     return;
                 }
-            },
+            }
             (true, false) => {
                 // .f => normal field access
-            },
+            }
             (false, true) => {
                 // .v => not
                 return;
-            },
+            }
             (false, false) => {
                 self.handle_move(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
         }
 
         let index_needed = lpj_fields.index_needed();
@@ -1327,14 +1444,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // at last, we use or operation to simulate shrink from e.g., [1010] to [00*0]
         let disjunction_r = r_ori_bv.bvredor();
         let mut final_bv: ast::BV;
-        if index_needed < llen-1 {
-            let end_part = l_ori_bv.extract((llen-1) as u32, (index_needed+1) as u32);
+        if index_needed < llen - 1 {
+            let end_part = l_ori_bv.extract((llen - 1) as u32, (index_needed + 1) as u32);
             final_bv = end_part.concat(&disjunction_r);
         } else {
             final_bv = disjunction_r;
         }
         if index_needed > 0 {
-            let begin_part = l_ori_bv.extract((index_needed-1) as u32, 0);
+            let begin_part = l_ori_bv.extract((index_needed - 1) as u32, 0);
             final_bv = final_bv.concat(&begin_part);
         }
         let lpj_shrink_owning = l_new_bv._safe_eq(&final_bv).unwrap();
@@ -1348,7 +1465,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_copy_field_to_field(
@@ -1361,17 +1477,18 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rplace: &Place<'tcx>,
         disc: Disc,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y.f= x.f => l.f= r.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -1405,15 +1522,17 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             (true, false) => {
                 self.handle_copy_from_field(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
             (false, true) => {
-                self.handle_copy_to_field(ctx, goal, solver, _kind, lplace, rplace, disc, bidx, sidx);
+                self.handle_copy_to_field(
+                    ctx, goal, solver, _kind, lplace, rplace, disc, bidx, sidx,
+                );
                 return;
-            },
+            }
             (false, false) => {
                 self.handle_copy(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
         }
 
         let r_index_needed = rpj_fields.index_needed();
@@ -1480,7 +1599,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // this is for r.f'=0
         // like r.1'=0 => ori and new => [0110] and [1011] => [0010]
         // note that we calculate the index of r.f and use bit vector 'and' to update the ownership
-        let mut rust_bv_for_op_and = vec![ true ; rlen ];
+        let mut rust_bv_for_op_and = vec![true; rlen];
         rust_bv_for_op_and[r_index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, rlen as u32);
@@ -1492,14 +1611,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // then, the we contact 3 bit vector [1;begin] [*] [1;end]
         let extract_field_r = r_ori_bv.extract(r_index_needed as u32, r_index_needed as u32);
         let mut final_bv: ast::BV;
-        if l_index_needed < llen-1 {
-            let end_part = l_ori_bv.extract((llen-1) as u32, (l_index_needed+1) as u32);
+        if l_index_needed < llen - 1 {
+            let end_part = l_ori_bv.extract((llen - 1) as u32, (l_index_needed + 1) as u32);
             final_bv = end_part.concat(&extract_field_r);
         } else {
             final_bv = extract_field_r;
         }
         if l_index_needed > 0 {
-            let begin_part = l_ori_bv.extract((l_index_needed-1) as u32, 0);
+            let begin_part = l_ori_bv.extract((l_index_needed - 1) as u32, 0);
             final_bv = final_bv.concat(&begin_part);
         }
         let lpj_owning = l_new_bv._safe_eq(&final_bv).unwrap();
@@ -1509,15 +1628,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
         // this is for l.f'=0 && r.f'=r.f
         // this is for l.f'=0
-        let mut rust_bv_for_op_and = vec![ true ; llen ];
+        let mut rust_bv_for_op_and = vec![true; llen];
         rust_bv_for_op_and[l_index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
-        let z3_bv_for_op_and =  ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
+        let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, llen as u32);
         let after_op_and = l_ori_bv.bvand(&z3_bv_for_op_and);
         let lpj_non_owning = l_new_bv._safe_eq(&after_op_and).unwrap();
         // this is for r.f'=r.f
         let rpj_owning = r_new_bv._safe_eq(&r_ori_bv).unwrap();
-
 
         let args2 = &[&lpj_non_owning, &rpj_owning];
         let summary_2 = ast::Bool::and(ctx, args2);
@@ -1533,7 +1651,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn handle_move_field_to_field(
@@ -1546,17 +1663,18 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rplace: &Place<'tcx>,
         disc: Disc,
         bidx: usize,
-        sidx: usize
+        sidx: usize,
     ) {
         // y.f=move x.f => l.f=move r.f
         let llocal = lplace.local;
         let rlocal = rplace.local;
 
-        let lu:usize = llocal.as_usize();
-        let ru:usize = rlocal.as_usize();
+        let lu: usize = llocal.as_usize();
+        let ru: usize = rlocal.as_usize();
 
         // if any rvalue or lplace is unsupported, then make them all unsupported and exit
-        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported() {
+        if self.icx_slice().var()[lu].is_unsupported() || self.icx_slice.var()[ru].is_unsupported()
+        {
             self.handle_intra_var_unsupported(lu);
             self.handle_intra_var_unsupported(ru);
             return;
@@ -1594,14 +1712,16 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             (true, false) => {
                 self.handle_move_from_field(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
             (false, true) => {
-                self.handle_move_to_field(ctx, goal, solver, _kind, lplace, rplace, disc, bidx, sidx);
-            },
+                self.handle_move_to_field(
+                    ctx, goal, solver, _kind, lplace, rplace, disc, bidx, sidx,
+                );
+            }
             (false, false) => {
                 self.handle_move(ctx, goal, solver, _kind, lplace, rplace, bidx, sidx);
                 return;
-            },
+            }
         }
 
         let r_index_needed = rpj_fields.index_needed();
@@ -1667,7 +1787,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // this is for r.f'=0
         // like r.1'=0 => ori and new => [0110] and [1011] => [0010]
         // note that we calculate the index of r.f and use bit vector 'and' to update the ownership
-        let mut rust_bv_for_op_and = vec![ true ; rlen ];
+        let mut rust_bv_for_op_and = vec![true; rlen];
         rust_bv_for_op_and[r_index_needed] = false;
         let int_for_op_and = rustbv_to_int(&rust_bv_for_op_and);
         let z3_bv_for_op_and = ast::BV::from_u64(ctx, int_for_op_and, rlen as u32);
@@ -1681,14 +1801,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         let extract_field_r = r_ori_bv.extract(r_index_needed as u32, r_index_needed as u32);
         let mut final_bv: ast::BV;
 
-        if l_index_needed < llen-1 {
-            let end_part = l_ori_bv.extract((llen-1) as u32, (l_index_needed+1) as u32);
+        if l_index_needed < llen - 1 {
+            let end_part = l_ori_bv.extract((llen - 1) as u32, (l_index_needed + 1) as u32);
             final_bv = end_part.concat(&extract_field_r);
         } else {
             final_bv = extract_field_r;
         }
         if l_index_needed > 0 {
-            let begin_part = l_ori_bv.extract((l_index_needed-1) as u32, 0);
+            let begin_part = l_ori_bv.extract((l_index_needed - 1) as u32, 0);
             final_bv = final_bv.concat(&begin_part);
         }
         let lpj_owning = l_new_bv._safe_eq(&final_bv).unwrap();
@@ -1702,7 +1822,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
         self.icx_slice_mut().var_mut()[ru] = IntraVar::Init(r_new_bv);
         self.handle_taint(lu, ru);
-
     }
 
     pub(crate) fn check_fn_source(
@@ -1711,8 +1830,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         args: &Box<[Spanned<Operand<'tcx>>]>,
         dest: &Place<'tcx>,
     ) -> bool {
-
-        if args.len() != 1 { return false; }
+        if args.len() != 1 {
+            return false;
+        }
 
         let l_place_ty = dest.ty(&self.body().local_decls, self.tcx());
         if !is_place_containing_ptr(&l_place_ty.ty) {
@@ -1722,17 +1842,17 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         match args[0].node {
             Operand::Move(aplace) => {
                 let a_place_ty = aplace.ty(&self.body().local_decls, self.tcx());
-                let default_layout = self.extract_default_ty_layout(a_place_ty.ty, a_place_ty.variant_index);
+                let default_layout =
+                    self.extract_default_ty_layout(a_place_ty.ty, a_place_ty.variant_index);
                 if default_layout.is_owned() {
                     self.taint_flag = true;
                     true
                 } else {
                     false
                 }
-            },
+            }
             _ => false,
         }
-
     }
 
     pub(crate) fn check_fn_recovery(
@@ -1741,13 +1861,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         args: &Box<[Spanned<Operand<'tcx>>]>,
         dest: &Place<'tcx>,
     ) -> (bool, Vec<usize>) {
+        let mut ans: (bool, Vec<usize>) = (false, Vec::new());
 
-        let mut ans:(bool, Vec<usize>) = (false, Vec::new());
-
-        if args.len() == 0 { return ans; }
+        if args.len() == 0 {
+            return ans;
+        }
 
         let l_place_ty = dest.ty(&self.body().local_decls, self.tcx());
-        let default_layout = self.extract_default_ty_layout(l_place_ty.ty, l_place_ty.variant_index);
+        let default_layout =
+            self.extract_default_ty_layout(l_place_ty.ty, l_place_ty.variant_index);
         if !default_layout.get_requirement() || default_layout.is_empty() {
             return ans;
         }
@@ -1756,21 +1878,21 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         for arg in args {
             match arg.node {
                 Operand::Move(aplace) => {
-                    let au:usize = aplace.local.as_usize();
+                    let au: usize = aplace.local.as_usize();
                     let taint = &self.icx_slice().taint()[au];
                     if taint.is_tainted() && taint.contains(&ty_with_idx) {
                         ans.0 = true;
                         ans.1.push(au);
                     }
-                },
+                }
                 Operand::Copy(aplace) => {
-                    let au:usize = aplace.local.as_usize();
+                    let au: usize = aplace.local.as_usize();
                     let taint = &self.icx_slice().taint()[au];
                     if taint.is_tainted() && taint.contains(&ty_with_idx) {
                         ans.0 = true;
                         ans.1.push(au);
                     }
-                },
+                }
                 _ => (),
             }
         }
@@ -1789,7 +1911,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         dest: &Place<'tcx>,
         bidx: usize,
     ) {
-
         match func {
             Operand::Constant(constant) => {
                 match constant.ty().kind() {
@@ -1801,25 +1922,31 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 // this for calling std::mem::drop(TY)
                                 match args[0].node {
                                     Operand::Move(aplace) => {
-                                        let a_place_ty = dest.ty(&self.body().local_decls, self.tcx());
+                                        let a_place_ty =
+                                            dest.ty(&self.body().local_decls, self.tcx());
                                         let a_ty = a_place_ty.ty;
                                         if a_ty.is_adt() {
-                                            self.handle_drop(ctx, goal, solver, &aplace, bidx, false);
+                                            self.handle_drop(
+                                                ctx, goal, solver, &aplace, bidx, false,
+                                            );
                                             return;
                                         }
-                                    }, _ => (),
+                                    }
+                                    _ => (),
                                 }
-
-                            }, _ => (),
+                            }
+                            _ => (),
                         }
-                    }, _ => (),
+                    }
+                    _ => (),
                 }
-            }, _ => (),
+            }
+            _ => (),
         }
 
         // for return value
         let llocal = dest.local;
-        let lu:usize = llocal.as_usize();
+        let lu: usize = llocal.as_usize();
 
         // the source flag is for fn(self) -> */&
         // we will tag the lvalue as tainted and change the default ctor to modified one
@@ -1828,14 +1955,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // the return value should have the same layout as tainted one
         // we will take the ownership of the args if the arg is a pointer
         let recovery_flag = self.check_fn_recovery(args, dest);
-        if source_flag { self.add_taint(term); }
+        if source_flag {
+            self.add_taint(term);
+        }
 
         for arg in args {
             match arg.node {
                 Operand::Move(aplace) => {
-
                     let alocal = aplace.local;
-                    let au:usize = alocal.as_usize();
+                    let au: usize = alocal.as_usize();
 
                     // if the current layout of the father in rvalue is 0, avoid the following analysis
                     // e.g., a = b, b:[]
@@ -1856,12 +1984,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     let alen = self.icx_slice().len()[au];
 
                     if source_flag {
-                        self.icx_slice_mut().taint_mut()[lu].insert(
-                            TyWithIndex::new(
-                                a_place_ty.ty,
-                                a_place_ty.variant_index
-                            )
-                        );
+                        self.icx_slice_mut().taint_mut()[lu]
+                            .insert(TyWithIndex::new(a_place_ty.ty, a_place_ty.variant_index));
                     }
 
                     match aplace.projection.len() {
@@ -1894,7 +2018,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 // if the aplace is a instance (move i => drop)
                                 self.handle_drop(ctx, goal, solver, &aplace, bidx, false);
                             }
-                        },
+                        }
                         1 => {
                             // this indicates that the operand is move without projection
                             if is_a_ptr {
@@ -1915,18 +2039,16 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 // if the aplace is a instance (move i.f => i.f=0)
                                 self.handle_drop(ctx, goal, solver, &aplace, bidx, false);
                             }
-                        },
+                        }
                         _ => {
                             self.handle_intra_var_unsupported(au);
                             continue;
                         }
                     }
-
-                },
+                }
                 Operand::Copy(aplace) => {
-
                     let alocal = aplace.local;
-                    let au:usize = alocal.as_usize();
+                    let au: usize = alocal.as_usize();
 
                     // if the current layout of the father in rvalue is 0, avoid the following analysis
                     // e.g., a = b, b:[]
@@ -1949,7 +2071,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                         0 => {
                             // this indicates that the operand is move without projection
                             if is_a_ptr {
-
                                 if recovery_flag.0 && recovery_flag.1.contains(&au) {
                                     self.handle_drop(ctx, goal, solver, &aplace, bidx, true);
                                     continue;
@@ -1972,7 +2093,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 solver.assert(&update_a);
 
                                 self.icx_slice_mut().var_mut()[au] = IntraVar::Init(a_new_bv);
-
                             } else {
                                 // if the aplace is a instance (i => Copy)
                                 // for Instance Copy => No need to change
@@ -1991,7 +2111,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                                 goal.assert(&update_a);
                                 solver.assert(&update_a);
                             }
-                        },
+                        }
                         1 => {
                             // this indicates that the operand is move without projection
                             let a_name = new_local_name(au, bidx, 0).add("_param_pass");
@@ -2000,14 +2120,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                             goal.assert(&update_a);
                             solver.assert(&update_a);
-                        },
+                        }
                         _ => {
                             self.handle_intra_var_unsupported(au);
                             continue;
                         }
                     }
-                },
-                Operand::Constant( .. ) => continue,
+                }
+                Operand::Constant(..) => continue,
             }
         }
 
@@ -2024,20 +2144,21 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
         let mut is_ctor = true;
         match dest.projection.len() {
-
             0 => {
                 // alike move instance
 
-                let return_value_layout = self.extract_default_ty_layout(l_place_ty.ty, l_place_ty.variant_index);
+                let return_value_layout =
+                    self.extract_default_ty_layout(l_place_ty.ty, l_place_ty.variant_index);
                 if return_value_layout.is_empty() || !return_value_layout.get_requirement() {
                     return;
                 }
 
                 let int_for_gen = if source_flag {
-                    let modified_layout_bv = self.generate_ptr_layout(l_place_ty.ty, l_place_ty.variant_index);
+                    let modified_layout_bv =
+                        self.generate_ptr_layout(l_place_ty.ty, l_place_ty.variant_index);
                     let merge_layout_bv = rustbv_merge(
                         &ownership_layout_to_rustbv(return_value_layout.layout()),
-                        &modified_layout_bv
+                        &modified_layout_bv,
                     );
                     rustbv_to_int(&merge_layout_bv)
                 } else {
@@ -2061,15 +2182,16 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                             // cannot identify the ty (unsupported like fn ptr ...)
                             self.handle_intra_var_unsupported(lu);
                             return;
-                        },
+                        }
                         1 => {
                             return;
-                        },
+                        }
                         2 => {
                             // update the layout of lvalue due to it is an instance
                             self.icx_slice_mut().ty_mut()[lu] = ty_with_vidx;
-                            self.icx_slice_mut().layout_mut()[lu] = return_value_layout.layout().clone();
-                        },
+                            self.icx_slice_mut().layout_mut()[lu] =
+                                return_value_layout.layout().clone();
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -2090,9 +2212,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 goal.assert(&constraint_new_owning);
                 solver.assert(&constraint_new_owning);
 
-                self.icx_slice_mut().len_mut()[lu] =llen;
+                self.icx_slice_mut().len_mut()[lu] = llen;
                 self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
-            },
+            }
             1 => {
                 // alike move to field
 
@@ -2110,9 +2232,11 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                 if self.icx_slice().var()[lu].is_init() {
                     l_ori_bv = self.icx_slice_mut().var_mut()[lu].extract();
-                    let extract_from_field = l_ori_bv.extract(index_needed as u32, index_needed as u32);
+                    let extract_from_field =
+                        l_ori_bv.extract(index_needed as u32, index_needed as u32);
                     let l_f_zero_const = ast::BV::from_u64(ctx, 0, 1);
-                    let constraint_l_f_ori_zero = extract_from_field._safe_eq(&l_f_zero_const).unwrap();
+                    let constraint_l_f_ori_zero =
+                        extract_from_field._safe_eq(&l_f_zero_const).unwrap();
 
                     goal.assert(&constraint_l_f_ori_zero);
                     solver.assert(&constraint_l_f_ori_zero);
@@ -2144,14 +2268,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 };
 
                 let mut final_bv: ast::BV;
-                if index_needed < llen-1 {
-                    let end_part = l_ori_bv.extract((llen-1) as u32, (index_needed+1) as u32);
+                if index_needed < llen - 1 {
+                    let end_part = l_ori_bv.extract((llen - 1) as u32, (index_needed + 1) as u32);
                     final_bv = end_part.concat(&update_field);
                 } else {
                     final_bv = update_field;
                 }
                 if index_needed > 0 {
-                    let begin_part = l_ori_bv.extract((index_needed-1) as u32, 0);
+                    let begin_part = l_ori_bv.extract((index_needed - 1) as u32, 0);
                     final_bv = final_bv.concat(&begin_part);
                 }
                 let update_filed_using_func = l_new_bv._safe_eq(&final_bv).unwrap();
@@ -2161,7 +2285,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                 self.icx_slice_mut().len_mut()[lu] = return_value_layout.layout().len();
                 self.icx_slice_mut().var_mut()[lu] = IntraVar::Init(l_new_bv);
-            },
+            }
             _ => {
                 self.handle_intra_var_unsupported(lu);
                 return;
@@ -2176,25 +2300,20 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         solver: &'ctx z3::Solver<'ctx>,
         bidx: usize,
     ) {
-
         let place_0 = Place::from(Local::from_usize(0));
-        self.handle_drop(
-            ctx,
-            goal,
-            solver,
-            &place_0,
-            bidx,
-            false,
-        );
+        self.handle_drop(ctx, goal, solver, &place_0, bidx, false);
 
         // when whole function return => we need to check every variable is freed
         for (iidx, var) in self.icx_slice().var.iter().enumerate() {
             let len = self.icx_slice().len()[iidx];
-            if len == 0 { continue; }
-            if iidx <= self.body().arg_count { continue; }
+            if len == 0 {
+                continue;
+            }
+            if iidx <= self.body().arg_count {
+                continue;
+            }
 
             if var.is_init() {
-
                 let var_ori_bv = var.extract();
 
                 let return_name = new_local_name(iidx, bidx, 0).add("_return");
@@ -2220,7 +2339,10 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             let g = format!("{}", goal);
             rap_debug!("{}\n", g.color(Color::LightGray).bold());
             if model.is_some() {
-                rap_debug!("{}", format!("{}", model.unwrap()).color(Color::LightCyan).bold());
+                rap_debug!(
+                    "{}",
+                    format!("{}", model.unwrap()).color(Color::LightCyan).bold()
+                );
             }
         }
 
@@ -2229,14 +2351,26 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // let g = format!("{}", goal);
         // rap_debug!("{}\n", g.color(Color::LightGray).bold());
 
-
         if result == z3::SatResult::Unsat && self.taint_flag {
-            rap_warn!("{}", format!("RCanary: Leak Function: {:?} {:?} {:?}", result,self.did(), self.body().span));
+            rap_warn!(
+                "{}",
+                format!(
+                    "RCanary: Leak Function: {:?} {:?} {:?}",
+                    result,
+                    self.did(),
+                    self.body().span
+                )
+            );
             for source in self.taint_source.iter() {
-                rap_warn!("{}", format!("RCanary: LeakItem Candidates: {:?}, {:?}", source.kind, source.source_info.span));
+                rap_warn!(
+                    "{}",
+                    format!(
+                        "RCanary: LeakItem Candidates: {:?}, {:?}",
+                        source.kind, source.source_info.span
+                    )
+                );
             }
         }
-
     }
 
     pub(crate) fn handle_drop(
@@ -2249,7 +2383,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         recovery: bool,
     ) {
         let local = dest.local;
-        let u:usize = local.as_usize();
+        let u: usize = local.as_usize();
 
         if self.icx_slice().len()[u] == 0 {
             return;
@@ -2303,12 +2437,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                     self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 }
-            },
+            }
             true => {
                 // drop the field
                 let index_needed = f.index_needed();
 
-                if index_needed >= rust_bv.len() { return; }
+                if index_needed >= rust_bv.len() {
+                    return;
+                }
 
                 let name = if recovery {
                     new_local_name(u, bidx, 0).add("_drop_f_recovery")
@@ -2329,14 +2465,14 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 } else {
                     let f_free = ast::BV::from_u64(ctx, 0, 1);
                     let mut final_bv: ast::BV;
-                    if index_needed < len-1 {
-                        let end_part = ori_bv.extract((len-1) as u32, (index_needed+1) as u32);
+                    if index_needed < len - 1 {
+                        let end_part = ori_bv.extract((len - 1) as u32, (index_needed + 1) as u32);
                         final_bv = end_part.concat(&f_free);
                     } else {
                         final_bv = f_free;
                     }
                     if index_needed > 0 {
-                        let begin_part = ori_bv.extract((index_needed-1) as u32, 0);
+                        let begin_part = ori_bv.extract((index_needed - 1) as u32, 0);
                         final_bv = final_bv.concat(&begin_part);
                     }
 
@@ -2347,26 +2483,19 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
                     self.icx_slice_mut().var_mut()[u] = IntraVar::Init(new_bv);
                 }
-
-            },
+            }
         }
-
     }
 
-
-    pub(crate) fn handle_intra_var_unsupported(
-        &mut self,
-        idx: usize
-    ) {
+    pub(crate) fn handle_intra_var_unsupported(&mut self, idx: usize) {
         match self.icx_slice_mut().var_mut()[idx] {
             IntraVar::Unsupported => return,
-            IntraVar::Declared
-            | IntraVar::Init(_) => {
+            IntraVar::Declared | IntraVar::Init(_) => {
                 // turns into the unsupported
                 self.icx_slice_mut().var_mut()[idx] = IntraVar::Unsupported;
                 self.icx_slice_mut().len_mut()[idx] = 0;
-                return ;
-            } ,
+                return;
+            }
         }
     }
 
@@ -2382,16 +2511,15 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 self.icx_slice_mut().taint_mut()[l].insert(elem);
             }
         }
-
     }
 
     pub(crate) fn extract_default_ty_layout(
         &mut self,
         ty: Ty<'tcx>,
-        variant: Option<VariantIdx>
+        variant: Option<VariantIdx>,
     ) -> OwnershipLayoutResult {
         match ty.kind() {
-            TyKind::Array( .. ) => {
+            TyKind::Array(..) => {
                 let mut res = OwnershipLayoutResult::new();
                 let mut default_ownership = DefaultOwnership::new(self.tcx(), self.owner());
 
@@ -2399,8 +2527,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 res.update_from_default_ownership_visitor(&mut default_ownership);
 
                 res
-            },
-            TyKind::Tuple( tuple_ty_list ) => {
+            }
+            TyKind::Tuple(tuple_ty_list) => {
                 let mut res = OwnershipLayoutResult::new();
 
                 for tuple_ty in tuple_ty_list.iter() {
@@ -2411,8 +2539,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 }
 
                 res
-            },
-            TyKind::Adt( adtdef, substs ) => {
+            }
+            TyKind::Adt(adtdef, substs) => {
                 // check the ty is or is not an enum and the variant of this enum is or is not given
                 if adtdef.is_enum() && variant.is_none() {
                     return OwnershipLayoutResult::new();
@@ -2445,46 +2573,43 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     }
                 }
                 res
-            },
-            TyKind::Param( .. ) => {
+            }
+            TyKind::Param(..) => {
                 let mut res = OwnershipLayoutResult::new();
                 res.set_requirement(true);
                 res.set_param(true);
                 res.set_owned(true);
                 res.layout_mut().push(RawTypeOwner::Owned);
                 res
-            },
-            TyKind::RawPtr( .. ) => {
+            }
+            TyKind::RawPtr(..) => {
                 let mut res = OwnershipLayoutResult::new();
                 res.set_requirement(true);
                 res.layout_mut().push(RawTypeOwner::Unowned);
                 res
-            },
-            TyKind::Ref( .. ) => {
+            }
+            TyKind::Ref(..) => {
                 let mut res = OwnershipLayoutResult::new();
                 res.set_requirement(true);
                 res.layout_mut().push(RawTypeOwner::Unowned);
                 res
-            },
-            _ => {
-                OwnershipLayoutResult::new()
-            },
+            }
+            _ => OwnershipLayoutResult::new(),
         }
     }
 
     pub(crate) fn generate_ptr_layout(
         &mut self,
         ty: Ty<'tcx>,
-        variant: Option<VariantIdx>
+        variant: Option<VariantIdx>,
     ) -> RustBV {
-
         let mut res = Vec::new();
         match ty.kind() {
-            TyKind::Array( .. ) => {
+            TyKind::Array(..) => {
                 res.push(false);
                 res
-            },
-            TyKind::Tuple( tuple_ty_list ) => {
+            }
+            TyKind::Tuple(tuple_ty_list) => {
                 for tuple_ty in tuple_ty_list.iter() {
                     if tuple_ty.is_any_ptr() {
                         res.push(true);
@@ -2494,8 +2619,8 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                 }
 
                 res
-            },
-            TyKind::Adt( adtdef, _substs ) => {
+            }
+            TyKind::Adt(adtdef, _substs) => {
                 // check the ty is or is not an enum and the variant of this enum is or is not given
                 if adtdef.is_enum() && variant.is_none() {
                     return res;
@@ -2516,29 +2641,27 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     }
                 }
                 res
-            },
-            TyKind::Param( .. ) => {
+            }
+            TyKind::Param(..) => {
                 res.push(false);
                 res
-            },
-            TyKind::RawPtr( .. ) => {
+            }
+            TyKind::RawPtr(..) => {
                 res.push(true);
                 res
-            },
-            TyKind::Ref( .. ) => {
+            }
+            TyKind::Ref(..) => {
                 res.push(true);
                 res
-            },
-            _ => {
-                res
-            },
+            }
+            _ => res,
         }
-
     }
 }
 
 fn new_local_name(local: usize, bidx: usize, sidx: usize) -> String {
-    let s = bidx.to_string()
+    let s = bidx
+        .to_string()
         .add("_")
         .add(&sidx.to_string())
         .add("_")
@@ -2548,22 +2671,22 @@ fn new_local_name(local: usize, bidx: usize, sidx: usize) -> String {
 
 fn is_place_containing_ptr(ty: &Ty) -> bool {
     match ty.kind() {
-        TyKind::Tuple( tuple_ty_list ) => {
+        TyKind::Tuple(tuple_ty_list) => {
             for tuple_ty in tuple_ty_list.iter() {
                 if tuple_ty.is_any_ptr() {
                     return true;
                 }
             }
             false
-        },
-        TyKind::RawPtr( .. ) => true,
-        TyKind::Ref( .. ) => true,
+        }
+        TyKind::RawPtr(..) => true,
+        TyKind::Ref(..) => true,
         _ => false,
     }
 }
 
 #[derive(Debug)]
-struct ProjectionSupport<'tcx>  {
+struct ProjectionSupport<'tcx> {
     pf_vec: Vec<(usize, Ty<'tcx>)>,
     deref: bool,
     downcast: Disc,
@@ -2605,39 +2728,55 @@ impl<'tcx> ProjectionSupport<'tcx> {
     pub fn index_needed(&self) -> usize {
         self.pf_vec[0].0
     }
-
 }
 
 fn has_projection(place: &Place) -> bool {
-    return if place.projection.len() > 0 { true } else { false }
+    return if place.projection.len() > 0 {
+        true
+    } else {
+        false
+    };
 }
 
 fn extract_projection<'tcx>(place: &Place<'tcx>) -> ProjectionSupport<'tcx> {
     // extract the field index of the place
     // if the ProjectionElem we find the variant is not Field, stop it and exit
     // for field sensitivity analysis only
-    let mut ans:ProjectionSupport<'tcx> = ProjectionSupport::default();
+    let mut ans: ProjectionSupport<'tcx> = ProjectionSupport::default();
     for (idx, each_pj) in place.projection.iter().enumerate() {
         match each_pj {
             ProjectionElem::Field(field, ty) => {
                 ans.pf_push(field.index(), ty);
-                if ans.pf_vec.len() > 1 { ans.unsupport = true; break; }
-                if ans.deref { ans.unsupport = true; break; }
-            },
+                if ans.pf_vec.len() > 1 {
+                    ans.unsupport = true;
+                    break;
+                }
+                if ans.deref {
+                    ans.unsupport = true;
+                    break;
+                }
+            }
             ProjectionElem::Deref => {
                 ans.deref = true;
-                if idx > 0 { ans.unsupport = true; break; }
-            },
+                if idx > 0 {
+                    ans.unsupport = true;
+                    break;
+                }
+            }
             ProjectionElem::Downcast(.., ref vidx) => {
                 ans.downcast = Some(*vidx);
-                if idx > 0 { ans.unsupport = true; break; }
-            },
+                if idx > 0 {
+                    ans.unsupport = true;
+                    break;
+                }
+            }
             ProjectionElem::ConstantIndex { .. }
             | ProjectionElem::Subslice { .. }
-            | ProjectionElem::Index ( .. )
-            | ProjectionElem::OpaqueCast ( .. )
-            | ProjectionElem::Subtype ( .. ) => {
-                { ans.unsupport = true; break; }
+            | ProjectionElem::Index(..)
+            | ProjectionElem::OpaqueCast(..)
+            | ProjectionElem::Subtype(..) => {
+                ans.unsupport = true;
+                break;
             }
         }
     }
@@ -2668,7 +2807,7 @@ fn reverse_ownership_layout_to_rustbv(layout: &OwnershipLayout) -> RustBV {
     v
 }
 
-fn rustbv_merge(a:&RustBV, b: &RustBV) -> RustBV {
+fn rustbv_merge(a: &RustBV, b: &RustBV) -> RustBV {
     assert_eq!(a.len(), b.len());
     let mut bv = Vec::new();
     for idx in 0..a.len() {

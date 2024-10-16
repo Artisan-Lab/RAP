@@ -1,4 +1,4 @@
-pub mod contract;
 pub mod abstract_state;
-pub mod state_lattice;
 pub mod checker;
+pub mod contract;
+pub mod state_lattice;

@@ -1,18 +1,22 @@
-use rustc_middle::mir::SourceInfo;
-use rustc_span::Span;
-use rustc_span::symbol::Symbol;
-use rustc_data_structures::fx::FxHashSet;
-use crate::utils::source::*;
 use super::graph::*;
+use crate::utils::source::*;
+use rustc_data_structures::fx::FxHashSet;
+use rustc_middle::mir::SourceInfo;
+use rustc_span::symbol::Symbol;
+use rustc_span::Span;
 
 impl<'tcx> SafeDropGraph<'tcx> {
     pub fn report_bugs(&self) {
-	    let filename = get_filename(self.tcx, self.def_id);
+        let filename = get_filename(self.tcx, self.def_id);
         match filename {
-	        Some(filename) => { if filename.contains(".cargo") { return; } },
-            None => {},
+            Some(filename) => {
+                if filename.contains(".cargo") {
+                    return;
+                }
+            }
+            None => {}
         }
-        if self.bug_records.is_bug_free(){
+        if self.bug_records.is_bug_free() {
             return;
         }
         let fn_name = match get_name(self.tcx, self.def_id) {
@@ -26,25 +30,29 @@ impl<'tcx> SafeDropGraph<'tcx> {
 
     pub fn uaf_check(&mut self, aliaset_idx: usize, span: Span, local: usize, is_func_call: bool) {
         let mut record = FxHashSet::default();
-        if self.values[aliaset_idx].may_drop 
-            && (!self.values[aliaset_idx].is_ptr() 
+        if self.values[aliaset_idx].may_drop
+            && (!self.values[aliaset_idx].is_ptr()
                 || self.values[aliaset_idx].local != local
                 || is_func_call)
             && self.exist_dead(aliaset_idx, &mut record, false)
-            && !self.bug_records.uaf_bugs.contains(&span) {            
+            && !self.bug_records.uaf_bugs.contains(&span)
+        {
             self.bug_records.uaf_bugs.insert(span.clone());
         }
     }
 
     pub fn exist_dead(&self, node: usize, record: &mut FxHashSet<usize>, dangling: bool) -> bool {
         //if is a dangling pointer check, only check the pointer type varible.
-        if self.values[node].is_alive() == false && (dangling && self.values[node].is_ptr() || !dangling) {
-            return true; 
+        if self.values[node].is_alive() == false
+            && (dangling && self.values[node].is_ptr() || !dangling)
+        {
+            return true;
         }
         record.insert(node);
         if self.values[node].alias[0] != node {
             for i in self.values[node].alias.clone().into_iter() {
-                if i != node && record.contains(&i) == false && self.exist_dead(i, record, dangling) {
+                if i != node && record.contains(&i) == false && self.exist_dead(i, record, dangling)
+                {
                     return true;
                 }
             }
@@ -64,8 +72,9 @@ impl<'tcx> SafeDropGraph<'tcx> {
 
     pub fn df_check(&mut self, drop: usize, span: Span) -> bool {
         let root = self.values[drop].local;
-        if self.values[drop].is_alive() == false 
-        && self.bug_records.df_bugs.contains_key(&root) == false {
+        if self.values[drop].is_alive() == false
+            && self.bug_records.df_bugs.contains_key(&root) == false
+        {
             self.bug_records.df_bugs.insert(root, span.clone());
         }
         return self.values[drop].is_alive() == false;
@@ -75,22 +84,22 @@ impl<'tcx> SafeDropGraph<'tcx> {
         match current_block.is_cleanup {
             true => {
                 for i in 0..self.arg_size {
-                    if self.values[i+1].is_ptr() && self.is_dangling(i+1) {
+                    if self.values[i + 1].is_ptr() && self.is_dangling(i + 1) {
                         self.bug_records.dp_bugs_unwind.insert(self.span);
                     }
                 }
-            },
-            false => { 
+            }
+            false => {
                 if self.values[0].may_drop && self.is_dangling(0) {
                     self.bug_records.dp_bugs.insert(self.span);
-                } else{
+                } else {
                     for i in 0..self.arg_size {
-                        if self.values[i+1].is_ptr() && self.is_dangling(i+1) {
+                        if self.values[i + 1].is_ptr() && self.is_dangling(i + 1) {
                             self.bug_records.dp_bugs.insert(self.span);
                         }
                     }
                 }
-            },
+            }
         }
     }
 
@@ -98,7 +107,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         //Rc drop
         if self.values[drop].is_corner_case() {
             return;
-        } 
+        }
         //check if there is a double free bug.
         if self.df_check(drop, info.span) {
             return;
@@ -106,7 +115,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         //drop their alias
         if self.values[drop].alias[0] != drop {
             for i in self.values[drop].alias.clone().into_iter() {
-                if self.values[i].is_ref(){
+                if self.values[i].is_ref() {
                     continue;
                 }
                 self.dead_node(i, birth, info, true);
@@ -118,25 +127,23 @@ impl<'tcx> SafeDropGraph<'tcx> {
             for i in self.values[drop].fields.clone().into_iter() {
                 if self.values[drop].is_tuple() == true && self.values[i.1].need_drop == false {
                     continue;
-                } 
-                self.dead_node( i.1, birth, info, false);
+                }
+                self.dead_node(i.1, birth, info, false);
             }
         }
         //SCC.
         if self.values[drop].birth < birth as isize && self.values[drop].may_drop {
-            self.values[drop].dead();   
+            self.values[drop].dead();
         }
     }
 
-    pub fn get_field_seq(&self, value: &ValueNode)-> Vec<usize> { 
+    pub fn get_field_seq(&self, value: &ValueNode) -> Vec<usize> {
         let mut field_id_seq = vec![];
         let mut node_ref = value;
         while node_ref.field_id != usize::MAX {
             field_id_seq.push(node_ref.field_id);
-            node_ref = &self.values[value.father]; 
+            node_ref = &self.values[value.father];
         }
         return field_id_seq;
     }
 }
-
-

@@ -1,20 +1,22 @@
-pub mod ownership;
-pub mod order;
-pub mod intra_visitor;
 pub mod inter_visitor;
+pub mod intra_visitor;
+pub mod order;
+pub mod ownership;
 
+use rustc_middle::mir::{Body, Terminator};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
-use rustc_middle::mir::{Body, Terminator};
 
+use super::{rCanary, IcxMut, IcxSliceMut, Rcx, RcxMut};
+use crate::analysis::core::heap_item::{
+    mir_body, type_visitor::TyWithIndex, AdtOwner, OwnershipLayout, Unique,
+};
 use crate::Elapsed;
-use super::{rCanary,IcxMut, IcxSliceMut, Rcx, RcxMut};
-use crate::analysis::core::heap_item::{AdtOwner, mir_body, OwnershipLayout, Unique, type_visitor::TyWithIndex};
 use ownership::{IntraVar, Taint};
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Formatter};
 use std::env;
+use std::fmt::{Debug, Formatter};
 
 pub type MirGraph = HashMap<DefId, Graph>;
 pub type ToPo = Vec<usize>;
@@ -40,8 +42,8 @@ impl Default for Graph {
 impl Graph {
     pub fn new(len: usize) -> Self {
         Graph {
-            e: vec![Vec::new() ; len],
-            pre: vec![Vec::new() ; len],
+            e: vec![Vec::new(); len],
+            pre: vec![Vec::new(); len],
             topo: Vec::new(),
         }
     }
@@ -111,7 +113,6 @@ impl<'tcx, 'a> FlowAnalysis<'tcx, 'a> {
         // rap_info!("@@@@@@@@@@@@@Build Analysis:{:?}", self.rcx().get_time_build());
         // rap_info!("@@@@@@@@@@@@@Solve Analysis:{:?}", self.rcx().get_time_solve());
     }
-
 }
 
 impl<'tcx, 'o, 'a> RcxMut<'tcx, 'o, 'a> for FlowAnalysis<'tcx, 'a> {
@@ -160,11 +161,10 @@ impl<'tcx> NodeOrder<'tcx> {
     pub fn graph_mut(&mut self) -> &mut Graph {
         &mut self.graph
     }
-
 }
 
 struct InterFlowAnalysis<'tcx, 'a> {
-    rcx:&'a rCanary<'tcx>,
+    rcx: &'a rCanary<'tcx>,
 }
 
 impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
@@ -174,7 +174,9 @@ impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
     }
 
     #[inline(always)]
-    fn tcx(&'o self) -> TyCtxt<'tcx> { self.rcx.tcx() }
+    fn tcx(&'o self) -> TyCtxt<'tcx> {
+        self.rcx.tcx()
+    }
 }
 
 struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
@@ -194,8 +196,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         rcx: &'a rCanary<'tcx>,
         did: DefId,
         //unique: &'a mut Unique,
-    ) -> Self
-    {
+    ) -> Self {
         let body = mir_body(rcx.tcx(), did);
         let v_len = body.local_decls.len();
         let b_len = body.basic_blocks.len();
@@ -241,7 +242,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     pub fn add_taint(&mut self, terminator: Terminator<'tcx>) {
         self.taint_source.push(terminator);
     }
-
 }
 
 impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
@@ -251,7 +251,9 @@ impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for IntraFlowAnalysis<'tcx, 'ctx, 'a>
     }
 
     #[inline(always)]
-    fn tcx(&'o self) -> TyCtxt<'tcx> { self.rcx.tcx() }
+    fn tcx(&'o self) -> TyCtxt<'tcx> {
+        self.rcx.tcx()
+    }
 }
 
 impl<'tcx, 'ctx, 'o, 'a> IcxMut<'tcx, 'ctx, 'o> for IntraFlowAnalysis<'tcx, 'ctx, 'a> {
@@ -342,94 +344,37 @@ impl<'tcx, 'ctx, 'icx> IntraFlowContext<'tcx, 'ctx> {
 
     pub fn derive_from_pre_node(&mut self, from: usize, to: usize) {
         // derive the storage from the pre node
-        *self.
-            taint_mut()
-            .get_g_mut()[to]
-            .get_i_mut()
-            = self
-            .taint_mut()
-            .get_g_mut()[from]
-            .get_o_mut()
-            .clone();
+        *self.taint_mut().get_g_mut()[to].get_i_mut() =
+            self.taint_mut().get_g_mut()[from].get_o_mut().clone();
 
         // derive the var vector from the pre node
-        *self
-            .var_mut()
-            .get_g_mut()[to]
-            .get_i_mut()
-            = self
-            .var_mut()
-            .get_g_mut()[from]
-            .get_o_mut()
-            .clone();
+        *self.var_mut().get_g_mut()[to].get_i_mut() =
+            self.var_mut().get_g_mut()[from].get_o_mut().clone();
 
         // derive the len vector from the pre node
-        *self
-            .len_mut()
-            .get_g_mut()[to]
-            .get_i_mut()
-            = self
-            .len_mut()
-            .get_g_mut()[from]
-            .get_o_mut()
-            .clone();
+        *self.len_mut().get_g_mut()[to].get_i_mut() =
+            self.len_mut().get_g_mut()[from].get_o_mut().clone();
 
         // derive the ty vector from the pre node
-        *self
-            .ty_mut()
-            .get_g_mut()[to]
-            .get_i_mut()
-            = self
-            .ty_mut()
-            .get_g_mut()[from]
-            .get_o_mut()
-            .clone();
+        *self.ty_mut().get_g_mut()[to].get_i_mut() =
+            self.ty_mut().get_g_mut()[from].get_o_mut().clone();
 
         // derive the layout vector from the pre node
-        *self
-            .layout_mut()
-            .get_g_mut()[to]
-            .get_i_mut()
-            = self
-            .layout_mut()
-            .get_g_mut()[from]
-            .get_o_mut()
-            .clone();
-
+        *self.layout_mut().get_g_mut()[to].get_i_mut() =
+            self.layout_mut().get_g_mut()[from].get_o_mut().clone();
     }
 
     pub fn derive_from_icx_slice(&mut self, from: IcxSliceFroBlock<'tcx, 'ctx>, to: usize) {
-        *self.
-            taint_mut()
-            .get_g_mut()[to]
-            .get_o_mut()
-            = from.taint;
+        *self.taint_mut().get_g_mut()[to].get_o_mut() = from.taint;
 
-        *self.
-            var_mut()
-            .get_g_mut()[to]
-            .get_o_mut()
-            = from.var;
+        *self.var_mut().get_g_mut()[to].get_o_mut() = from.var;
 
-        *self.
-            len_mut()
-            .get_g_mut()[to]
-            .get_o_mut()
-            = from.len;
+        *self.len_mut().get_g_mut()[to].get_o_mut() = from.len;
 
-        *self.
-            ty_mut()
-            .get_g_mut()[to]
-            .get_o_mut()
-            = from.ty;
+        *self.ty_mut().get_g_mut()[to].get_o_mut() = from.ty;
 
-        *self.
-            layout_mut()
-            .get_g_mut()[to]
-            .get_o_mut()
-            = from.layout;
+        *self.layout_mut().get_g_mut()[to].get_o_mut() = from.layout;
     }
-
 }
 
 #[derive(Debug, Clone, Default)]
@@ -439,12 +384,13 @@ pub struct InOutPair<T: Debug + Clone + Default> {
 }
 
 impl<T> InOutPair<T>
-    where T:Debug + Clone + Default
+where
+    T: Debug + Clone + Default,
 {
     pub fn new(len: usize) -> Self {
         Self {
-            i: vec![ T::default() ; len ],
-            o: vec![ T::default() ; len ],
+            i: vec![T::default(); len],
+            o: vec![T::default(); len],
         }
     }
 
@@ -475,11 +421,12 @@ pub struct IOPairForGraph<T: Debug + Clone + Default> {
 }
 
 impl<T> IOPairForGraph<T>
-    where T:Debug + Clone + Default
+where
+    T: Debug + Clone + Default,
 {
     pub fn new(b_len: usize, v_len: usize) -> Self {
         Self {
-            pair_graph: vec![ InOutPair::new(v_len) ; b_len ]
+            pair_graph: vec![InOutPair::new(v_len); b_len],
         }
     }
 
@@ -504,7 +451,6 @@ pub struct IcxSliceFroBlock<'tcx, 'ctx> {
 }
 
 impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
-
     pub fn new_in(icx: &mut IntraFlowContext<'tcx, 'ctx>, idx: usize) -> Self {
         Self {
             taint: icx.taint_mut().get_g_mut()[idx].get_i_mut().clone(),
@@ -527,11 +473,11 @@ impl<'tcx, 'ctx> IcxSliceFroBlock<'tcx, 'ctx> {
 
     pub fn new_for_block_0(len: usize) -> Self {
         Self {
-            taint: vec![ Taint::default() ; len ],
-            var: vec![ IntraVar::default() ; len ],
-            len: vec![ 0 ; len],
-            ty: vec![ TyWithIndex::default() ; len ],
-            layout: vec![ Vec::new() ; len ],
+            taint: vec![Taint::default(); len],
+            var: vec![IntraVar::default(); len],
+            len: vec![0; len],
+            ty: vec![TyWithIndex::default(); len],
+            layout: vec![Vec::new(); len],
         }
     }
 
@@ -612,7 +558,7 @@ pub enum Z3GoalDisplay {
 
 pub fn is_z3_goal_verbose() -> bool {
     match env::var_os("Z3") {
-        Some(_)  => true,
+        Some(_) => true,
         _ => false,
     }
 }
@@ -625,7 +571,7 @@ pub enum IcxSliceDisplay {
 
 pub fn is_icx_slice_verbose() -> bool {
     match env::var_os("ICX_SLICE") {
-        Some(_)  => true,
+        Some(_) => true,
         _ => false,
     }
 }
