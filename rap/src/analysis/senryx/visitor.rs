@@ -8,7 +8,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     ty,
     ty::GenericArgKind,
-    mir::{self, ProjectionElem, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
+    mir::{self, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
 use rustc_hir::def_id::DefId;
 
@@ -94,10 +94,8 @@ impl<'tcx> BodyVisitor<'tcx> {
                 match intrinsic{
                     mir::NonDivergingIntrinsic::CopyNonOverlapping(cno) => {
                         if cno.src.place().is_some() && cno.dst.place().is_some() {
-                            let src_place_local = cno.src.place().unwrap().local.as_usize();
-                            let dst_place_local = cno.dst.place().unwrap().local.as_usize();
-                            let _src_pjc_local = self.handle_projection(true, src_place_local, cno.src.place().unwrap().clone());
-                            let _dst_pjc_local = self.handle_projection(true, dst_place_local, cno.dst.place().unwrap().clone());
+                            let _src_pjc_local = self.safedrop_graph.projection(self.tcx, true, cno.src.place().unwrap().clone());
+                            let _dst_pjc_local = self.safedrop_graph.projection(self.tcx, true, cno.dst.place().unwrap().clone());
                         }
                     }
                     _ => {}
@@ -108,14 +106,12 @@ impl<'tcx> BodyVisitor<'tcx> {
     }
 
     pub fn path_analyze_assign(&mut self, lplace: &Place<'tcx>, rvalue: &Rvalue<'tcx>, _path_index: usize) {
-        let llocal = lplace.local.as_usize();
-        let _lpjc_local = self.handle_projection(false, llocal, lplace.clone());
+        let _lpjc_local = self.safedrop_graph.projection(self.tcx, false, lplace.clone());
         match rvalue {
             Rvalue::Use(op) => {
                 match op {
                     Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
                     }
                     _ => {} 
                 }
@@ -123,25 +119,21 @@ impl<'tcx> BodyVisitor<'tcx> {
             Rvalue::Repeat(op,_const) => {
                 match op {
                     Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
                     }
                     _ => {}
                 }
             }
             Rvalue::Ref(_,_,rplace) => {
-                let rlocal = rplace.local.as_usize();
-                let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
             }
             Rvalue::AddressOf(_,rplace) => {
-                let rlocal = rplace.local.as_usize();
-                let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
             }
             Rvalue::Cast(_cast_kind,op,_ty) => {
                 match op {
                     Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
                     }
                     _ => {}
                 }
@@ -152,8 +144,7 @@ impl<'tcx> BodyVisitor<'tcx> {
             Rvalue::ShallowInitBox(op,_ty) => {
                 match op {
                     Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let rlocal = rplace.local.as_usize();
-                        let _rpjc_local = self.handle_projection(true, rlocal, rplace.clone());
+                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
                     }
                     _ => {}
                 }
@@ -170,23 +161,6 @@ impl<'tcx> BodyVisitor<'tcx> {
             // }
             _ => {}
         }
-    }
-
-    pub fn handle_projection(&mut self, _is_right: bool, local: usize, place: Place<'tcx>) -> usize{
-        let _init_local = local;
-        let current_local = local;
-        for projection in place.projection{
-            match projection{
-                ProjectionElem::Deref => {
-                    
-                }
-                ProjectionElem::Field(_field, _ty) =>{
-                    
-                }
-                _ => {}
-            }
-        }
-        return current_local;
     }
 
     pub fn get_all_paths(&mut self) -> Vec<Vec<usize>> {
@@ -207,6 +181,15 @@ impl<'tcx> BodyVisitor<'tcx> {
                 } else {
                     result_state.state_map.insert(*var_index, state_item.clone());
                 }
+            }
+        }
+    }
+
+    pub fn abstate_debug(&self) {
+        for (path, abstract_state) in &self.abstract_states {
+            println!("Path-{:?}:", path);
+            for (place, ab_item) in &abstract_state.state_map {
+                println!("Place-{:?} has abstract states:{:?}", place, ab_item);
             }
         }
     }
