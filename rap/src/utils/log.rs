@@ -35,7 +35,7 @@ pub fn init_log() -> Result<(), fern::InitError> {
                     "\x1B[{}m",
                     color_line.get_color(&record.level()).to_fg_str()
                 ),
-                now.format("%H:%M:%S%.3f").to_string(),
+                now.format("%H:%M:%S"),
                 color_level.color(record.level()),
                 format_args!(
                     "\x1B[{}m",

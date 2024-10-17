@@ -4,7 +4,7 @@ pub mod mop;
 pub mod types;
 
 use crate::analysis::core::alias::FnMap;
-use crate::rap_info;
+use crate::rap_debug;
 use crate::utils::source::*;
 use graph::MopGraph;
 use rustc_data_structures::fx::FxHashMap;
@@ -22,7 +22,7 @@ pub struct MopAlias<'tcx> {
 impl<'tcx> MopAlias<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
-            tcx: tcx,
+            tcx,
             fn_map: FxHashMap::default(),
         }
     }
@@ -34,20 +34,20 @@ impl<'tcx> MopAlias<'tcx> {
                 self.query_mop(local_def_id.to_def_id());
             }
         }
-        rap_info!("Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.");
+        // Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.
         for (fn_id, fn_alias) in &self.fn_map {
             let fn_name = get_fn_name(self.tcx, *fn_id);
-            if fn_alias.alias_vec.len() > 0 {
-                rap_info!("{:?},{:?}", fn_name, fn_id);
-                rap_info!("{}", fn_alias);
+            if fn_alias.len() > 0 {
+                rap_debug!("{:?},{:?}", fn_name, fn_id);
+                rap_debug!("{}", fn_alias);
             }
         }
-        return &self.fn_map;
+        &self.fn_map
     }
 
-    pub fn query_mop(&mut self, def_id: DefId) -> () {
+    pub fn query_mop(&mut self, def_id: DefId) {
         let fn_name = get_fn_name(self.tcx, def_id);
-        rap_info!("query_mop: {:?}", fn_name);
+        rap_debug!("query_mop: {:?}", fn_name);
         /* filter const mir */
         if let Some(_other) = self.tcx.hir().body_const_context(def_id.expect_local()) {
             return;
@@ -58,11 +58,11 @@ impl<'tcx> MopAlias<'tcx> {
             mop_graph.solve_scc();
             let mut recursion_set = FxHashSet::default();
             mop_graph.check(0, &mut self.fn_map, &mut recursion_set);
-            if mop_graph.visit_times <= VISIT_LIMIT {
-                return;
-            } else {
-                println!("Over visited: {:?}", def_id);
+            if mop_graph.visit_times > VISIT_LIMIT {
+                rap_debug!("Over visited: {:?}", def_id);
             }
+        } else {
+            rap_debug!("mir is not available at {}", self.tcx.def_path_str(def_id));
         }
     }
 }
