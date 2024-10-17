@@ -22,7 +22,7 @@ pub struct MopAlias<'tcx> {
 impl<'tcx> MopAlias<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
-            tcx: tcx,
+            tcx,
             fn_map: FxHashMap::default(),
         }
     }
@@ -42,10 +42,10 @@ impl<'tcx> MopAlias<'tcx> {
                 rap_debug!("{}", fn_alias);
             }
         }
-        return &self.fn_map;
+        &self.fn_map
     }
 
-    pub fn query_mop(&mut self, def_id: DefId) -> () {
+    pub fn query_mop(&mut self, def_id: DefId) {
         let fn_name = get_fn_name(self.tcx, def_id);
         rap_debug!("query_mop: {:?}", fn_name);
         /* filter const mir */
@@ -58,11 +58,11 @@ impl<'tcx> MopAlias<'tcx> {
             mop_graph.solve_scc();
             let mut recursion_set = FxHashSet::default();
             mop_graph.check(0, &mut self.fn_map, &mut recursion_set);
-            if mop_graph.visit_times <= VISIT_LIMIT {
-                return;
-            } else {
-                println!("Over visited: {:?}", def_id);
+            if mop_graph.visit_times > VISIT_LIMIT {
+                rap_debug!("Over visited: {:?}", def_id);
             }
+        } else {
+            rap_debug!("mir is not available at {}", self.tcx.def_path_str(def_id));
         }
     }
 }
