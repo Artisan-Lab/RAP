@@ -37,7 +37,7 @@ impl<'tcx> MopAlias<'tcx> {
         // Meaning of output: 0 for ret value; 1,2,3,... for corresponding args.
         for (fn_id, fn_alias) in &self.fn_map {
             let fn_name = get_fn_name(self.tcx, *fn_id);
-            if fn_alias.alias_vec.len() > 0 {
+            if fn_alias.len() > 0 {
                 rap_debug!("{:?},{:?}", fn_name, fn_id);
                 rap_debug!("{}", fn_alias);
             }

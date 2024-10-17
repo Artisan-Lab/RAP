@@ -89,7 +89,7 @@ impl<'tcx> MopGraph<'tcx> {
                                 //rap_info!("target_id {:?}", target_id);
                                 if fn_map.contains_key(&target_id) {
                                     let assignments = fn_map.get(&target_id).unwrap();
-                                    for assign in assignments.alias_vec.iter() {
+                                    for assign in assignments.aliases().iter() {
                                         if !assign.valuable() {
                                             continue;
                                         }
@@ -105,7 +105,7 @@ impl<'tcx> MopGraph<'tcx> {
                                     mop_graph.solve_scc();
                                     mop_graph.check(0, fn_map, recursion_set);
                                     let ret_alias = mop_graph.ret_alias.clone();
-                                    for assign in ret_alias.alias_vec.iter() {
+                                    for assign in ret_alias.aliases().iter() {
                                         if !assign.valuable() {
                                             continue;
                                         }
@@ -274,7 +274,7 @@ impl<'tcx> MopGraph<'tcx> {
                             );
                             new_alias.left_field_seq = self.get_field_seq(left_node);
                             new_alias.right_field_seq = self.get_field_seq(right_node);
-                            self.ret_alias.alias_vec.push(new_alias);
+                            self.ret_alias.add_alias(new_alias);
                         }
                     }
                 }

@@ -91,7 +91,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                             if tcx.is_mir_available(*target_id) {
                                 if fn_map.contains_key(&target_id) {
                                     let assignments = fn_map.get(&target_id).unwrap();
-                                    for assign in assignments.alias_vec.iter() {
+                                    for assign in assignments.aliases().iter() {
                                         if !assign.valuable() {
                                             continue;
                                         }
