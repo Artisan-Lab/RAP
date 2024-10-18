@@ -36,10 +36,10 @@ impl<'tcx> Assignment<'tcx> {
         span: Span,
     ) -> Assignment<'tcx> {
         Assignment {
-            lv: lv,
-            rv: rv,
-            atype: atype,
-            span: span,
+            lv,
+            rv,
+            atype,
+            span,
         }
     }
 }
@@ -66,7 +66,7 @@ pub struct BlockNode<'tcx> {
 impl<'tcx> BlockNode<'tcx> {
     pub fn new(index: usize) -> BlockNode<'tcx> {
         BlockNode {
-            index: index,
+            index,
             next: FxHashSet::<usize>::default(),
             assignments: Vec::<Assignment<'tcx>>::new(),
             calls: Vec::<Terminator<'tcx>>::new(),
@@ -97,13 +97,13 @@ pub struct ValueNode {
 impl ValueNode {
     pub fn new(index: usize, local: usize, need_drop: bool, may_drop: bool) -> Self {
         ValueNode {
-            index: index,
-            local: local,
-            need_drop: need_drop,
+            index,
+            local,
+            need_drop,
             father: local,
             field_id: usize::MAX,
             alias: vec![index],
-            may_drop: may_drop,
+            may_drop,
             kind: TyKind::Adt,
             fields: FxHashMap::default(),
         }
@@ -114,7 +114,7 @@ impl ValueNode {
     }
 
     pub fn is_ptr(&self) -> bool {
-        return self.kind == TyKind::RawPtr || self.kind == TyKind::Ref;
+        self.kind == TyKind::RawPtr || self.kind == TyKind::Ref
     }
 
     pub fn is_ref(&self) -> bool {
@@ -180,10 +180,10 @@ impl<'tcx> MopGraph<'tcx> {
             // handle general statements
             for stmt in &basicblocks[iter].statements {
                 /* Assign is a tuple defined as Assign(Box<(Place<'tcx>, Rvalue<'tcx>)>) */
-                let span = stmt.source_info.span.clone();
+                let span = stmt.source_info.span;
                 if let StatementKind::Assign(ref assign) = stmt.kind {
                     let lv_local = assign.0.local.as_usize(); // assign.0 is a Place
-                    let lv = assign.0.clone();
+                    let lv = assign.0;
                     match assign.1 {
                         // assign.1 is a Rvalue
                         Rvalue::Use(ref x) => {
@@ -191,7 +191,7 @@ impl<'tcx> MopGraph<'tcx> {
                                 Operand::Copy(ref p) => {
                                     let rv_local = p.local.as_usize();
                                     if values[lv_local].may_drop && values[rv_local].may_drop {
-                                        let rv = p.clone();
+                                        let rv = *p;
                                         let assign =
                                             Assignment::new(lv, rv, AssignType::Copy, span);
                                         cur_bb.assignments.push(assign);
@@ -200,7 +200,7 @@ impl<'tcx> MopGraph<'tcx> {
                                 Operand::Move(ref p) => {
                                     let rv_local = p.local.as_usize();
                                     if values[lv_local].may_drop && values[rv_local].may_drop {
-                                        let rv = p.clone();
+                                        let rv = *p;
                                         let assign =
                                             Assignment::new(lv, rv, AssignType::Move, span);
                                         cur_bb.assignments.push(assign);
@@ -231,7 +231,7 @@ impl<'tcx> MopGraph<'tcx> {
                         Rvalue::Ref(_, _, ref p) | Rvalue::AddressOf(_, ref p) => {
                             let rv_local = p.local.as_usize();
                             if values[lv_local].may_drop && values[rv_local].may_drop {
-                                let rv = p.clone();
+                                let rv = *p;
                                 let assign = Assignment::new(lv, rv, AssignType::Copy, span);
                                 cur_bb.assignments.push(assign);
                             }
@@ -252,7 +252,7 @@ impl<'tcx> MopGraph<'tcx> {
                                 Operand::Copy(ref p) | Operand::Move(ref p) => {
                                     let rv_local = p.local.as_usize();
                                     if values[lv_local].may_drop && values[rv_local].may_drop {
-                                        let rv = p.clone();
+                                        let rv = *p;
                                         let assign =
                                             Assignment::new(lv, rv, AssignType::InitBox, span);
                                         cur_bb.assignments.push(assign);
@@ -265,7 +265,7 @@ impl<'tcx> MopGraph<'tcx> {
                             Operand::Copy(ref p) => {
                                 let rv_local = p.local.as_usize();
                                 if values[lv_local].may_drop && values[rv_local].may_drop {
-                                    let rv = p.clone();
+                                    let rv = *p;
                                     let assign = Assignment::new(lv, rv, AssignType::Copy, span);
                                     cur_bb.assignments.push(assign);
                                 }
@@ -273,7 +273,7 @@ impl<'tcx> MopGraph<'tcx> {
                             Operand::Move(ref p) => {
                                 let rv_local = p.local.as_usize();
                                 if values[lv_local].may_drop && values[rv_local].may_drop {
-                                    let rv = p.clone();
+                                    let rv = *p;
                                     let assign = Assignment::new(lv, rv, AssignType::Move, span);
                                     cur_bb.assignments.push(assign);
                                 }
@@ -286,7 +286,7 @@ impl<'tcx> MopGraph<'tcx> {
                                     Operand::Copy(ref p) | Operand::Move(ref p) => {
                                         let rv_local = p.local.as_usize();
                                         if values[lv_local].may_drop && values[rv_local].may_drop {
-                                            let rv = p.clone();
+                                            let rv = *p;
                                             let assign =
                                                 Assignment::new(lv, rv, AssignType::Copy, span);
                                             cur_bb.assignments.push(assign);
@@ -297,7 +297,7 @@ impl<'tcx> MopGraph<'tcx> {
                             }
                         }
                         Rvalue::Discriminant(ref p) => {
-                            let rv = p.clone();
+                            let rv = *p;
                             let assign = Assignment::new(lv, rv, AssignType::Variant, span);
                             cur_bb.assignments.push(assign);
                         }
@@ -409,13 +409,13 @@ impl<'tcx> MopGraph<'tcx> {
         }
 
         MopGraph {
-            def_id: def_id.clone(),
-            tcx: tcx,
+            def_id,
+            tcx,
             span: body.span,
-            blocks: blocks,
-            values: values,
-            arg_size: arg_size,
-            scc_indices: scc_indices,
+            blocks,
+            values,
+            arg_size,
+            scc_indices,
             constant: FxHashMap::default(),
             ret_alias: FnRetAlias::new(arg_size),
             visit_times: 0,
@@ -441,10 +441,8 @@ impl<'tcx> MopGraph<'tcx> {
             if dfn[target] == 0 {
                 self.tarjan(target, stack, instack, dfn, low, time);
                 low[index] = min(low[index], low[target]);
-            } else {
-                if instack.contains(&target) {
-                    low[index] = min(low[index], dfn[target]);
-                }
+            } else if instack.contains(&target) {
+                low[index] = min(low[index], dfn[target]);
             }
         }
         // generate SCC
@@ -485,8 +483,8 @@ impl<'tcx> MopGraph<'tcx> {
     pub fn solve_scc(&mut self) {
         let mut stack = Vec::<usize>::new();
         let mut instack = FxHashSet::<usize>::default();
-        let mut dfn = vec![0 as usize; self.blocks.len()];
-        let mut low = vec![0 as usize; self.blocks.len()];
+        let mut dfn = vec![0_usize; self.blocks.len()];
+        let mut low = vec![0_usize; self.blocks.len()];
         let mut time = 0;
         self.tarjan(0, &mut stack, &mut instack, &mut dfn, &mut low, &mut time);
     }
