@@ -389,9 +389,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParam {
                 self.record_mut()[param_ty.index as usize] = true;
                 ControlFlow::Continue(())
             }
-            _ => {
-                ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
@@ -408,9 +406,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamFieldSubst {
                 self.parameters_mut().insert(param_ty.index as usize);
                 ControlFlow::Continue(())
             }
-            _ => {
-                ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
@@ -487,8 +483,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for IsolatedParamPropagation<'tcx, 'a> 
             }
             TyKind::Array(..) => ty.super_visit_with(self),
             TyKind::Tuple(..) => ty.super_visit_with(self),
-            _ => { ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
@@ -536,9 +531,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for OwnerPropagation<'tcx, 'a> {
             }
             TyKind::Array(..) => ty.super_visit_with(self),
             TyKind::Tuple(..) => ty.super_visit_with(self),
-            _ => {
-                ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
@@ -571,9 +564,7 @@ impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for FindPtr<'tcx> {
                 self.set_ptr(true);
                 ControlFlow::Break(())
             }
-            _ => {
-                ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
@@ -607,8 +598,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a> {
                 match unit_res {
                     RawTypeOwner::Owned => {
                         self.set_res(RawTypeOwner::Owned);
-                        return ControlFlow::Break(())
-
+                        return ControlFlow::Break(());
                     }
                     RawTypeOwner::Unowned => {
                         for (index, each_generic) in generic_list.iter().enumerate() {
@@ -642,9 +632,7 @@ impl<'tcx, 'a> TypeVisitor<TyCtxt<'tcx>> for DefaultOwnership<'tcx, 'a> {
                 self.set_ptr(true);
                 ControlFlow::Continue(())
             }
-            _ => {
-                ControlFlow::Continue(())
-            }
+            _ => ControlFlow::Continue(()),
         }
     }
 }
