@@ -7,10 +7,6 @@ use super::matcher::match_unsafe_api_and_check_contracts;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
-    mir::{
-        self, AggregateKind, BasicBlock, BasicBlockData, Operand, Place, ProjectionElem, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
-    },
     ty,
     ty::GenericArgKind,
     mir::{self, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
@@ -133,8 +129,8 @@ impl<'tcx> BodyVisitor<'tcx> {
                             let _dst_pjc_local = self.safedrop_graph.projection(self.tcx, true, cno.dst.place().unwrap().clone());
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             },
             _ => {}
         }
@@ -183,7 +179,6 @@ impl<'tcx> BodyVisitor<'tcx> {
                     }
                     _ => {}
                 }
-                _ => {}
             },
             Rvalue::Aggregate(box ref agg_kind, _op_vec) => match agg_kind {
                 AggregateKind::Array(_ty) => {}
