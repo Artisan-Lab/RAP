@@ -7,9 +7,12 @@ use super::matcher::match_unsafe_api_and_check_contracts;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
+    mir::{
+        self, AggregateKind, BasicBlock, BasicBlockData, Operand, Place, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
+    },
     ty,
     ty::GenericArgKind,
-    mir::{self, Terminator, TerminatorKind, Operand, Statement, StatementKind, Place, Rvalue, AggregateKind, BasicBlockData, BasicBlock},
 };
 
 pub struct BodyVisitor<'tcx> {
@@ -119,66 +122,79 @@ impl<'tcx> BodyVisitor<'tcx> {
             StatementKind::Assign(box (ref lplace, ref rvalue)) => {
                 self.path_analyze_assign(lplace, rvalue, _path_index);
             }
-            StatementKind::Intrinsic(
-                box ref intrinsic
-            ) => {
-                match intrinsic{
-                    mir::NonDivergingIntrinsic::CopyNonOverlapping(cno) => {
-                        if cno.src.place().is_some() && cno.dst.place().is_some() {
-                            let _src_pjc_local = self.safedrop_graph.projection(self.tcx, true, cno.src.place().unwrap().clone());
-                            let _dst_pjc_local = self.safedrop_graph.projection(self.tcx, true, cno.dst.place().unwrap().clone());
-                        }
+            StatementKind::Intrinsic(box ref intrinsic) => match intrinsic {
+                mir::NonDivergingIntrinsic::CopyNonOverlapping(cno) => {
+                    if cno.src.place().is_some() && cno.dst.place().is_some() {
+                        let _src_pjc_local = self.safedrop_graph.projection(
+                            self.tcx,
+                            true,
+                            cno.src.place().unwrap().clone(),
+                        );
+                        let _dst_pjc_local = self.safedrop_graph.projection(
+                            self.tcx,
+                            true,
+                            cno.dst.place().unwrap().clone(),
+                        );
                     }
-                    _ => {}
                 }
+                _ => {}
             },
             _ => {}
         }
     }
 
-    pub fn path_analyze_assign(&mut self, lplace: &Place<'tcx>, rvalue: &Rvalue<'tcx>, _path_index: usize) {
-        let _lpjc_local = self.safedrop_graph.projection(self.tcx, false, lplace.clone());
+    pub fn path_analyze_assign(
+        &mut self,
+        lplace: &Place<'tcx>,
+        rvalue: &Rvalue<'tcx>,
+        _path_index: usize,
+    ) {
+        let _lpjc_local = self
+            .safedrop_graph
+            .projection(self.tcx, false, lplace.clone());
         match rvalue {
-            Rvalue::Use(op) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
-                    }
-                    _ => {} 
+            Rvalue::Use(op) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let _rpjc_local =
+                        self.safedrop_graph
+                            .projection(self.tcx, true, rplace.clone());
                 }
-            }
-            Rvalue::Repeat(op,_const) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
-                    }
-                    _ => {}
+                _ => {}
+            },
+            Rvalue::Repeat(op, _const) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let _rpjc_local =
+                        self.safedrop_graph
+                            .projection(self.tcx, true, rplace.clone());
                 }
+                _ => {}
+            },
+            Rvalue::Ref(_, _, rplace) => {
+                let _rpjc_local = self
+                    .safedrop_graph
+                    .projection(self.tcx, true, rplace.clone());
             }
-            Rvalue::Ref(_,_,rplace) => {
-                let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
+            Rvalue::AddressOf(_, rplace) => {
+                let _rpjc_local = self
+                    .safedrop_graph
+                    .projection(self.tcx, true, rplace.clone());
             }
-            Rvalue::AddressOf(_,rplace) => {
-                let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
-            }
-            Rvalue::Cast(_cast_kind,op,_ty) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
-                    }
-                    _ => {}
+            Rvalue::Cast(_cast_kind, op, _ty) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let _rpjc_local =
+                        self.safedrop_graph
+                            .projection(self.tcx, true, rplace.clone());
                 }
-            }
-            Rvalue::BinaryOp(_bin_op,box(ref _op1, ref _op2)) => {
-                
-            }
-            Rvalue::ShallowInitBox(op,_ty) => {
-                match op {
-                    Operand::Move(rplace) | Operand::Copy(rplace) => {
-                        let _rpjc_local = self.safedrop_graph.projection(self.tcx, true, rplace.clone());
-                    }
-                    _ => {}
+                _ => {}
+            },
+            Rvalue::BinaryOp(_bin_op, box (ref _op1, ref _op2)) => {}
+            Rvalue::ShallowInitBox(op, _ty) => match op {
+                Operand::Move(rplace) | Operand::Copy(rplace) => {
+                    let _rpjc_local =
+                        self.safedrop_graph
+                            .projection(self.tcx, true, rplace.clone());
                 }
+                _ => {}
             },
             Rvalue::Aggregate(box ref agg_kind, _op_vec) => match agg_kind {
                 AggregateKind::Array(_ty) => {}
