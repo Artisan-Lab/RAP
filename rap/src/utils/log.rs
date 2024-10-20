@@ -1,4 +1,4 @@
-use chrono::{Local, Timelike};
+use chrono::Local;
 use fern::colors::{Color, ColoredLevelConfig};
 use fern::{self, Dispatch};
 use log::LevelFilter;
@@ -26,18 +26,16 @@ pub fn init_log() -> Result<(), fern::InitError> {
         .trace(Color::BrightBlack);
 
     let color_level = color_line.info(Color::Green);
-
     let stderr_dispatch = Dispatch::new()
         .format(move |callback, args, record| {
-            let time_now = Local::now();
+            let now = Local::now();
             callback.finish(format_args!(
-                "{}{}:{}|RAP-FRONT|{}{}|: {}\x1B[0m",
+                "{}{}|RAP|{}{}|: {}\x1B[0m",
                 format_args!(
                     "\x1B[{}m",
                     color_line.get_color(&record.level()).to_fg_str()
                 ),
-                time_now.hour(),
-                time_now.minute(),
+                now.format("%H:%M:%S"),
                 color_level.color(record.level()),
                 format_args!(
                     "\x1B[{}m",

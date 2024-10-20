@@ -55,7 +55,7 @@ impl<'tcx> MopGraph<'tcx> {
         self.alias_bbcall(self.scc_indices[bb_index], fn_map, recursion_set);
 
         /* Handle cases if the current block is a merged scc block with sub block */
-        if cur_block.scc_sub_blocks.len() > 0 {
+        if !cur_block.scc_sub_blocks.is_empty() {
             for i in cur_block.scc_sub_blocks.clone() {
                 self.alias_bb(i);
                 self.alias_bbcall(i, fn_map, recursion_set);
@@ -97,7 +97,7 @@ impl<'tcx> MopGraph<'tcx> {
             {
                 match discr {
                     Copy(p) | Move(p) => {
-                        let place = self.projection(false, p.clone());
+                        let place = self.projection(false, *p);
                         if let Some(constant) = self.constant.get(&self.values[place].alias[0]) {
                             single_target = true;
                             sw_val = *constant;
@@ -121,7 +121,7 @@ impl<'tcx> MopGraph<'tcx> {
                      * Filed 0 is the value; field 1 is the real target.
                      */
                     for iter in targets.iter() {
-                        if iter.0 as usize == sw_val as usize {
+                        if iter.0 as usize == sw_val {
                             sw_target = iter.1.as_usize();
                             break;
                         }
