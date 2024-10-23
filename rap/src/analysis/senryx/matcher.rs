@@ -41,7 +41,6 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
     }
 }
 
-
 pub fn get_arg_place(arg: &Operand) -> usize {
     match arg {
         Operand::Move(place) => place.local.as_usize(),
