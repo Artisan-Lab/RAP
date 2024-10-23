@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use crate::rap_warn;
 use crate::analysis::safedrop::graph::SafeDropGraph;
 
 use super::contracts::abstract_state::AbstractState;
@@ -20,6 +20,7 @@ pub struct BodyVisitor<'tcx> {
     pub def_id: DefId,
     pub safedrop_graph: SafeDropGraph<'tcx>,
     pub abstract_states: HashMap<usize, AbstractState>,
+    pub unsafe_callee_report: HashMap<String,usize>,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
@@ -30,6 +31,7 @@ impl<'tcx> BodyVisitor<'tcx> {
             def_id,
             safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
             abstract_states: HashMap::new(),
+            unsafe_callee_report: HashMap::new(),
         }
     }
 
@@ -265,5 +267,25 @@ impl<'tcx> BodyVisitor<'tcx> {
             _ => {}
         }
         results
+    }
+
+    pub fn update_callee_report_level(&mut self, unsafe_callee: String, report_level: usize) {
+        self.unsafe_callee_report.entry(unsafe_callee).and_modify(|e| {
+            if report_level < *e {
+                *e = report_level;
+            }
+        }).or_insert(report_level);
+    }
+
+    // level: 0 bug_level, 1-3 unsound_level
+    // TODO: add more information about the result
+    pub fn output_results(&self, threshold: usize) {
+        for (unsafe_callee, report_level) in &self.unsafe_callee_report {
+            if *report_level == 0{
+                rap_warn!("Find one bug in {:?}!",unsafe_callee);
+            } else if *report_level <= threshold {
+                rap_warn!("Find an unsoundness issue in {:?}!",unsafe_callee);
+            }
+        }
     }
 }

@@ -1,8 +1,6 @@
 use rustc_middle::mir::Operand;
 use rustc_span::source_map::Spanned;
 
-use crate::rap_warn;
-
 use super::contracts::{
     abstract_state::AbstractState,
     checker::{Checker, SliceFromRawPartsChecker},
@@ -43,15 +41,6 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
     }
 }
 
-// level: 0 bug_level, 1-3 unsound_level
-// TODO: add more information about the result
-pub fn output_results(level:usize, threshold: usize) {
-    if level == 0{
-        rap_warn!("Find one bug!")
-    } else if level <= threshold {
-        rap_warn!("Find an unsoundness issue!")
-    }
-}
 
 pub fn get_arg_place(arg: &Operand) -> usize {
     match arg {
