@@ -1,13 +1,14 @@
 use rustc_middle::mir::Operand;
 use rustc_span::source_map::Spanned;
 
+use crate::rap_warn;
+
 use super::contracts::{
     abstract_state::AbstractState,
     checker::{Checker, SliceFromRawPartsChecker},
     contract::check_contract,
 };
 
-//pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
 pub fn match_unsafe_api_and_check_contracts<T>(
     func_name: &str,
     args: &Box<[Spanned<Operand>]>,
@@ -26,7 +27,6 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     }
 }
 
-//fn process_checker(checker: &dyn Checker, args: &Vec<Operand>, abstate: &AbstractState) {
 fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstate: &AbstractState) {
     for (idx, contracts_vec) in checker.variable_contracts().iter() {
         for contract in contracts_vec {
@@ -40,6 +40,16 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
                 }
             }
         }
+    }
+}
+
+// level: 0 bug_level, 1-3 unsound_level
+// TODO: add more information about the result
+pub fn output_results(level:usize, threshold: usize) {
+    if level == 0{
+        rap_warn!("Find one bug!")
+    } else if level <= threshold {
+        rap_warn!("Find an unsoundness issue!")
     }
 }
 
