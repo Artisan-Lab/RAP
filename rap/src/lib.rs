@@ -18,8 +18,8 @@ extern crate rustc_span;
 extern crate rustc_target;
 
 use analysis::core::alias::mop::MopAlias;
-use analysis::core::control_flow::callgraph::CallGraph;
 use analysis::core::dataflow::DataFlow;
+use analysis::core::call_graph::CallGraph;
 use analysis::rcanary::rCanary;
 use analysis::safedrop::SafeDrop;
 use analysis::senryx::SenryxCheck;
@@ -227,10 +227,6 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         SenryxCheck::new(tcx).start();
     }
 
-    if callback.is_callgraph_enabled() {
-        CallGraph::new(tcx).start();
-    }
-
     if callback.is_show_mir_enabled() {
         ShowMir::new(tcx).start();
     }
@@ -239,5 +235,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
         1 => DataFlow::new(tcx, false).start(),
         2 => DataFlow::new(tcx, true).start(),
         _ => {}
+    }
+
+    if callback.is_callgraph_enabled() {
+        CallGraph::new(tcx).start();
     }
 }
