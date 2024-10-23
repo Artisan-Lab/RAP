@@ -11,10 +11,9 @@ use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     mir::{
         self, AggregateKind, BasicBlock, BasicBlockData, Operand, Place, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        StatementKind, Terminator, TerminatorKind, Local,
     },
-    ty,
-    ty::GenericArgKind,
+    ty::{self, Ty, TyKind, GenericArgKind},
 };
 
 pub struct BodyVisitor<'tcx> {
@@ -174,37 +173,50 @@ impl<'tcx> BodyVisitor<'tcx> {
                 }
                 _ => {}
             },
-            Rvalue::Ref(_, _, rplace) => {
-                let align = 0;
-                let size = 0;
+            Rvalue::Ref(_, _, rplace) | Rvalue::AddressOf(_, rplace) => {
+                let rpjc_local = self
+                    .safedrop_graph
+                    .projection(self.tcx, true, rplace.clone());
+                let (align, size) = self.get_layout_by_place_usize(rpjc_local);
                 let abitem = AbstractStateItem::new(
                     (Value::None, Value::None),
                     VType::Pointer(align, size),
                     HashSet::from([StateType::AlignState(AlignState::Aligned)]),
                 );
                 self.insert_path_abstate(path_index, lpjc_local, abitem);
-                let _rpjc_local = self
-                    .safedrop_graph
-                    .projection(self.tcx, true, rplace.clone());
+
             }
-            Rvalue::AddressOf(_, rplace) => {
-                let align = 0;
-                let size = 0;
-                let abitem = AbstractStateItem::new(
-                    (Value::None, Value::None),
-                    VType::Pointer(align, size),
-                    HashSet::from([StateType::AlignState(AlignState::Aligned)]),
-                );
-                self.insert_path_abstate(path_index, lpjc_local, abitem);
-                let _rpjc_local = self
-                    .safedrop_graph
-                    .projection(self.tcx, true, rplace.clone());
-            }
-            Rvalue::Cast(_cast_kind, op, _ty) => match op {
+            // Rvalue::AddressOf(_, rplace) => {
+            //     let align = 0;
+            //     let size = 0;
+            //     let abitem = AbstractStateItem::new(
+            //         (Value::None, Value::None),
+            //         VType::Pointer(align, size),
+            //         HashSet::from([StateType::AlignState(AlignState::Aligned)]),
+            //     );
+            //     self.insert_path_abstate(path_index, lpjc_local, abitem);
+            //     let _rpjc_local = self
+            //         .safedrop_graph
+            //         .projection(self.tcx, true, rplace.clone());
+            // }
+            Rvalue::Cast(_cast_kind, op, ty) => match op {
                 Operand::Move(rplace) | Operand::Copy(rplace) => {
-                    let _rpjc_local =
-                        self.safedrop_graph
-                            .projection(self.tcx, true, rplace.clone());
+                    let rpjc_local = self
+                        .safedrop_graph
+                        .projection(self.tcx, true, rplace.clone());
+                    let (src_align, _src_size) = self.get_layout_by_place_usize(rpjc_local); 
+                    let (dst_align, dst_size) = self.visit_ty_and_get_layout(*ty);
+                    let state = match dst_align.cmp(&src_align) {
+                        std::cmp::Ordering::Greater => StateType::AlignState(AlignState::Small2BigCast),
+                        std::cmp::Ordering::Less => StateType::AlignState(AlignState::Big2SmallCast),
+                        std::cmp::Ordering::Equal => StateType::AlignState(AlignState::Aligned),
+                    };
+                    let abitem = AbstractStateItem::new(
+                        (Value::None, Value::None),
+                        VType::Pointer(dst_align, dst_size),
+                        HashSet::from([state]),
+                    );
+                    self.insert_path_abstate(path_index, lpjc_local, abitem);
                 }
                 _ => {}
             },
@@ -225,6 +237,15 @@ impl<'tcx> BodyVisitor<'tcx> {
             //     println!("{}:{:?}",llocal,rvalue);
             // }
             _ => {}
+        }
+    }
+
+    pub fn visit_ty_and_get_layout(&self, ty:Ty<'tcx>) -> (usize,usize) {
+        match ty.kind() {
+            TyKind::RawPtr(ty,_) | TyKind::Ref(_, ty, _) | TyKind::Slice(ty) => {
+                self.get_layout_by_ty(*ty)
+            }
+            _ => {(0,0)}
         }
     }
 
@@ -324,5 +345,20 @@ impl<'tcx> BodyVisitor<'tcx> {
             })
             .state_map
             .insert(place, abitem);
+    }
+
+    pub fn get_layout_by_place_usize(&self, place:usize) -> (usize,usize) {
+        let local_place = Place::from(Local::from_usize(place));
+        let body = self.tcx.optimized_mir(self.def_id);
+        let place_ty = local_place.ty(body, self.tcx).ty;
+        self.visit_ty_and_get_layout(place_ty)
+    }
+
+    pub fn get_layout_by_ty(&self, ty: Ty<'tcx>) -> (usize,usize) {
+        let param_env = self.tcx.param_env(self.def_id);
+        let layout = self.tcx.layout_of(param_env.and(ty)).unwrap();
+        let align= layout.align.abi.bytes_usize();
+        let size = layout.size.bytes() as usize;
+        (align,size)
     }
 }

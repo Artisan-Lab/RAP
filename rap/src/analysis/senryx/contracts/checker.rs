@@ -25,13 +25,13 @@ impl<T> SliceFromRawPartsChecker<T> {
         map.insert(
             0,
             vec![
-                Contract::ValueCheck {
+                Contract::StateCheck {
                     op: Op::GE,
-                    value: Value::Usize(0),
+                    state: StateType::AllocatedState(AllocatedState::Alloc),
                 },
                 Contract::StateCheck {
-                    op: Op::EQ,
-                    state: StateType::AllocatedState(AllocatedState::Alloc),
+                    op: Op::NE,
+                    state: StateType::AlignState(AlignState::Small2BigCast),
                 },
             ],
         );
