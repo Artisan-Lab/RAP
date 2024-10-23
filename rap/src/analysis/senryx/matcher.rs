@@ -7,7 +7,6 @@ use super::contracts::{
     contract::check_contract,
 };
 
-//pub fn match_unsafe_api_and_check_contracts<T>(func_name: &str, args:&Vec<Operand>, abstate:&AbstractState, _ty: T) {
 pub fn match_unsafe_api_and_check_contracts<T>(
     func_name: &str,
     args: &Box<[Spanned<Operand>]>,
@@ -17,7 +16,9 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
     // println!("base name ---- {:?}",base_func_name);
     let checker: Option<Box<dyn Checker>> = match base_func_name {
-        "std::slice::from_raw_parts::" => Some(Box::new(SliceFromRawPartsChecker::<T>::new())),
+        "std::slice::from_raw_parts::" | "std::slice::from_raw_parts_mut::" => {
+            Some(Box::new(SliceFromRawPartsChecker::<T>::new()))
+        }
         _ => None,
     };
 
@@ -26,7 +27,6 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     }
 }
 
-//fn process_checker(checker: &dyn Checker, args: &Vec<Operand>, abstate: &AbstractState) {
 fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstate: &AbstractState) {
     for (idx, contracts_vec) in checker.variable_contracts().iter() {
         for contract in contracts_vec {
@@ -36,7 +36,9 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
             }
             if let Some(abstate_item) = abstate.state_map.get(&arg_place) {
                 if !check_contract(*contract, abstate_item) {
-                    println!("Checking contract failed! ---- {:?}", contract);
+                    println!("Contract failed! ---- {:?}", contract);
+                } else {
+                    println!("Contract passed! ---- {:?}", contract);
                 }
             }
         }

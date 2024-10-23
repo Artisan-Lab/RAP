@@ -12,11 +12,12 @@ use visitor::BodyVisitor;
 
 pub struct SenryxCheck<'tcx> {
     pub tcx: TyCtxt<'tcx>,
+    pub threshhold: usize,
 }
 
 impl<'tcx> SenryxCheck<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>) -> Self {
-        Self { tcx }
+    pub fn new(tcx: TyCtxt<'tcx>, threshhold: usize) -> Self {
+        Self { tcx, threshhold }
     }
 
     pub fn start(&self) {

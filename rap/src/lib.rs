@@ -224,7 +224,7 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
     }
 
     if callback.is_senryx_enabled() {
-        SenryxCheck::new(tcx).start();
+        SenryxCheck::new(tcx, 2).start();
     }
 
     if callback.is_show_mir_enabled() {
