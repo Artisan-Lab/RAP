@@ -1,25 +1,28 @@
-use std::collections::HashMap;
-
 use crate::analysis::safedrop::graph::SafeDropGraph;
+use crate::rap_warn;
+use std::collections::{HashMap, HashSet};
 
-use super::contracts::abstract_state::AbstractState;
+use super::contracts::abstract_state::{
+    AbstractState, AbstractStateItem, AlignState, StateType, VType, Value,
+};
 use super::matcher::match_unsafe_api_and_check_contracts;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     mir::{
-        self, AggregateKind, BasicBlock, BasicBlockData, Operand, Place, Rvalue, Statement,
+        self, AggregateKind, BasicBlock, BasicBlockData, Local, Operand, Place, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
-    ty,
-    ty::GenericArgKind,
+    ty::{self, GenericArgKind, Ty, TyKind},
 };
 
 pub struct BodyVisitor<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub def_id: DefId,
     pub safedrop_graph: SafeDropGraph<'tcx>,
+    // abstract_states records the path index and variables' ab states in this path
     pub abstract_states: HashMap<usize, AbstractState>,
+    pub unsafe_callee_report: HashMap<String, usize>,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
@@ -30,6 +33,7 @@ impl<'tcx> BodyVisitor<'tcx> {
             def_id,
             safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
             abstract_states: HashMap::new(),
+            unsafe_callee_report: HashMap::new(),
         }
     }
 
@@ -147,9 +151,9 @@ impl<'tcx> BodyVisitor<'tcx> {
         &mut self,
         lplace: &Place<'tcx>,
         rvalue: &Rvalue<'tcx>,
-        _path_index: usize,
+        path_index: usize,
     ) {
-        let _lpjc_local = self
+        let lpjc_local = self
             .safedrop_graph
             .projection(self.tcx, false, lplace.clone());
         match rvalue {
@@ -169,21 +173,53 @@ impl<'tcx> BodyVisitor<'tcx> {
                 }
                 _ => {}
             },
-            Rvalue::Ref(_, _, rplace) => {
-                let _rpjc_local = self
+            Rvalue::Ref(_, _, rplace) | Rvalue::AddressOf(_, rplace) => {
+                let rpjc_local = self
                     .safedrop_graph
                     .projection(self.tcx, true, rplace.clone());
+                let (align, size) = self.get_layout_by_place_usize(rpjc_local);
+                let abitem = AbstractStateItem::new(
+                    (Value::None, Value::None),
+                    VType::Pointer(align, size),
+                    HashSet::from([StateType::AlignState(AlignState::Aligned)]),
+                );
+                self.insert_path_abstate(path_index, lpjc_local, abitem);
             }
-            Rvalue::AddressOf(_, rplace) => {
-                let _rpjc_local = self
-                    .safedrop_graph
-                    .projection(self.tcx, true, rplace.clone());
-            }
-            Rvalue::Cast(_cast_kind, op, _ty) => match op {
+            // Rvalue::AddressOf(_, rplace) => {
+            //     let align = 0;
+            //     let size = 0;
+            //     let abitem = AbstractStateItem::new(
+            //         (Value::None, Value::None),
+            //         VType::Pointer(align, size),
+            //         HashSet::from([StateType::AlignState(AlignState::Aligned)]),
+            //     );
+            //     self.insert_path_abstate(path_index, lpjc_local, abitem);
+            //     let _rpjc_local = self
+            //         .safedrop_graph
+            //         .projection(self.tcx, true, rplace.clone());
+            // }
+            Rvalue::Cast(_cast_kind, op, ty) => match op {
                 Operand::Move(rplace) | Operand::Copy(rplace) => {
-                    let _rpjc_local =
-                        self.safedrop_graph
-                            .projection(self.tcx, true, rplace.clone());
+                    let rpjc_local = self
+                        .safedrop_graph
+                        .projection(self.tcx, true, rplace.clone());
+                    let (src_align, _src_size) = self.get_layout_by_place_usize(rpjc_local);
+                    let (dst_align, dst_size) = self.visit_ty_and_get_layout(*ty);
+                    let state = match dst_align.cmp(&src_align) {
+                        std::cmp::Ordering::Greater => {
+                            StateType::AlignState(AlignState::Small2BigCast)
+                        }
+                        std::cmp::Ordering::Less => {
+                            StateType::AlignState(AlignState::Big2SmallCast)
+                        }
+                        std::cmp::Ordering::Equal => StateType::AlignState(AlignState::Aligned),
+                    };
+                    let abitem = AbstractStateItem::new(
+                        (Value::None, Value::None),
+                        VType::Pointer(dst_align, dst_size),
+                        HashSet::from([state]),
+                    );
+                    self.insert_path_abstate(path_index, lpjc_local, abitem);
                 }
                 _ => {}
             },
@@ -204,6 +240,15 @@ impl<'tcx> BodyVisitor<'tcx> {
             //     println!("{}:{:?}",llocal,rvalue);
             // }
             _ => {}
+        }
+    }
+
+    pub fn visit_ty_and_get_layout(&self, ty: Ty<'tcx>) -> (usize, usize) {
+        match ty.kind() {
+            TyKind::RawPtr(ty, _) | TyKind::Ref(_, ty, _) | TyKind::Slice(ty) => {
+                self.get_layout_by_ty(*ty)
+            }
+            _ => (0, 0),
         }
     }
 
@@ -265,5 +310,58 @@ impl<'tcx> BodyVisitor<'tcx> {
             _ => {}
         }
         results
+    }
+
+    pub fn update_callee_report_level(&mut self, unsafe_callee: String, report_level: usize) {
+        self.unsafe_callee_report
+            .entry(unsafe_callee)
+            .and_modify(|e| {
+                if report_level < *e {
+                    *e = report_level;
+                }
+            })
+            .or_insert(report_level);
+    }
+
+    // level: 0 bug_level, 1-3 unsound_level
+    // TODO: add more information about the result
+    pub fn output_results(&self, threshold: usize) {
+        for (unsafe_callee, report_level) in &self.unsafe_callee_report {
+            if *report_level == 0 {
+                rap_warn!("Find one bug in {:?}!", unsafe_callee);
+            } else if *report_level <= threshold {
+                rap_warn!("Find an unsoundness issue in {:?}!", unsafe_callee);
+            }
+        }
+    }
+
+    pub fn insert_path_abstate(
+        &mut self,
+        path_index: usize,
+        place: usize,
+        abitem: AbstractStateItem,
+    ) {
+        self.abstract_states
+            .entry(path_index)
+            .or_insert_with(|| AbstractState {
+                state_map: HashMap::new(),
+            })
+            .state_map
+            .insert(place, abitem);
+    }
+
+    pub fn get_layout_by_place_usize(&self, place: usize) -> (usize, usize) {
+        let local_place = Place::from(Local::from_usize(place));
+        let body = self.tcx.optimized_mir(self.def_id);
+        let place_ty = local_place.ty(body, self.tcx).ty;
+        self.visit_ty_and_get_layout(place_ty)
+    }
+
+    pub fn get_layout_by_ty(&self, ty: Ty<'tcx>) -> (usize, usize) {
+        let param_env = self.tcx.param_env(self.def_id);
+        let layout = self.tcx.layout_of(param_env.and(ty)).unwrap();
+        let align = layout.align.abi.bytes_usize();
+        let size = layout.size.bytes() as usize;
+        (align, size)
     }
 }

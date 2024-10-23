@@ -11,6 +11,7 @@ pub enum Value {
     Isize(isize),
     U32(u32),
     Custom(),
+    None,
     // ...
 }
 
@@ -54,15 +55,26 @@ pub enum InitState {
     PartlyInitialized,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum VType {
+    Pointer(usize, usize), // (align, size)
+                           // todo
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct AbstractStateItem {
     pub value: (Value, Value),
+    pub vtype: VType,
     pub state: HashSet<StateType>,
 }
 
 impl AbstractStateItem {
-    pub fn new(value: (Value, Value), state: HashSet<StateType>) -> Self {
-        Self { value, state }
+    pub fn new(value: (Value, Value), vtype: VType, state: HashSet<StateType>) -> Self {
+        Self {
+            value,
+            vtype,
+            state,
+        }
     }
 
     pub fn meet_state_item(&mut self, other_state: &AbstractStateItem) {
