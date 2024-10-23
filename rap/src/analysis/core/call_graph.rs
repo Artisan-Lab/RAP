@@ -1,6 +1,8 @@
 pub mod call_graph_helper;
+pub mod call_graph_visitor;
 
-use call_graph_helper::{CallGraphInfo, CallGraphVisitor};
+use call_graph_helper::CallGraphInfo;
+use call_graph_visitor::CallGraphVisitor;
 use rustc_middle::ty::TyCtxt;
 
 

@@ -2,4 +2,4 @@
 # The default version of the rustc compiler
 #channel = "nightly-2023-10-05-x86_64-unknown-linux-gnu"
 channel = "nightly-2024-06-30-x86_64-unknown-linux-gnu"
-components = ["rustc-dev", "rustc-src", "llvm-tools-preview"]
+components = ["rustc-dev", "rust-src", "llvm-tools-preview"]
