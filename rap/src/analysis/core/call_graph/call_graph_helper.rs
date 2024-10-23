@@ -1,9 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
-
 use rustc_middle::mir;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{TyCtxt, Instance, FnDef, InstanceKind};
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::FnDef;
 use crate::analysis::core::alias::mop::types::TyKind;
 
 
@@ -126,9 +124,20 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         self.call_graph_info.add_node(self.def_id, &caller_path_str);
         for (index, data) in self.body.basic_blocks.iter().enumerate() {
             let terminator = data.terminator();
-
+            self.visit_terminator(&terminator);
         } 
     } 
+
+    fn add_to_call_graph(&mut self, callee_def_id: DefId) {
+        let caller_def_path = self.tcx.def_path_str(self.def_id);
+        let callee_def_path = self.tcx.def_path_str(self.def_id);
+        // let callee_location = self.tcx.def_span(callee_def_id);
+        if callee_def_id == self.def_id {
+            // Recursion
+            println!("Warning! Find a recursion function which may cause stackoverflow!")
+        }
+        self.add_in_call_graph(&caller_def_path, callee_def_id, &callee_def_path);
+    }
 
     fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>) {
         if let mir::TerminatorKind::Call {
@@ -137,83 +146,32 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         } = &terminator.kind {
             if let mir::Operand::Constant(constant) = func {
                 if let FnDef(callee_def_id, callee_substs) = constant.const_.ty().kind() {
-                    if 
+                    let param_env = self.tcx.param_env(self.def_id);
+                    if let Ok(Some(instance)) = Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs) {
+                        // Try to analysis the specific type of callee.
+                        let mut instance_def_id = match instance.def {
+                            InstanceKind::Item(def_id) => Some(def_id),
+                            InstanceKind::Intrinsic(def_id) | InstanceKind::CloneShim(def_id, _) => {
+                                if !self.tcx.is_closure_like(def_id) {
+                                    // Not a closure
+                                    Some(def_id)
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
+                        if let Some(instance_def_id) = instance_def_id {
+                            self.add_to_call_graph(instance_def_id);
+                        }
+                    } else {
+                        // Although failing to get specific type, callee is still useful.
+                        self.add_to_call_graph(*callee_def_id);
+                    }
                 }
             }
         }
     } 
-
-
-    fn my_visit_terminator(
-        &mut self,
-        terminator: & mir::Terminator<'tcx>,
-    ){
-        match &terminator.kind{
-            mir::TerminatorKind::Call {
-                func,
-                ..  
-            } => {
-                match func{
-                    mir::Operand::Constant(constant) => {
-                        if let TyKind::FnDef(callee_def_id, callee_substs) = constant.literal.ty.kind{
-                             if !is_std_crate(&self.tcx.crate_name(callee_def_id.krate).to_string()){ 
-                                 let param_env = self.tcx.param_env(self.def_id);
-                                 if let Ok(Some(instance)) = Instance::resolve(self.tcx, param_env, callee_def_id, callee_substs){
-                                     let mut instance_def_id = None;
-                                     match instance.def{
-                                         InstanceDef::Item(def_id) => {
-                                             instance_def_id = Some(def_id.def_id_for_type_of());
-                                        // println!("instance_callee_def_path: {}", get_fn_path(&self.tcx, instance_def_id.def_id_for_type_of()));
-                                         }
-                                         InstanceDef::Intrinsic(def_id)
-                                         | InstanceDef::CloneShim(def_id, _) => {
-                                             if !self.tcx.is_closure(def_id){
-                                                 instance_def_id = Some(def_id);
-                                             // println!("instance_callee_def_path: {}", get_fn_path(&self.tcx, instance_def_id));
-                                             } 
-                                         }
-                                         _ => {}
-                                     }
-                                     if let Some(instance_def_id) = instance_def_id{
-                                         if instance_def_id == self.def_id{
-                                             let caller_def_path = get_fn_path(&self.tcx, self.def_id);
-                                             let callee_def_path = get_fn_path(&self.tcx, instance_def_id); 
-                                             let location = get_fn_location(&self.tcx, instance_def_id);
-                                             let msg = "\x1b[031mwarning!! find a recursion function which may cause stackoverflow\x1b[0m";
-                                             println!("{}", instance);
-                                             progress_info!("{}: {}->{}; \x1b[031mlocation\x1b[0m: {}", msg, caller_def_path, callee_def_path, location); 
-                                         }
-                                         let caller_def_path = get_fn_path(&self.tcx, self.def_id);
-                                         let callee_def_path = get_fn_path(&self.tcx, instance_def_id);
-                                        // let location = get_fn_location(&self.tcx, instance_def_id);
-                                        // println!("instance_callee_def_path: {}; location: {}", callee_def_path, location);
-                                         self.add_in_call_graph(&caller_def_path, instance_def_id, &callee_def_path);
-                                     }
-                                 }
-                                 else{
-                                     if self.def_id == callee_def_id{
-                                         let caller_def_path = get_fn_path(&self.tcx, self.def_id);
-                                         let callee_def_path = get_fn_path(&self.tcx, callee_def_id); 
-                                         let location = get_fn_location(&self.tcx, callee_def_id);  
-                                         let msg = "\x1b[031mwarning!! find a recursion function which may cause stackoverflow\x1b[0m";
-                                         progress_info!("{}: {}->{}; \x1b[031mlocation\x1b[0m: {}", msg, caller_def_path, callee_def_path,location); 
-                                     }
-                                     let caller_def_path = get_fn_path(&self.tcx, self.def_id);
-                                     let callee_def_path = get_fn_path(&self.tcx, callee_def_id);
-                                     //let location = get_fn_location(&self.tcx, callee_def_id);
-                                     //println!("callee: {}; location: {}", callee_def_path, location);
-                                     self.add_in_call_graph(&caller_def_path, callee_def_id, &callee_def_path);
-                                 }
-                             }
-                        }
-                    }
-                    _ => {}
-                 } 
-              }
-            _ => {}
-        }
-    }
-
 
 }
 
