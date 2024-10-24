@@ -1,6 +1,6 @@
-use std::{collections::HashMap, hash::Hash};
 use rustc_hir::def_id::DefId;
-
+use std::collections::HashSet;
+use std::{collections::HashMap, hash::Hash};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Node {
@@ -26,16 +26,17 @@ impl Node {
 }
 
 pub struct CallGraphInfo {
-    pub functions: HashMap<usize, Node>,    // id -> node
-    pub function_calls: Vec<(usize, usize)>,    // (id, id)
-    pub node_registry: HashMap<String, usize>,  // path -> id
+    pub functions: HashMap<usize, Node>, // id -> node
+    // pub function_calls: Vec<(usize, usize)>,   // (id, id)
+    pub function_calls: HashMap<usize, HashSet<usize>>,
+    pub node_registry: HashMap<String, usize>, // path -> id
 }
 
 impl CallGraphInfo {
     pub fn new() -> Self {
         Self {
             functions: HashMap::new(),
-            function_calls: Vec::new(),
+            function_calls: HashMap::new(),
             node_registry: HashMap::new(),
         }
     }
@@ -44,7 +45,7 @@ impl CallGraphInfo {
         self.functions.len()
     }
 
-    pub fn add_node(& mut self, def_id: DefId, def_path: &String) {
+    pub fn add_node(&mut self, def_id: DefId, def_path: &String) {
         if let None = self.get_noed_by_path(def_path) {
             let id = self.node_registry.len();
             let node = Node::new(def_id, def_path);
@@ -53,29 +54,37 @@ impl CallGraphInfo {
         }
     }
 
-    pub fn add_funciton_call_edge(& mut self, caller_id: usize, callee_id: usize) {
-        self.function_calls.push((caller_id, callee_id));
+    pub fn add_funciton_call_edge(&mut self, caller_id: usize, callee_id: usize) {
+        if !self.function_calls.contains_key(&caller_id) {
+            self.function_calls.insert(caller_id, HashSet::new());
+        }
+        if let Some(callees) = self.function_calls.get_mut(&caller_id) {
+            callees.insert(callee_id);
+        }
     }
 
     pub fn get_noed_by_path(&self, def_path: &String) -> Option<usize> {
         if let Some(&id) = self.node_registry.get(def_path) {
             Some(id)
-        } else  {
+        } else {
             None
         }
     }
 
     pub fn print_call_graph(&self) {
         println!("CallGraph Analysis:");
-        println!("There are {} functions calls!", self.function_calls.len());
-        for call in self.function_calls.clone() {
-            let caller_id = call.0;
-            let callee_id = call.1;
+        // println!("There are {} functions calls!", self.function_calls.len());
+        for (caller_id, callees) in self.function_calls.clone() {
             if let Some(caller_node) = self.functions.get(&caller_id) {
-                if let Some(callee_node) = self.functions.get(&callee_id) {
-                    let caller_def_path = caller_node.get_def_path();
-                    let callee_def_path = callee_node.get_def_path();
-                    println!("{}:{} -> {}:{}", call.0, caller_def_path, call.1, callee_def_path);
+                for callee_id in callees {
+                    if let Some(callee_node) = self.functions.get(&callee_id) {
+                        let caller_def_path = caller_node.get_def_path();
+                        let callee_def_path = callee_node.get_def_path();
+                        println!(
+                            "{}:{} -> {}:{}",
+                            caller_id, caller_def_path, callee_id, callee_def_path
+                        );
+                    }
                 }
             }
         }
@@ -85,6 +94,3 @@ impl CallGraphInfo {
         }
     }
 }
-
-
-

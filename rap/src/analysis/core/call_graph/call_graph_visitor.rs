@@ -1,8 +1,7 @@
 use super::call_graph_helper::CallGraphInfo;
-use rustc_middle::mir;
-use rustc_middle::ty::{TyCtxt, Instance, FnDef, InstanceKind};
 use rustc_hir::def_id::DefId;
-
+use rustc_middle::mir;
+use rustc_middle::ty::{FnDef, Instance, InstanceKind, TyCtxt};
 
 pub struct CallGraphVisitor<'b, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -12,7 +11,12 @@ pub struct CallGraphVisitor<'b, 'tcx> {
 }
 
 impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId, body: &'tcx mir::Body<'tcx>, call_graph_info: &'b mut CallGraphInfo) -> Self {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        def_id: DefId,
+        body: &'tcx mir::Body<'tcx>,
+        call_graph_info: &'b mut CallGraphInfo,
+    ) -> Self {
         Self {
             tcx: tcx,
             def_id: def_id,
@@ -21,14 +25,22 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         }
     }
 
-    pub fn add_in_call_graph(&mut self, caller_def_path: &String, callee_def_id: DefId, callee_def_path: &String) {
+    pub fn add_in_call_graph(
+        &mut self,
+        caller_def_path: &String,
+        callee_def_id: DefId,
+        callee_def_path: &String,
+    ) {
         if let Some(caller_id) = self.call_graph_info.get_noed_by_path(caller_def_path) {
             if let Some(callee_id) = self.call_graph_info.get_noed_by_path(callee_def_path) {
-                self.call_graph_info.add_funciton_call_edge(caller_id, callee_id);
+                self.call_graph_info
+                    .add_funciton_call_edge(caller_id, callee_id);
             } else {
-                self.call_graph_info.add_node(callee_def_id, callee_def_path);
+                self.call_graph_info
+                    .add_node(callee_def_id, callee_def_path);
                 if let Some(callee_id) = self.call_graph_info.get_noed_by_path(callee_def_path) {
-                    self.call_graph_info.add_funciton_call_edge(caller_id, callee_id);
+                    self.call_graph_info
+                        .add_funciton_call_edge(caller_id, callee_id);
                 }
             }
         }
@@ -40,8 +52,8 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         for (_, data) in self.body.basic_blocks.iter().enumerate() {
             let terminator = data.terminator();
             self.visit_terminator(&terminator);
-        } 
-    } 
+        }
+    }
 
     fn add_to_call_graph(&mut self, callee_def_id: DefId) {
         let caller_def_path = self.tcx.def_path_str(self.def_id);
@@ -56,18 +68,18 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
     }
 
     fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>) {
-        if let mir::TerminatorKind::Call {
-            func,
-            ..
-        } = &terminator.kind {
+        if let mir::TerminatorKind::Call { func, .. } = &terminator.kind {
             if let mir::Operand::Constant(constant) = func {
                 if let FnDef(callee_def_id, callee_substs) = constant.const_.ty().kind() {
                     let param_env = self.tcx.param_env(self.def_id);
-                    if let Ok(Some(instance)) = Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs) {
+                    if let Ok(Some(instance)) =
+                        Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs)
+                    {
                         // Try to analysis the specific type of callee.
                         let instance_def_id = match instance.def {
                             InstanceKind::Item(def_id) => Some(def_id),
-                            InstanceKind::Intrinsic(def_id) | InstanceKind::CloneShim(def_id, _) => {
+                            InstanceKind::Intrinsic(def_id)
+                            | InstanceKind::CloneShim(def_id, _) => {
                                 if !self.tcx.is_closure_like(def_id) {
                                     // Not a closure
                                     Some(def_id)
@@ -87,6 +99,5 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                 }
             }
         }
-    } 
-
+    }
 }
