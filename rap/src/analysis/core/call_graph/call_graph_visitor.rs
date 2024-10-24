@@ -1,7 +1,7 @@
 use super::call_graph_helper::CallGraphInfo;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir;
-use rustc_middle::ty::{FnDef, Instance, InstanceKind, TyCtxt};
+use rustc_middle::ty::{FnDef, TyCtxt};
 
 pub struct CallGraphVisitor<'b, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -70,32 +70,8 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
     fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>) {
         if let mir::TerminatorKind::Call { func, .. } = &terminator.kind {
             if let mir::Operand::Constant(constant) = func {
-                if let FnDef(callee_def_id, callee_substs) = constant.const_.ty().kind() {
-                    let param_env = self.tcx.param_env(self.def_id);
-                    if let Ok(Some(instance)) =
-                        Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs)
-                    {
-                        // Try to analysis the specific type of callee.
-                        let instance_def_id = match instance.def {
-                            InstanceKind::Item(def_id) => Some(def_id),
-                            InstanceKind::Intrinsic(def_id)
-                            | InstanceKind::CloneShim(def_id, _) => {
-                                if !self.tcx.is_closure_like(def_id) {
-                                    // Not a closure
-                                    Some(def_id)
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-                        if let Some(instance_def_id) = instance_def_id {
-                            self.add_to_call_graph(instance_def_id);
-                        }
-                    } else {
-                        // Although failing to get specific type, callee is still useful.
-                        self.add_to_call_graph(*callee_def_id);
-                    }
+                if let FnDef(callee_def_id, _) = constant.const_.ty().kind() {
+                    self.add_to_call_graph(*callee_def_id);
                 }
             }
         }

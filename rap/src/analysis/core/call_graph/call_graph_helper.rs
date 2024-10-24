@@ -2,6 +2,8 @@ use rustc_hir::def_id::DefId;
 use std::collections::HashSet;
 use std::{collections::HashMap, hash::Hash};
 
+use crate::rap_info;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Node {
     def_id: DefId,
@@ -72,7 +74,7 @@ impl CallGraphInfo {
     }
 
     pub fn print_call_graph(&self) {
-        println!("CallGraph Analysis:");
+        rap_info!("CallGraph Analysis:");
         // println!("There are {} functions calls!", self.function_calls.len());
         for (caller_id, callees) in self.function_calls.clone() {
             if let Some(caller_node) = self.functions.get(&caller_id) {
@@ -80,17 +82,20 @@ impl CallGraphInfo {
                     if let Some(callee_node) = self.functions.get(&callee_id) {
                         let caller_def_path = caller_node.get_def_path();
                         let callee_def_path = callee_node.get_def_path();
-                        println!(
+                        rap_info!(
                             "{}:{} -> {}:{}",
-                            caller_id, caller_def_path, callee_id, callee_def_path
+                            caller_id,
+                            caller_def_path,
+                            callee_id,
+                            callee_def_path
                         );
                     }
                 }
             }
         }
-        println!("There are {} functions", self.functions.len());
+        rap_info!("There are {} functions:", self.functions.len());
         for (id, node) in self.functions.clone() {
-            println!("{}:{}", id, node.get_def_path());
+            rap_info!("{}:{}", id, node.get_def_path());
         }
     }
 }
