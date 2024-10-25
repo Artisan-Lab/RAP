@@ -149,13 +149,6 @@ fn run_cmd(mut cmd: Command) {
     }
 }
 
-fn cleanup() {
-    let mut cmd = Command::new("cargo");
-    cmd.arg("clean");
-    run_cmd(cmd);
-    rap_info!("Execute cargo clean.");
-}
-
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
     let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
@@ -174,7 +167,6 @@ fn phase_cargo_rap() {
         }
         _ => {}
     }
-    cleanup(); // clean up the directory before building.
 
     let cmd = MetadataCommand::new();
     rap_debug!("Please run `cargo metadata` if this step takes too long");
