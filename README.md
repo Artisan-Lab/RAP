@@ -28,6 +28,13 @@ Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `c
 cargo +nightly-2024-06-30 rap # ... rest of options of cargo-rap
 ```
 
+Alternatively, you can switch to the pinned toolchain ahead of time:
+
+```rust
+rustup default nightly-2024-06-30
+cargo rap # ... rest of options of cargo-rap
+```
+
 Check out supported options with `-help`:
 
 ```shell
