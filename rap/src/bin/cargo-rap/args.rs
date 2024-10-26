@@ -99,7 +99,7 @@ pub fn filter_crate_type() -> bool {
             return false;
         }
     }
-    // NOTE: tests doesn't have --crate-type, they are handled with --test by rustc
+    // NOTE: tests don't have --crate-type, they are handled with --test by rustc
     return true;
 }
 
