@@ -13,6 +13,9 @@ Memory leakage detection.
 Unsafe code tracing
     -UI or -uig      generate unsafe code isolation graphs
 
+Controlflow tracing
+    -callgraph       generate callgraphs
+
 Dataflow tracing
     -dataflow        generate dataflow graphs
 
