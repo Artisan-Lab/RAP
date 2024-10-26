@@ -2,9 +2,12 @@
     This is a cargo program to start RAP.
     The file references the cargo file for Miri: https://github.com/rust-lang/miri/blob/master/cargo-miri/src/main.rs
 */
+
+#[macro_use]
+extern crate rap;
+
 use cargo_metadata::{Metadata, MetadataCommand};
 use rap::utils::log::{init_log, rap_error_and_exit};
-use rap::{rap_debug, rap_error, rap_info};
 use std::{env, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 

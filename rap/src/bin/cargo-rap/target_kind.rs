@@ -1,5 +1,4 @@
 use cargo_metadata::{Metadata, MetadataCommand, Target};
-use rap::{rap_debug, rap_error, rap_info};
 use std::{
     fmt::{Display, Formatter},
     process::Command,
