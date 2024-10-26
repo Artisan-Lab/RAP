@@ -160,21 +160,6 @@ fn phase_cargo_rap() {
 fn phase_rustc_wrapper() {
     rap_debug!("Launch cargo-rap again triggered by cargo check.");
 
-    // Determines if we are being invoked to build crate for local crate.
-    // Cargo passes the file name as a relative address when building the local crate,
-    fn is_current_compile_crate() -> bool {
-        fn find_arg_with_rs_suffix() -> Option<String> {
-            let mut args = env::args().take_while(|s| s != "--");
-            args.find(|s| s.ends_with(".rs"))
-        }
-        let arg_path = match find_arg_with_rs_suffix() {
-            Some(path) => path,
-            None => return false,
-        };
-        let entry_path: &Path = arg_path.as_ref();
-        entry_path.is_relative()
-    }
-
     fn is_crate_type_lib() -> bool {
         fn any_arg_flag<F>(name: &str, mut check: F) -> bool
         where
@@ -216,7 +201,7 @@ fn phase_rustc_wrapper() {
         any_arg_flag("--crate--type", TargetKind::is_lib_str)
     }
 
-    let is_direct = is_current_compile_crate();
+    let is_direct = args::is_current_compile_crate();
     if is_direct {
         let mut cmd = Command::new(find_rap());
         cmd.args(env::args().skip(2));

@@ -1,12 +1,12 @@
-use std::sync::LazyLock;
+use std::{path::Path, sync::LazyLock};
 
 struct Arguments {
     /// a collection of `std::env::args()`
     args: Vec<String>,
     /// options as first half before -- in args
-    rap_args: Vec<String>,
+    args_group1: Vec<String>,
     /// options as second half after -- in args
-    cargo_args: Vec<String>,
+    args_group2: Vec<String>,
 }
 
 impl Arguments {
@@ -35,20 +35,28 @@ impl Arguments {
 
     fn new() -> Self {
         let args: Vec<_> = std::env::args().collect();
-        let [rap_args, cargo_args] = new_rap_and_cargo_args(&args);
+        let [args_group1, args_group2] = split_args_by_double_dash(&args);
         Arguments {
             args,
-            rap_args,
-            cargo_args,
+            args_group1,
+            args_group2,
         }
+    }
+
+    // In rustc phase:
+    // Determines if we are being invoked to build crate for local crate.
+    // Cargo passes the file name as a relative address when building the local crate,
+    fn is_current_compile_crate(&self) -> bool {
+        let mut args = self.args.iter().take_while(|s| *s != "--");
+        let entry_path = match args.find(|s| s.ends_with(".rs")) {
+            Some(path) => Path::new(path),
+            None => return false,
+        };
+        entry_path.is_relative()
     }
 }
 
-/// `cargo rap [rap options] -- [cargo check options]`
-///
-/// Options before the first `--` are arguments forwarding to rap.
-/// Stuff all after the first `--` are arguments forwarding to cargo check.
-fn new_rap_and_cargo_args(args: &[String]) -> [Vec<String>; 2] {
+fn split_args_by_double_dash(args: &[String]) -> [Vec<String>; 2] {
     let mut args = args.iter().skip(2).map(|arg| arg.to_owned());
     let rap_args = args.by_ref().take_while(|arg| *arg != "--").collect();
     let cargo_args = args.collect();
@@ -61,8 +69,15 @@ pub fn get_arg_flag_value(name: &str) -> Option<&'static str> {
     ARGS.get_arg_flag_value(name)
 }
 
-///  Get rap & cargo check options from
-///  `cargo rap [rap options] -- [cargo check options]`.
+/// `cargo rap [rap options] -- [cargo check options]`
+///
+/// Options before the first `--` are arguments forwarding to rap.
+/// Stuff all after the first `--` are arguments forwarding to cargo check.
 pub fn rap_and_cargo_args() -> [&'static [String]; 2] {
-    [&ARGS.rap_args, &ARGS.cargo_args]
+    [&ARGS.args_group1, &ARGS.args_group2]
+}
+
+/// If a crate being compiled is local in rustc phase.
+pub fn is_current_compile_crate() -> bool {
+    ARGS.is_current_compile_crate()
 }
