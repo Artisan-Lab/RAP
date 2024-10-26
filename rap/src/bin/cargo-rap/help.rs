@@ -27,8 +27,13 @@ NOTE: multiple detections can be processed in single run by
 appending the options to the arguments. Like `cargo rap -F -M`
 will perform two kinds of detection in a row.
 
-e.g. detect use-after-free and memory leak for a riscv target:
-    cargo rap -F -M -- --target riscv64gc-unknown-none-elf
+e.g.
+1. detect use-after-free and memory leak for a riscv target:
+   cargo rap -F -M -- --target riscv64gc-unknown-none-elf
+2. detect use-after-free and memory leak for tests:
+   cargo rap -F -M -- --tests
+3. detect use-after-free and memory leak for all members:
+   cargo rap -F -M -- --workspace
 "#;
 
 pub const RAP_VERSION: &str = r#"
