@@ -17,8 +17,8 @@ mod help;
 mod utils;
 use crate::utils::*;
 
-mod target_kind;
-use target_kind::*;
+mod target;
+use target::*;
 
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
