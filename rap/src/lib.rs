@@ -2,8 +2,10 @@
 #![feature(control_flow_enum)]
 #![feature(box_patterns)]
 
-pub mod analysis;
+#[macro_use]
 pub mod utils;
+
+pub mod analysis;
 
 extern crate rustc_data_structures;
 extern crate rustc_driver;
