@@ -1,3 +1,4 @@
+use crate::args;
 use std::{
     path::PathBuf,
     process::{self, Command},
@@ -23,6 +24,16 @@ pub fn run_cmd(mut cmd: Command) {
 
 pub fn run_rustc() {
     let mut cmd = Command::new("rustc");
-    cmd.args(crate::args::rustc());
+    cmd.args(args::skip2());
+    run_cmd(cmd);
+}
+
+pub fn run_rap() {
+    let mut cmd = Command::new(find_rap());
+    cmd.args(args::skip2());
+    let magic = std::env::var("RAP_ARGS").expect("Missing RAP_ARGS.");
+    let rap_args: Vec<String> =
+        serde_json::from_str(&magic).expect("Failed to deserialize RAP_ARGS.");
+    cmd.args(rap_args);
     run_cmd(cmd);
 }

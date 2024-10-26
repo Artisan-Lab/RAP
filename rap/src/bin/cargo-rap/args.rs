@@ -92,6 +92,6 @@ pub fn get_arg(pos: usize) -> Option<&'static str> {
     ARGS.args.get(pos).map(|x| x.as_str())
 }
 
-pub fn rustc() -> &'static [String] {
+pub fn skip2() -> &'static [String] {
     ARGS.args.get(2..).unwrap_or(&[])
 }

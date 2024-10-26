@@ -110,13 +110,7 @@ fn phase_rustc_wrapper() {
 
     let is_direct = args::is_current_compile_crate();
     if is_direct {
-        let mut cmd = Command::new(find_rap());
-        cmd.args(env::args().skip(2));
-        let magic = env::var("RAP_ARGS").expect("Missing RAP_ARGS.");
-        let rap_args: Vec<String> =
-            serde_json::from_str(&magic).expect("Failed to deserialize RAP_ARGS.");
-        cmd.args(rap_args);
-        run_cmd(cmd);
+        run_rap();
         return;
     }
 
