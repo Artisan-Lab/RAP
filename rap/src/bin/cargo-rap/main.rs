@@ -6,7 +6,6 @@ use cargo_metadata::{Metadata, MetadataCommand};
 use rap::utils::log::{init_log, rap_error_and_exit};
 use rap::{rap_debug, rap_error, rap_info};
 use std::env;
-use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::time::Duration;
@@ -14,6 +13,9 @@ use wait_timeout::ChildExt;
 
 mod args;
 mod help;
+
+mod target_kind;
+use target_kind::TargetKind;
 
 fn find_rap() -> PathBuf {
     let mut path = env::current_exe().expect("Current executable path invalid.");
@@ -216,49 +218,6 @@ fn phase_rustc_wrapper() {
         cmd.args(env::args().skip(2));
         run_cmd(cmd);
     };
-}
-
-#[repr(u8)]
-enum TargetKind {
-    Library,
-    Bin,
-    Unspecified,
-}
-
-impl Display for TargetKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                TargetKind::Library => "lib",
-                TargetKind::Bin => "bin",
-                TargetKind::Unspecified => "unspecified",
-            }
-        )
-    }
-}
-
-impl From<&cargo_metadata::Target> for TargetKind {
-    fn from(target: &cargo_metadata::Target) -> Self {
-        if target
-            .kind
-            .iter()
-            .any(|s| s == "lib" || s == "rlib" || s == "staticlib")
-        {
-            TargetKind::Library
-        } else if target.kind.iter().any(|s| s == "bin") {
-            TargetKind::Bin
-        } else {
-            TargetKind::Unspecified
-        }
-    }
-}
-
-impl TargetKind {
-    fn is_lib_str(s: &str) -> bool {
-        s == "lib" || s == "rlib" || s == "staticlib"
-    }
 }
 
 fn main() {
