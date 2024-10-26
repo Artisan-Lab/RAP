@@ -25,14 +25,19 @@ Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `c
 [toolchain override shorthand syntax]: https://rust-lang.github.io/rustup/overrides.html#toolchain-override-shorthand
 
 ```shell
-cargo +nightly-2024-06-30 rap # ... rest of options of cargo-rap
+cargo rap [rap options] -- [cargo check options]
+
+where `-- [cargo check options]` is optional, and if specified, they are passed to cargo check.
 ```
 
 Alternatively, you can switch to the pinned toolchain ahead of time:
 
 ```rust
+# set up rap's toolchain as default
 rustup default nightly-2024-06-30
-cargo rap # ... rest of options of cargo-rap
+
+# run cargo rap without +toolchain syntax any more
+cargo rap [rap options] -- [cargo check options]
 ```
 
 Check out supported options with `-help`:
