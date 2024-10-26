@@ -36,6 +36,10 @@ General command:
 
 Debugging options:
     -mir             print the MIR of each function
+
+NOTE: multiple detections can be processed in single run by 
+appending the options to the arguments. Like `cargo rap -F -M`
+will perform two kinds of detection in a row.
 "#;
 
 const RAP_VERSION: &str = r#"
