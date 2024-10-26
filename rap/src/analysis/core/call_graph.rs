@@ -20,10 +20,12 @@ impl<'tcx> CallGraph<'tcx> {
 
     pub fn start(&mut self) {
         for &def_id in self.tcx.mir_keys(()).iter() {
-            let body = &self.tcx.optimized_mir(def_id);
-            let mut call_graph_visitor =
-                CallGraphVisitor::new(self.tcx, def_id.into(), body, &mut self.graph);
-            call_graph_visitor.visit();
+            if self.tcx.is_mir_available(def_id) {
+                let body = &self.tcx.optimized_mir(def_id);
+                let mut call_graph_visitor =
+                    CallGraphVisitor::new(self.tcx, def_id.into(), body, &mut self.graph);
+                call_graph_visitor.visit();
+            }
         }
         self.graph.print_call_graph();
     }
