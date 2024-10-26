@@ -1,11 +1,12 @@
 use crate::args;
 use std::{
+    env,
     path::PathBuf,
     process::{self, Command},
 };
 
-pub fn find_rap() -> PathBuf {
-    let mut path = std::env::current_exe().expect("Current executable path invalid.");
+fn find_rap() -> PathBuf {
+    let mut path = env::current_exe().expect("Current executable path invalid.");
     path.set_file_name("rap");
     path
 }
@@ -31,7 +32,7 @@ pub fn run_rustc() {
 pub fn run_rap() {
     let mut cmd = Command::new(find_rap());
     cmd.args(args::skip2());
-    let magic = std::env::var("RAP_ARGS").expect("Missing RAP_ARGS.");
+    let magic = env::var("RAP_ARGS").expect("Missing RAP_ARGS.");
     let rap_args: Vec<String> =
         serde_json::from_str(&magic).expect("Failed to deserialize RAP_ARGS.");
     cmd.args(rap_args);

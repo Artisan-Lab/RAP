@@ -35,6 +35,7 @@ impl Arguments {
 
     fn new() -> Self {
         let args: Vec<_> = std::env::args().collect();
+        rap_debug!("Received args: {args:?}");
         let [args_group1, args_group2] = split_args_by_double_dash(&args);
         Arguments {
             args,
