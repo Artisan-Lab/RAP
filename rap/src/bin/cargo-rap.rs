@@ -82,11 +82,28 @@ impl Arguments {
             args: env::args().collect(),
         }
     }
+
+    /// `cargo rap [rap options] -- [cargo check options]`
+    ///
+    /// Options before the first `--` are arguments forwarding to rap.
+    /// Stuff all after the first `--` are arguments forwarding to cargo check.
+    fn rap_and_cargo_args(&self) -> [Vec<&str>; 2] {
+        dbg!(&self.args);
+        let mut args = self.args.iter().map(|arg| arg.as_str()).skip(2);
+        let rap_args = args.by_ref().take_while(|arg| *arg != "--").collect();
+        let cargo_args = args.collect();
+        [rap_args, cargo_args]
+    }
 }
 
+static ARGS: LazyLock<Arguments> = LazyLock::new(Arguments::new);
+
 fn get_arg_flag_value(name: &str) -> Option<&'static str> {
-    static ARGS: LazyLock<Arguments> = LazyLock::new(Arguments::new);
     ARGS.get_arg_flag_value(name)
+}
+
+fn rap_and_cargo_args() -> [Vec<&'static str>; 2] {
+    ARGS.rap_and_cargo_args()
 }
 
 fn find_rap() -> PathBuf {
@@ -179,6 +196,9 @@ fn phase_cargo_rap() {
         Err(e) => rap_error_and_exit(format!("Cannot obtain cargo metadata: {}.", e)),
     };
 
+    let [rap_args, cargo_args] = rap_and_cargo_args();
+    rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
+
     let targets = find_targets(&mut metadata);
     for target in targets {
         /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
@@ -192,21 +212,15 @@ fn phase_cargo_rap() {
         }
 
         /* set the target as a filter for phase_rustc_rap */
-        let host = version_info().host;
-        if get_arg_flag_value("--target").is_none() {
-            cmd.arg("--target");
-            cmd.arg(&host);
-        }
+        // cmd.args(&cargo_args);
 
         // Serialize the remaining args into a special environment variable.
         // This will be read by `phase_rustc_rap` when we go to invoke
         // our actual target crate (the binary or the test we are running).
 
-        let args = env::args().skip(2);
-        let args_vec: Vec<String> = args.collect();
         cmd.env(
             "RAP_ARGS",
-            serde_json::to_string(&args_vec).expect("Failed to serialize args."),
+            serde_json::to_string(&rap_args).expect("Failed to serialize args."),
         );
 
         // Invoke actual cargo for the job, but with different flags.
