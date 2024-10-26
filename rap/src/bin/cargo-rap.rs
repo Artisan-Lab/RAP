@@ -5,7 +5,6 @@
 use cargo_metadata::{Metadata, MetadataCommand};
 use rap::utils::log::{init_log, rap_error_and_exit};
 use rap::{rap_debug, rap_error, rap_info};
-use rustc_version::VersionMeta;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -110,11 +109,6 @@ fn find_rap() -> PathBuf {
     let mut path = env::current_exe().expect("Current executable path invalid.");
     path.set_file_name("rap");
     path
-}
-
-fn version_info() -> VersionMeta {
-    let rap = Command::new(find_rap());
-    VersionMeta::for_command(rap).expect("Failed to determine underlying rustc version of rap.")
 }
 
 /*
@@ -255,9 +249,6 @@ fn phase_cargo_rap() {
 
 fn phase_rustc_wrapper() {
     rap_debug!("Launch cargo-rap again triggered by cargo check.");
-    fn is_target_crate() -> bool {
-        get_arg_flag_value("--target").is_some()
-    }
 
     // Determines if we are being invoked to build crate for local crate.
     // Cargo passes the file name as a relative address when building the local crate,
@@ -315,7 +306,7 @@ fn phase_rustc_wrapper() {
         any_arg_flag("--crate--type", TargetKind::is_lib_str)
     }
 
-    let is_direct = is_current_compile_crate() && is_target_crate();
+    let is_direct = is_current_compile_crate();
     if is_direct {
         let mut cmd = Command::new(find_rap());
         cmd.args(env::args().skip(2));
