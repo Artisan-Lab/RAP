@@ -206,7 +206,7 @@ fn phase_cargo_rap() {
         }
 
         /* set the target as a filter for phase_rustc_rap */
-        // cmd.args(&cargo_args);
+        cmd.args(&cargo_args);
 
         // Serialize the remaining args into a special environment variable.
         // This will be read by `phase_rustc_rap` when we go to invoke
