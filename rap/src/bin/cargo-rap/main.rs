@@ -22,12 +22,13 @@ use target_kind::*;
 
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
-    let mut args = env::args().skip(2); // here we skip two tokens: cargo rap
-    let Some(arg) = args.next() else {
+
+    // here we skip two args: cargo rap
+    let Some(arg) = args::get_arg(2) else {
         rap_error!("Expect command: e.g., `cargo rap -help`.");
         return;
     };
-    match arg.as_str() {
+    match arg {
         "-V" | "-version" => {
             rap_info!("{}", help::RAP_VERSION);
             return;
@@ -137,8 +138,7 @@ fn main() {
     init_log().expect("Failed to init log.");
     rap_debug!("Enter cargo-rap; Received args: {:?}", env::args());
 
-    let first_arg = env::args().nth(1);
-    match first_arg.unwrap() {
+    match args::get_arg(1).unwrap() {
         s if s.ends_with("rap") => phase_cargo_rap(),
         s if s.ends_with("rustc") => phase_rustc_wrapper(),
         _ => {

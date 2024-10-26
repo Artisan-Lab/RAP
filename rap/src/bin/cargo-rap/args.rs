@@ -87,3 +87,7 @@ pub fn is_crate_type_lib() -> bool {
         .map(crate::TargetKind::is_lib_str)
         .unwrap_or(false)
 }
+
+pub fn get_arg(pos: usize) -> Option<&'static str> {
+    ARGS.args.get(pos).map(|x| x.as_str())
+}
