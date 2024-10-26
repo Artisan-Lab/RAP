@@ -1,6 +1,8 @@
 pub mod call_graph_helper;
 pub mod call_graph_visitor;
 
+use std::collections::HashSet;
+
 use call_graph_helper::CallGraphInfo;
 use call_graph_visitor::CallGraphVisitor;
 use rustc_middle::ty::TyCtxt;
@@ -52,4 +54,9 @@ impl<'tcx> CallGraph<'tcx> {
         // }
         self.graph.print_call_graph();
     }
+
+    pub fn get_callee_def_path(&self, def_path: String) -> Option<HashSet<String>> {
+        self.graph.get_callees_path(&def_path)
+    }   
+
 }

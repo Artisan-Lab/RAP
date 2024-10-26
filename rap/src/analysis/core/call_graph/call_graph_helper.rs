@@ -47,6 +47,22 @@ impl CallGraphInfo {
         self.functions.len()
     }
 
+    pub fn get_callees_path(&self, caller_def_path: &String) -> Option<HashSet<String>> {
+        let mut callees_path: HashSet<String> = HashSet::new();
+        if let Some(caller_id) = self.node_registry.get(caller_def_path) {
+            if let Some(callee_ids) = self.function_calls.get(&caller_id) {
+                for id in callee_ids {
+                    if let Some(callee_node) = self.functions.get(id) {
+                        callees_path.insert(callee_node.get_def_path());
+                    }
+                }
+            } 
+            Some(callees_path)
+        } else {
+            None
+        }
+    }
+
     pub fn add_node(&mut self, def_id: DefId, def_path: &String) {
         if let None = self.get_noed_by_path(def_path) {
             let id = self.node_registry.len();
