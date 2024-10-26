@@ -20,3 +20,9 @@ pub fn run_cmd(mut cmd: Command) {
         Err(err) => panic!("Error in running {:?} {}.", cmd, err),
     }
 }
+
+pub fn run_rustc() {
+    let mut cmd = Command::new("rustc");
+    cmd.args(crate::args::rustc());
+    run_cmd(cmd);
+}

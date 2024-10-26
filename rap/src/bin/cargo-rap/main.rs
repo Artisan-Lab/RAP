@@ -120,10 +120,7 @@ fn phase_rustc_wrapper() {
         return;
     }
 
-    rap_info!("phase_rustc_wrapper: run rustc");
-    let mut cmd = Command::new("rustc");
-    cmd.args(env::args().skip(2));
-    run_cmd(cmd);
+    run_rustc();
 }
 
 fn main() {
