@@ -162,47 +162,6 @@ fn phase_cargo_rap() {
 fn phase_rustc_wrapper() {
     rap_debug!("Launch cargo-rap again triggered by cargo check.");
 
-    fn is_crate_type_lib() -> bool {
-        fn any_arg_flag<F>(name: &str, mut check: F) -> bool
-        where
-            F: FnMut(&str) -> bool,
-        {
-            // Stop searching at `--`.
-            let mut args = std::env::args().take_while(|val| val != "--");
-            loop {
-                let arg = match args.next() {
-                    Some(arg) => arg,
-                    None => return false,
-                };
-                if !arg.starts_with(name) {
-                    continue;
-                }
-
-                // Strip leading `name`.
-                let suffix = &arg[name.len()..];
-                let value = if suffix.is_empty() {
-                    // This argument is exactly `name`; the next one is the value.
-                    match args.next() {
-                        Some(arg) => arg,
-                        None => return false,
-                    }
-                } else if suffix.starts_with('=') {
-                    // This argument is `name=value`; get the value.
-                    // Strip leading `=`.
-                    suffix[1..].to_owned()
-                } else {
-                    return false;
-                };
-
-                if check(&value) {
-                    return true;
-                }
-            }
-        }
-
-        any_arg_flag("--crate--type", TargetKind::is_lib_str)
-    }
-
     let is_direct = args::is_current_compile_crate();
     if is_direct {
         let mut cmd = Command::new(find_rap());
@@ -212,12 +171,13 @@ fn phase_rustc_wrapper() {
             serde_json::from_str(&magic).expect("Failed to deserialize RAP_ARGS.");
         cmd.args(rap_args);
         run_cmd(cmd);
+        return;
     }
-    if !is_direct || is_crate_type_lib() {
-        let mut cmd = Command::new("rustc");
-        cmd.args(env::args().skip(2));
-        run_cmd(cmd);
-    };
+
+    rap_info!("phase_rustc_wrapper: run rustc");
+    let mut cmd = Command::new("rustc");
+    cmd.args(env::args().skip(2));
+    run_cmd(cmd);
 }
 
 fn main() {

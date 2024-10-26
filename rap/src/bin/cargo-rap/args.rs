@@ -12,7 +12,7 @@ struct Arguments {
 impl Arguments {
     // Get value from `name=val` or `name val`.
     fn get_arg_flag_value(&self, name: &str) -> Option<&str> {
-        let mut args = self.args.iter().take_while(|val| *val != "--");
+        let mut args = self.args_group1.iter();
 
         while let Some(arg) = args.next() {
             if !arg.starts_with(name) {
@@ -47,7 +47,7 @@ impl Arguments {
     // Determines if we are being invoked to build crate for local crate.
     // Cargo passes the file name as a relative address when building the local crate,
     fn is_current_compile_crate(&self) -> bool {
-        let mut args = self.args.iter().take_while(|s| *s != "--");
+        let mut args = self.args_group1.iter();
         let entry_path = match args.find(|s| s.ends_with(".rs")) {
             Some(path) => Path::new(path),
             None => return false,
@@ -80,4 +80,10 @@ pub fn rap_and_cargo_args() -> [&'static [String]; 2] {
 /// If a crate being compiled is local in rustc phase.
 pub fn is_current_compile_crate() -> bool {
     ARGS.is_current_compile_crate()
+}
+
+pub fn is_crate_type_lib() -> bool {
+    get_arg_flag_value("--crate--type")
+        .map(crate::TargetKind::is_lib_str)
+        .unwrap_or(false)
 }
