@@ -8,9 +8,9 @@ use rap::{rap_debug, rap_error, rap_info};
 use rustc_version::VersionMeta;
 use std::env;
 use std::fmt::{Display, Formatter};
-use std::iter::TakeWhile;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::sync::LazyLock;
 use std::time::Duration;
 use wait_timeout::ChildExt;
 
@@ -48,46 +48,45 @@ released at 2024-07-23
 developped by artisan-lab @ Fudan university 
 "#;
 
-/// Yields all values of command line flag `name`.
-struct ArgFlagValueIter<'a> {
-    args: TakeWhile<env::Args, fn(&String) -> bool>,
-    name: &'a str,
+struct Arguments {
+    /// a collection of `std::env::args()`
+    args: Vec<String>,
 }
 
-impl<'a> ArgFlagValueIter<'a> {
-    fn new(name: &'a str) -> Self {
-        Self {
-            args: env::args().take_while(|val| val != "--"),
-            name,
-        }
-    }
-}
+impl Arguments {
+    // Get value from `name=val` or `name val`.
+    fn get_arg_flag_value(&self, name: &str) -> Option<&str> {
+        let mut args = self.args.iter().take_while(|val| *val != "--");
 
-impl Iterator for ArgFlagValueIter<'_> {
-    type Item = String;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let arg = self.args.next()?;
-            if !arg.starts_with(self.name) {
+        while let Some(arg) = args.next() {
+            if !arg.starts_with(name) {
                 continue;
             }
             // Strip leading `name`.
-            let suffix = &arg[self.name.len()..];
+            let suffix = &arg[name.len()..];
             if suffix.is_empty() {
                 // This argument is exactly `name`; the next one is the value.
-                return self.args.next();
+                return args.next().map(|x| x.as_str());
             } else if suffix.starts_with('=') {
                 // This argument is `name=value`; get the value.
                 // Strip leading `=`.
-                return Some(suffix[1..].to_owned());
+                return Some(&suffix[1..]);
             }
+        }
+
+        None
+    }
+
+    fn new() -> Self {
+        Arguments {
+            args: env::args().collect(),
         }
     }
 }
 
-fn get_arg_flag_value(name: &str) -> Option<String> {
-    ArgFlagValueIter::new(name).next()
+fn get_arg_flag_value(name: &str) -> Option<&'static str> {
+    static ARGS: LazyLock<Arguments> = LazyLock::new(Arguments::new);
+    ARGS.get_arg_flag_value(name)
 }
 
 fn find_rap() -> PathBuf {
