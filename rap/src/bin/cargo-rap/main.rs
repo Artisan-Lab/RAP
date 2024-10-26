@@ -44,11 +44,13 @@ fn phase_rustc_wrapper() {
     rap_debug!("Launch cargo-rap again triggered by cargo check.");
 
     let is_direct = args::is_current_compile_crate();
+    // rap only checks local crates
     if is_direct {
         run_rap();
         return;
     }
 
+    // for dependencies, run rustc as usual
     run_rustc();
 }
 
