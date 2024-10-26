@@ -62,11 +62,13 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         if let Some(judge) = is_virtual {
             if judge {
                 let re = Regex::new(r"(?<dyn>\w+)::(?<func>\w+)").unwrap();
-                let Some(caps) = re.captures(&callee_def_path) else {return};
+                let Some(caps) = re.captures(&callee_def_path) else {
+                    return;
+                };
                 callee_def_path = format!("(dyn trait) <* as {}>::{}", &caps["dyn"], &caps["func"]);
             }
         }
-        
+
         // let callee_location = self.tcx.def_span(callee_def_id);
         if callee_def_id == self.def_id {
             // Recursion
@@ -86,43 +88,24 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                         let mut is_virtual = false;
                         // Try to analysis the specific type of callee.
                         let instance_def_id = match instance.def {
-                            InstanceKind::Item(def_id) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::Intrinsic(def_id) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::VTableShim(def_id) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::ReifyShim(def_id, _) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::FnPtrShim(def_id, _) => {
-                                Some(def_id)
-                            },
+                            InstanceKind::Item(def_id) => Some(def_id),
+                            InstanceKind::Intrinsic(def_id) => Some(def_id),
+                            InstanceKind::VTableShim(def_id) => Some(def_id),
+                            InstanceKind::ReifyShim(def_id, _) => Some(def_id),
+                            InstanceKind::FnPtrShim(def_id, _) => Some(def_id),
                             InstanceKind::Virtual(def_id, _) => {
                                 is_virtual = true;
                                 Some(def_id)
-                            },
-                            InstanceKind::ClosureOnceShim{call_once, ..} => {
-                                Some(call_once)
-                            },
-                            InstanceKind::ConstructCoroutineInClosureShim{coroutine_closure_def_id, ..} => {
-                                Some(coroutine_closure_def_id)
-                            },
-                            InstanceKind::ThreadLocalShim(def_id) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::DropGlue(def_id, _) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::FnPtrAddrShim(def_id, _) => {
-                                Some(def_id)
-                            },
-                            InstanceKind::AsyncDropGlueCtorShim(def_id, _) => {
-                                Some(def_id)
-                            },
+                            }
+                            InstanceKind::ClosureOnceShim { call_once, .. } => Some(call_once),
+                            InstanceKind::ConstructCoroutineInClosureShim {
+                                coroutine_closure_def_id,
+                                ..
+                            } => Some(coroutine_closure_def_id),
+                            InstanceKind::ThreadLocalShim(def_id) => Some(def_id),
+                            InstanceKind::DropGlue(def_id, _) => Some(def_id),
+                            InstanceKind::FnPtrAddrShim(def_id, _) => Some(def_id),
+                            InstanceKind::AsyncDropGlueCtorShim(def_id, _) => Some(def_id),
                             InstanceKind::CloneShim(def_id, _) => {
                                 if !self.tcx.is_closure_like(def_id) {
                                     // Not a closure
@@ -130,10 +113,10 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                                 } else {
                                     None
                                 }
-                            },
-                            InstanceKind::CoroutineKindShim{coroutine_def_id, ..} => {
-                                Some(coroutine_def_id)
                             }
+                            InstanceKind::CoroutineKindShim {
+                                coroutine_def_id, ..
+                            } => Some(coroutine_def_id),
                         };
                         if let Some(instance_def_id) = instance_def_id {
                             self.add_to_call_graph(instance_def_id, Some(is_virtual));

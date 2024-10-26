@@ -5,9 +5,9 @@ use std::collections::HashSet;
 
 use call_graph_helper::CallGraphInfo;
 use call_graph_visitor::CallGraphVisitor;
-use rustc_middle::ty::TyCtxt;
-use rustc_middle::mir::Body;
 use rustc_hir::def::DefKind;
+use rustc_middle::mir::Body;
+use rustc_middle::ty::TyCtxt;
 
 pub struct CallGraph<'tcx> {
     pub tcx: TyCtxt<'tcx>,
@@ -30,13 +30,11 @@ impl<'tcx> CallGraph<'tcx> {
                 if self.tcx.is_mir_available(def_id) {
                     let def_kind = self.tcx.def_kind(def_id);
                     let body: &Body = match def_kind {
-                        DefKind::Const | DefKind::Static{..} => {
+                        DefKind::Const | DefKind::Static { .. } => {
                             // Compile Time Function Evaluation
                             &self.tcx.mir_for_ctfe(def_id)
-                        },
-                        _ => {
-                            &self.tcx.optimized_mir(def_id) 
-                        },
+                        }
+                        _ => &self.tcx.optimized_mir(def_id),
                     };
                     let mut call_graph_visitor =
                         CallGraphVisitor::new(self.tcx, def_id.into(), body, &mut self.graph);
@@ -57,6 +55,5 @@ impl<'tcx> CallGraph<'tcx> {
 
     pub fn get_callee_def_path(&self, def_path: String) -> Option<HashSet<String>> {
         self.graph.get_callees_path(&def_path)
-    }   
-
+    }
 }

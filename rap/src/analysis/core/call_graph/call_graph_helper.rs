@@ -56,7 +56,7 @@ impl CallGraphInfo {
                         callees_path.insert(callee_node.get_def_path());
                     }
                 }
-            } 
+            }
             Some(callees_path)
         } else {
             None
