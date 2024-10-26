@@ -1,4 +1,8 @@
-use std::{path::Path, sync::LazyLock};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 struct Arguments {
     /// a collection of `std::env::args()`
@@ -7,6 +11,7 @@ struct Arguments {
     args_group1: Vec<String>,
     /// options as second half after -- in args
     args_group2: Vec<String>,
+    current_exe_path: PathBuf,
 }
 
 impl Arguments {
@@ -34,13 +39,15 @@ impl Arguments {
     }
 
     fn new() -> Self {
-        let args: Vec<_> = std::env::args().collect();
-        rap_debug!("Received args: {args:?}");
+        let args: Vec<_> = env::args().collect();
+        let path = env::current_exe().expect("Current executable path invalid.");
+        rap_debug!("Current exe: {path:?}\tReceived args: {args:?}");
         let [args_group1, args_group2] = split_args_by_double_dash(&args);
         Arguments {
             args,
             args_group1,
             args_group2,
+            current_exe_path: path,
         }
     }
 
@@ -95,4 +102,8 @@ pub fn get_arg(pos: usize) -> Option<&'static str> {
 
 pub fn skip2() -> &'static [String] {
     ARGS.args.get(2..).unwrap_or(&[])
+}
+
+pub fn current_exe_path() -> &'static Path {
+    &ARGS.current_exe_path
 }

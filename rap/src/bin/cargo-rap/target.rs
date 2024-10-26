@@ -1,12 +1,12 @@
+use crate::args;
 use cargo_metadata::{Metadata, MetadataCommand, Target};
+use rap::utils::log::{init_log, rap_error_and_exit};
 use std::{
     env,
     fmt::{Display, Formatter},
     process::Command,
     time::Duration,
 };
-
-use rap::utils::log::{init_log, rap_error_and_exit};
 use wait_timeout::ChildExt;
 
 #[repr(u8)]
@@ -71,7 +71,7 @@ fn is_identified_target(target: &Target, cmd: &mut Command) -> bool {
 */
 fn find_targets(metadata: &mut Metadata) -> Vec<Target> {
     rap_info!("Search local targets for analysis.");
-    let current_dir = std::env::current_dir();
+    let current_dir = env::current_dir();
     let current_dir = current_dir.as_ref().expect("Cannot read current dir.");
     let mut pkg_iter = metadata.packages.iter().filter(|package| {
         let package_dir = package
@@ -130,8 +130,8 @@ pub fn run_cargo_check() {
         );
 
         // Invoke actual cargo for the job, but with different flags.
-        let cargo_rap_path = env::current_exe().expect("Current executable path is invalid.");
-        cmd.env("RUSTC_WRAPPER", &cargo_rap_path);
+        let cargo_rap_path = args::current_exe_path();
+        cmd.env("RUSTC_WRAPPER", cargo_rap_path);
 
         rap_debug!("Command is: {:?}.", cmd);
         rap_info!(

@@ -6,7 +6,7 @@ use std::{
 };
 
 fn find_rap() -> PathBuf {
-    let mut path = env::current_exe().expect("Current executable path invalid.");
+    let mut path = args::current_exe_path().to_owned();
     path.set_file_name("rap");
     path
 }
