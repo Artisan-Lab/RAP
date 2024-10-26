@@ -5,75 +5,17 @@
 use cargo_metadata::{Metadata, MetadataCommand};
 use rap::utils::log::{init_log, rap_error_and_exit};
 use rap::{rap_debug, rap_error, rap_info};
-use std::env;
-use std::path::{Path, PathBuf};
-use std::process::{self, Command};
-use std::time::Duration;
+use std::{env, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
 mod args;
 mod help;
 
+mod utils;
+use crate::utils::*;
+
 mod target_kind;
-use target_kind::TargetKind;
-
-fn find_rap() -> PathBuf {
-    let mut path = env::current_exe().expect("Current executable path invalid.");
-    path.set_file_name("rap");
-    path
-}
-
-/*
-    The function finds a package under the current directory.
-*/
-fn find_targets(metadata: &mut Metadata) -> Vec<cargo_metadata::Target> {
-    rap_info!("Search local targets for analysis.");
-    let current_dir = env::current_dir();
-    let current_dir = current_dir.as_ref().expect("Cannot read current dir.");
-    let mut pkg_iter = metadata.packages.iter().filter(|package| {
-        let package_dir = Path::new(&package.manifest_path)
-            .parent()
-            .expect("Failed to find parent directory.");
-        rap_debug!("Package_dir: {:?}.", package_dir);
-        //FIXME: do we need to handle sub directories?
-        package_dir == current_dir || package_dir.starts_with(&current_dir.to_str().unwrap())
-    });
-    let mut targets = Vec::new();
-    while let Some(pkg) = pkg_iter.next() {
-        rap_info!("Find a new pakage: {:?}.", pkg.name);
-        let mut pkg_targets: Vec<_> = pkg.targets.clone().into_iter().collect();
-        // Ensure `lib` is compiled before `bin`
-        pkg_targets.sort_by_key(|target| TargetKind::from(target) as u8);
-        targets.extend(pkg_targets);
-    }
-    targets
-}
-
-fn is_identified_target(target: &cargo_metadata::Target, cmd: &mut Command) -> bool {
-    match TargetKind::from(target) {
-        TargetKind::Library => {
-            cmd.arg("--lib");
-            true
-        }
-        TargetKind::Bin => {
-            cmd.arg("--bin").arg(&target.name);
-            true
-        }
-        TargetKind::Unspecified => false,
-    }
-}
-
-fn run_cmd(mut cmd: Command) {
-    rap_debug!("Command is: {:?}.", cmd);
-    match cmd.status() {
-        Ok(status) => {
-            if !status.success() {
-                process::exit(status.code().unwrap());
-            }
-        }
-        Err(err) => panic!("Error in running {:?} {}.", cmd, err),
-    }
-}
+use target_kind::*;
 
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
