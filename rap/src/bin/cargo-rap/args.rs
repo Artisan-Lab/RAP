@@ -92,7 +92,7 @@ pub fn is_current_compile_crate() -> bool {
 
 pub fn is_crate_type_lib() -> bool {
     get_arg_flag_value("--crate-type")
-        .map(|s| s == "lib" || s == "rlib" || s == "staticlib" || s == "bin")
+        .map(|s| s == "lib" || s == "rlib" || s == "staticlib")
         .unwrap_or(false)
 }
 
