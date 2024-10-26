@@ -45,7 +45,7 @@ fn phase_rustc_wrapper() {
 
     let is_direct = args::is_current_compile_crate();
     // rap only checks local crates
-    if is_direct {
+    if is_direct && args::is_crate_type_lib() {
         run_rap();
         return;
     }
