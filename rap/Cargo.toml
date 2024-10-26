@@ -18,7 +18,7 @@ name = "rap"
 
 [dependencies]
 #lazy_static = "1.4"
-rustc_version = "0.4.0"
+# rustc_version = "0.4.0"
 cargo_metadata = "0.14.1"
 snafu = "0.7.0"
 chrono = "0.4.19"
