@@ -93,9 +93,9 @@ impl CallGraphInfo {
                 }
             }
         }
-        rap_info!("There are {} functions:", self.functions.len());
-        for (id, node) in self.functions.clone() {
-            rap_info!("{}:{}", id, node.get_def_path());
-        }
+        // rap_info!("There are {} functions:", self.functions.len());
+        // for (id, node) in self.functions.clone() {
+        //     rap_info!("{}:{}", id, node.get_def_path());
+        // }
     }
 }
