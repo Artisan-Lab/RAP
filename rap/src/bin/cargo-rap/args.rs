@@ -90,10 +90,17 @@ pub fn is_current_compile_crate() -> bool {
     ARGS.is_current_compile_crate()
 }
 
-pub fn is_crate_type_lib() -> bool {
-    get_arg_flag_value("--crate-type")
-        .map(|s| s == "lib" || s == "rlib" || s == "staticlib")
-        .unwrap_or(false)
+/// Returns true for crate types to be checked;
+/// returns false for some special crate types that can't be handled by rap.
+/// For example, skip build.rs which causes linking errors in rap.
+pub fn filter_crate_type() -> bool {
+    if let Some(s) = get_arg_flag_value("--crate-type") {
+        if s == "bin" && get_arg_flag_value("--crate-name") == Some("build_script_build") {
+            return false;
+        }
+    }
+    // NOTE: tests don't have --crate-type, they are handled with --test by rustc
+    return true;
 }
 
 pub fn get_arg(pos: usize) -> Option<&'static str> {

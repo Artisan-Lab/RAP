@@ -45,12 +45,12 @@ fn phase_rustc_wrapper() {
 
     let is_direct = args::is_current_compile_crate();
     // rap only checks local crates
-    if is_direct && args::is_crate_type_lib() {
+    if is_direct && args::filter_crate_type() {
         run_rap();
         return;
     }
 
-    // for dependencies, run rustc as usual
+    // for dependencies and some special crate types, run rustc as usual
     run_rustc();
 }
 
