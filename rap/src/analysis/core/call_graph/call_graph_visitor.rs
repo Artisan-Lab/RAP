@@ -1,4 +1,5 @@
 use super::call_graph_helper::CallGraphInfo;
+use regex::Regex;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir;
 use rustc_middle::ty::{FnDef, Instance, InstanceKind, TyCtxt};
@@ -55,16 +56,25 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
         }
     }
 
-    fn add_to_call_graph(&mut self, callee_def_id: DefId) {
+    fn add_to_call_graph(&mut self, callee_def_id: DefId, is_virtual: Option<bool>) {
         let caller_def_path = self.tcx.def_path_str(self.def_id);
-        let callee_def_path = self.tcx.def_path_str(callee_def_id);
+        let mut callee_def_path = self.tcx.def_path_str(callee_def_id);
+        if let Some(judge) = is_virtual {
+            if judge {
+                let re = Regex::new(r"(?<dyn>\w+)::(?<func>\w+)").unwrap();
+                let Some(caps) = re.captures(&callee_def_path) else {
+                    return;
+                };
+                callee_def_path = format!("(dyn trait) <* as {}>::{}", &caps["dyn"], &caps["func"]);
+            }
+        }
+
         // let callee_location = self.tcx.def_span(callee_def_id);
         if callee_def_id == self.def_id {
             // Recursion
             println!("Warning! Find a recursion function which may cause stackoverflow!")
         }
         self.add_in_call_graph(&caller_def_path, callee_def_id, &callee_def_path);
-        println!("")
     }
 
     fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>) {
@@ -75,11 +85,28 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                     if let Ok(Some(instance)) =
                         Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs)
                     {
+                        let mut is_virtual = false;
                         // Try to analysis the specific type of callee.
                         let instance_def_id = match instance.def {
                             InstanceKind::Item(def_id) => Some(def_id),
-                            InstanceKind::Intrinsic(def_id)
-                            | InstanceKind::CloneShim(def_id, _) => {
+                            InstanceKind::Intrinsic(def_id) => Some(def_id),
+                            InstanceKind::VTableShim(def_id) => Some(def_id),
+                            InstanceKind::ReifyShim(def_id, _) => Some(def_id),
+                            InstanceKind::FnPtrShim(def_id, _) => Some(def_id),
+                            InstanceKind::Virtual(def_id, _) => {
+                                is_virtual = true;
+                                Some(def_id)
+                            }
+                            InstanceKind::ClosureOnceShim { call_once, .. } => Some(call_once),
+                            InstanceKind::ConstructCoroutineInClosureShim {
+                                coroutine_closure_def_id,
+                                ..
+                            } => Some(coroutine_closure_def_id),
+                            InstanceKind::ThreadLocalShim(def_id) => Some(def_id),
+                            InstanceKind::DropGlue(def_id, _) => Some(def_id),
+                            InstanceKind::FnPtrAddrShim(def_id, _) => Some(def_id),
+                            InstanceKind::AsyncDropGlueCtorShim(def_id, _) => Some(def_id),
+                            InstanceKind::CloneShim(def_id, _) => {
                                 if !self.tcx.is_closure_like(def_id) {
                                     // Not a closure
                                     Some(def_id)
@@ -87,14 +114,16 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                                     None
                                 }
                             }
-                            _ => None,
+                            InstanceKind::CoroutineKindShim {
+                                coroutine_def_id, ..
+                            } => Some(coroutine_def_id),
                         };
                         if let Some(instance_def_id) = instance_def_id {
-                            self.add_to_call_graph(instance_def_id);
+                            self.add_to_call_graph(instance_def_id, Some(is_virtual));
                         }
                     } else {
                         // Although failing to get specific type, callee is still useful.
-                        self.add_to_call_graph(*callee_def_id);
+                        self.add_to_call_graph(*callee_def_id, None);
                     }
                 }
             }
