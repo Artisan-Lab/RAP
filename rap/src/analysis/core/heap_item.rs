@@ -4,12 +4,15 @@ pub mod type_visitor;
 use rustc_middle::ty::{self, Ty, TyCtxt, TyKind};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
+use rustc_middle::ty::TypeVisitable;
+
 
 use std::collections::{HashMap, HashSet};
 use std::env;
 //use stopwatch::Stopwatch;
 use crate::analysis::rcanary::{rCanary, RcxMut};
 use ownership::RawTypeOwner;
+use crate::analysis::core::heap_item::ownership::OwnershipLayoutResult;
 
 type TyMap<'tcx> = HashMap<Ty<'tcx>, String>;
 type OwnerUnit = (RawTypeOwner, Vec<bool>);
@@ -86,6 +89,92 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
         //rap_info!("Tymap Sum:{:?}", self.ty_map().len());
         //rap_info!("@@@@@@@@@@@@@Type Analysis:{:?}", sw.elapsed_ms());
         //sw.stop();
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Encoder;
+
+impl<'tcx> Encoder {
+    pub fn encode(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, variant: Option<VariantIdx>) -> OwnershipLayoutResult {
+        match ty.kind() {
+            TyKind::Array(..) => {
+                let mut res = OwnershipLayoutResult::new();
+                let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+
+                ty.visit_with(&mut default_ownership);
+                res.update_from_default_ownership_visitor(&mut default_ownership);
+
+                res
+            }
+            TyKind::Tuple(tuple_ty_list) => {
+                let mut res = OwnershipLayoutResult::new();
+
+                for tuple_ty in tuple_ty_list.iter() {
+                    let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+
+                    tuple_ty.visit_with(&mut default_ownership);
+                    res.update_from_default_ownership_visitor(&mut default_ownership);
+                }
+
+                res
+            }
+            TyKind::Adt(adtdef, substs) => {
+                // check the ty is or is not an enum and the variant of this enum is or is not given
+                if adtdef.is_enum() && variant.is_none() {
+                    return OwnershipLayoutResult::new();
+                }
+
+                let mut res = OwnershipLayoutResult::new();
+
+                // check the ty if it is a struct or union
+                if adtdef.is_struct() || adtdef.is_union() {
+                    for field in adtdef.all_fields() {
+                        let field_ty = field.ty(rcx.tcx(), substs);
+
+                        let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+
+                        field_ty.visit_with(&mut default_ownership);
+                        res.update_from_default_ownership_visitor(&mut default_ownership);
+                    }
+                }
+                // check the ty which is an enum with a exact variant idx
+                else if adtdef.is_enum() {
+                    let vidx = variant.unwrap();
+
+                    for field in &adtdef.variants()[vidx].fields {
+                        let field_ty = field.ty(rcx.tcx(), substs);
+
+                        let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+
+                        field_ty.visit_with(&mut default_ownership);
+                        res.update_from_default_ownership_visitor(&mut default_ownership);
+                    }
+                }
+                res
+            }
+            TyKind::Param(..) => {
+                let mut res = OwnershipLayoutResult::new();
+                res.set_requirement(true);
+                res.set_param(true);
+                res.set_owned(true);
+                res.layout_mut().push(RawTypeOwner::Owned);
+                res
+            }
+            TyKind::RawPtr(..) => {
+                let mut res = OwnershipLayoutResult::new();
+                res.set_requirement(true);
+                res.layout_mut().push(RawTypeOwner::Unowned);
+                res
+            }
+            TyKind::Ref(..) => {
+                let mut res = OwnershipLayoutResult::new();
+                res.set_requirement(true);
+                res.layout_mut().push(RawTypeOwner::Unowned);
+                res
+            }
+            _ => OwnershipLayoutResult::new(),
+        }
     }
 }
 
