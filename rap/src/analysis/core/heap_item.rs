@@ -1,18 +1,17 @@
 pub mod ownership;
 pub mod type_visitor;
 
+use rustc_middle::ty::TypeVisitable;
 use rustc_middle::ty::{self, Ty, TyCtxt, TyKind};
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
-use rustc_middle::ty::TypeVisitable;
-
 
 use std::collections::{HashMap, HashSet};
 use std::env;
 //use stopwatch::Stopwatch;
+use crate::analysis::core::heap_item::ownership::OwnershipLayoutResult;
 use crate::analysis::rcanary::{rCanary, RcxMut};
 use ownership::RawTypeOwner;
-use crate::analysis::core::heap_item::ownership::OwnershipLayoutResult;
 
 type TyMap<'tcx> = HashMap<Ty<'tcx>, String>;
 type OwnerUnit = (RawTypeOwner, Vec<bool>);
@@ -96,7 +95,11 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
 pub struct Encoder;
 
 impl<'tcx> Encoder {
-    pub fn encode(rcx: &rCanary<'tcx>, ty: Ty<'tcx>, variant: Option<VariantIdx>) -> OwnershipLayoutResult {
+    pub fn encode(
+        rcx: &rCanary<'tcx>,
+        ty: Ty<'tcx>,
+        variant: Option<VariantIdx>,
+    ) -> OwnershipLayoutResult {
         match ty.kind() {
             TyKind::Array(..) => {
                 let mut res = OwnershipLayoutResult::new();
@@ -132,7 +135,8 @@ impl<'tcx> Encoder {
                     for field in adtdef.all_fields() {
                         let field_ty = field.ty(rcx.tcx(), substs);
 
-                        let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+                        let mut default_ownership =
+                            DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
 
                         field_ty.visit_with(&mut default_ownership);
                         res.update_from_default_ownership_visitor(&mut default_ownership);
@@ -145,7 +149,8 @@ impl<'tcx> Encoder {
                     for field in &adtdef.variants()[vidx].fields {
                         let field_ty = field.ty(rcx.tcx(), substs);
 
-                        let mut default_ownership = DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
+                        let mut default_ownership =
+                            DefaultOwnership::new(rcx.tcx(), rcx.adt_owner());
 
                         field_ty.visit_with(&mut default_ownership);
                         res.update_from_default_ownership_visitor(&mut default_ownership);
