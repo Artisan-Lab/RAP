@@ -28,6 +28,13 @@ impl<'tcx> DataFlow<'tcx> {
     }
 
     pub fn start(&mut self) {
+        self.build_graphs();
+        if self.debug {
+            self.draw_graphs();
+        }
+    }
+
+    pub fn build_graphs(&mut self) {
         for local_def_id in self.tcx.iter_local_def_id() {
             let hir_map = self.tcx.hir();
             if hir_map.maybe_body_owned_by(local_def_id).is_some() {
@@ -35,9 +42,6 @@ impl<'tcx> DataFlow<'tcx> {
                 let graph = self.build_graph(def_id);
                 self.graphs.insert(def_id, graph);
             }
-        }
-        if self.debug {
-            self.draw_graphs();
         }
     }
 

@@ -22,6 +22,7 @@ extern crate rustc_target;
 use analysis::core::alias::mop::MopAlias;
 use analysis::core::call_graph::CallGraph;
 use analysis::core::dataflow::DataFlow;
+use analysis::opt::Opt;
 use analysis::rcanary::rCanary;
 use analysis::safedrop::SafeDrop;
 use analysis::senryx::SenryxCheck;
@@ -52,6 +53,7 @@ pub struct RapCallback {
     callgraph: bool,
     show_mir: bool,
     dataflow: usize,
+    opt: bool,
 }
 
 impl Default for RapCallback {
@@ -65,6 +67,7 @@ impl Default for RapCallback {
             callgraph: false,
             show_mir: false,
             dataflow: 0,
+            opt: false,
         }
     }
 }
@@ -164,6 +167,14 @@ impl RapCallback {
     pub fn is_dataflow_enabled(self) -> usize {
         self.dataflow
     }
+
+    pub fn enable_opt(&mut self) {
+        self.opt = true;
+    }
+
+    pub fn is_opt_enabled(self) -> bool {
+        self.opt
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -241,5 +252,9 @@ pub fn start_analyzer(tcx: TyCtxt, callback: RapCallback) {
 
     if callback.is_callgraph_enabled() {
         CallGraph::new(tcx).start();
+    }
+
+    if callback.is_opt_enabled() {
+        Opt::new(tcx).start();
     }
 }
