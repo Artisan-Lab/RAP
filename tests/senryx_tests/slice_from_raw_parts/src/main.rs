@@ -2,6 +2,28 @@ use std::ptr;
 use std::slice;
 use std::mem::MaybeUninit;
 
+struct MySliceWrapperTest<T> {
+    data: *const T, 
+    len: usize,     
+}
+
+impl<T> MySliceWrapperTest<T> {
+    fn new() -> Self {
+        let uninit_data = MaybeUninit::<[T; 10]>::uninit();
+        let data = uninit_data.as_ptr() as *const T;
+        MySliceWrapperTest { data, len: 10 }
+    }
+
+    fn get_slice(&self, offset: usize, length: usize) -> &[T] {
+        assert!(offset + length <= self.len, "Requested slice is out of bounds");
+        let adjusted_data = unsafe { self.data.add(offset) };
+        // Fail(Allocated): 'adjusted_data' points to uninit memory
+        // Fail(Aligned): 'adjusted_data' may be not aligned due to the offset
+        unsafe { slice::from_raw_parts(adjusted_data, length) }
+    }
+}
+
+
 fn test1() {
     let len: usize = 0;
     let data = ptr::null::<i32>();
