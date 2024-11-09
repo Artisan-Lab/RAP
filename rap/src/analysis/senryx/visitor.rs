@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use super::contracts::abstract_state::{
     AbstractState, AbstractStateItem, AlignState, StateType, VType, Value,
 };
+use super::inter_record::{InterAnalysisRecord, GLOBAL_INTER_RECORDER};
 use super::matcher::match_unsafe_api_and_check_contracts;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -23,10 +24,11 @@ pub struct BodyVisitor<'tcx> {
     // abstract_states records the path index and variables' ab states in this path
     pub abstract_states: HashMap<usize, AbstractState>,
     pub unsafe_callee_report: HashMap<String, usize>,
+    pub first_layer_flag: bool,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId, first_layer_flag: bool) -> Self {
         let body = tcx.optimized_mir(def_id);
         Self {
             tcx,
@@ -34,6 +36,7 @@ impl<'tcx> BodyVisitor<'tcx> {
             safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
             abstract_states: HashMap::new(),
             unsafe_callee_report: HashMap::new(),
+            first_layer_flag,
         }
     }
 
@@ -97,23 +100,25 @@ impl<'tcx> BodyVisitor<'tcx> {
             } => {
                 let func_name = format!("{:?}", func);
                 if let Operand::Constant(func_constant) = func {
-                    if let ty::FnDef(ref _callee_def_id, raw_list) =
-                        func_constant.const_.ty().kind()
+                    if let ty::FnDef(ref callee_def_id, raw_list) = func_constant.const_.ty().kind()
                     {
-                        for generic_arg in raw_list.iter() {
-                            match generic_arg.unpack() {
-                                GenericArgKind::Type(ty) => {
-                                    match_unsafe_api_and_check_contracts(
-                                        func_name.as_str(),
-                                        args,
-                                        &self.abstract_states.get(&path_index).unwrap(),
-                                        ty,
-                                    );
+                        if self.first_layer_flag {
+                            for generic_arg in raw_list.iter() {
+                                match generic_arg.unpack() {
+                                    GenericArgKind::Type(ty) => {
+                                        match_unsafe_api_and_check_contracts(
+                                            func_name.as_str(),
+                                            args,
+                                            &self.abstract_states.get(&path_index).unwrap(),
+                                            ty,
+                                        );
+                                    }
+                                    _ => {}
                                 }
-                                _ => {}
                             }
                         }
                         //TODO:path_inter_analyze
+                        self.handle_call(callee_def_id);
                     }
                 }
             }
@@ -185,19 +190,6 @@ impl<'tcx> BodyVisitor<'tcx> {
                 );
                 self.insert_path_abstate(path_index, lpjc_local, abitem);
             }
-            // Rvalue::AddressOf(_, rplace) => {
-            //     let align = 0;
-            //     let size = 0;
-            //     let abitem = AbstractStateItem::new(
-            //         (Value::None, Value::None),
-            //         VType::Pointer(align, size),
-            //         HashSet::from([StateType::AlignState(AlignState::Aligned)]),
-            //     );
-            //     self.insert_path_abstate(path_index, lpjc_local, abitem);
-            //     let _rpjc_local = self
-            //         .safedrop_graph
-            //         .projection(self.tcx, true, rplace.clone());
-            // }
             Rvalue::Cast(_cast_kind, op, ty) => match op {
                 Operand::Move(rplace) | Operand::Copy(rplace) => {
                     let rpjc_local = self
@@ -242,6 +234,26 @@ impl<'tcx> BodyVisitor<'tcx> {
             _ => {}
         }
     }
+
+    pub fn handle_call(&mut self, def_id: &DefId) {
+        let pre_analysis_state = HashMap::new();
+        let mut recorder = GLOBAL_INTER_RECORDER.lock().unwrap();
+        if let Some(record) = recorder.get_mut(def_id) {
+            if record.is_pre_state_same(&pre_analysis_state) {
+                // update directly
+                self.update_inter_state_directly();
+                return;
+            }
+        }
+        let _inter_body_visitor = BodyVisitor::new(self.tcx, *def_id, false).path_forward_check();
+        let post_analysis_state = HashMap::new();
+        recorder.insert(
+            *def_id,
+            InterAnalysisRecord::new(pre_analysis_state, post_analysis_state),
+        );
+    }
+
+    pub fn update_inter_state_directly(&mut self) {}
 
     pub fn visit_ty_and_get_layout(&self, ty: Ty<'tcx>) -> (usize, usize) {
         match ty.kind() {
@@ -364,4 +376,6 @@ impl<'tcx> BodyVisitor<'tcx> {
         let size = layout.size.bytes() as usize;
         (align, size)
     }
+
+    pub fn get_abstate_by_place(&self) {}
 }

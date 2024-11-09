@@ -107,6 +107,7 @@ impl AbstractStateItem {
     }
 }
 
+#[derive(PartialEq)]
 pub struct AbstractState {
     pub state_map: HashMap<usize, AbstractStateItem>,
 }
