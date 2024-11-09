@@ -1,4 +1,5 @@
 pub mod contracts;
+pub mod inter_record;
 pub mod matcher;
 pub mod visitor;
 
@@ -21,7 +22,7 @@ impl<'tcx> SenryxCheck<'tcx> {
     }
 
     pub fn start(&self) {
-        let related_items = RelatedFnCollector::collect(self.tcx);
+        let related_items = RelatedFnCollector::collect(self.tcx); // find all func
         let hir_map = self.tcx.hir();
         for (_, &ref vec) in &related_items {
             for (body_id, _span) in vec {
@@ -57,11 +58,11 @@ impl<'tcx> SenryxCheck<'tcx> {
     pub fn pre_handle_type(&self, def_id: DefId) {
         let mut uig_checker = UnsafetyIsolationCheck::new(self.tcx);
         let func_type = uig_checker.get_type(def_id);
-        let mut body_visitor = BodyVisitor::new(self.tcx, def_id);
+        let mut body_visitor = BodyVisitor::new(self.tcx, def_id, true);
         if func_type == 1 {
             let func_cons = uig_checker.search_constructor(def_id);
             for func_con in func_cons {
-                let mut cons_body_visitor = BodyVisitor::new(self.tcx, func_con);
+                let mut cons_body_visitor = BodyVisitor::new(self.tcx, func_con, true);
                 cons_body_visitor.path_forward_check();
                 // TODO: cache fields' states
 
