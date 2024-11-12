@@ -375,6 +375,7 @@ dependencies = [
  "chrono",
  "colorful",
  "fern",
+ "lazy_static",
  "log",
  "regex",
  "rustc-demangle",
