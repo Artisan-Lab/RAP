@@ -95,15 +95,14 @@ pub fn is_current_compile_crate() -> bool {
 /// For example, checking proc-macro crates or build.rs can cause linking errors in rap.
 pub fn filter_crate_type() -> bool {
     if let Some(s) = get_arg_flag_value("--crate-type") {
-        if s == "proc-macro" {
-            return false;
-        }
-        if s == "bin" && get_arg_flag_value("--crate-name") == Some("build_script_build") {
-            return false;
-        }
+        return match s {
+            "proc-macro" => false,
+            "bin" if get_arg_flag_value("--crate-name") == Some("build_script_build") => false,
+            _ => true,
+        };
     }
-    // NOTE: tests don't have --crate-type, they are handled with --test by rustc
-    return true;
+    // NOTE: tests don't have --crate-type, they are handled with --test by rustc.
+    true
 }
 
 pub fn get_arg(pos: usize) -> Option<&'static str> {
