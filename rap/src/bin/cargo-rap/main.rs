@@ -14,8 +14,7 @@ mod help;
 mod utils;
 use crate::utils::*;
 
-mod target;
-use target::*;
+mod cargo_check;
 
 fn phase_cargo_rap() {
     rap_info!("Start cargo-rap");
@@ -37,7 +36,7 @@ fn phase_cargo_rap() {
         _ => {}
     }
 
-    run_cargo_check();
+    cargo_check::run();
 }
 
 fn phase_rustc_wrapper() {
