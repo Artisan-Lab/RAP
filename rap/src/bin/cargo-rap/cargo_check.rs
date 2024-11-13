@@ -3,7 +3,7 @@ use rap::utils::log::rap_error_and_exit;
 use std::{process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
-pub fn run_cargo_check() {
+pub fn run() {
     let [rap_args, cargo_args] = crate::args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
