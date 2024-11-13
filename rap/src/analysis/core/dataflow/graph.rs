@@ -5,9 +5,10 @@ use rustc_hir::def_id::DefId;
 use rustc_index::IndexVec;
 use rustc_middle::mir::{
     AggregateKind, BorrowKind, Const, Local, Mutability, Operand, Place, PlaceElem, Rvalue,
-    StatementKind, TerminatorKind,
+    Statement, StatementKind, Terminator, TerminatorKind,
 };
 use rustc_middle::ty::TyKind;
+use rustc_span::{Span, DUMMY_SP};
 
 #[derive(Clone, Debug)]
 pub enum NodeOp {
@@ -59,6 +60,7 @@ pub enum GraphEdge {
 #[derive(Clone)]
 pub struct GraphNode {
     pub op: NodeOp,
+    pub span: Span,
     pub out_edges: Vec<EdgeIdx>,
     pub in_edges: Vec<EdgeIdx>,
 }
@@ -67,6 +69,7 @@ impl GraphNode {
     pub fn new() -> Self {
         Self {
             op: NodeOp::Nop,
+            span: DUMMY_SP,
             out_edges: vec![],
             in_edges: vec![],
         }
@@ -150,10 +153,11 @@ impl Graph {
         ret
     }
 
-    pub fn add_statm_to_graph(&mut self, kind: &StatementKind) {
-        if let StatementKind::Assign(boxed_statm) = &kind {
+    pub fn add_statm_to_graph(&mut self, statement: &Statement) {
+        if let StatementKind::Assign(boxed_statm) = &statement.kind {
             let place = boxed_statm.0;
             let dst = self.parse_place(&place);
+            self.nodes[dst].span = statement.source_info.span;
             let rvalue = &boxed_statm.1;
             match rvalue {
                 Rvalue::Use(op) => {
@@ -243,13 +247,13 @@ impl Graph {
         }
     }
 
-    pub fn add_terminator_to_graph(&mut self, kind: &TerminatorKind) {
+    pub fn add_terminator_to_graph(&mut self, terminator: &Terminator) {
         if let TerminatorKind::Call {
             func,
             args,
             destination,
             ..
-        } = &kind
+        } = &terminator.kind
         {
             if let Operand::Constant(boxed_cnst) = func {
                 if let Const::Val(_, ty) = boxed_cnst.const_ {
@@ -260,6 +264,7 @@ impl Graph {
                             self.add_operand(&op.node, dst);
                         }
                         self.nodes[dst].op = NodeOp::Call(*def_id);
+                        self.nodes[dst].span = terminator.source_info.span;
                         return;
                     }
                 }

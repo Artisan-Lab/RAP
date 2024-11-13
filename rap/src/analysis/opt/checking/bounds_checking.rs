@@ -7,6 +7,8 @@ use crate::analysis::core::dataflow::graph::{
     AggKind, DFSStatus, Direction, Graph, GraphEdge, GraphNode, NodeOp,
 };
 use crate::analysis::utils::def_path::DefPath;
+use crate::rap_warn;
+use crate::utils::log::underline_span_in_the_line;
 
 static DEFPATHS: OnceCell<DefPaths> = OnceCell::new();
 
@@ -101,13 +103,35 @@ pub fn check(graph: &Graph, tcx: &TyCtxt) {
             if let Some(vec_len_node_idx) = find_upside_vec_len_node(graph, upperbound_node_idx) {
                 let maybe_vec_node_idx = graph.get_upside_idx(vec_len_node_idx, 0).unwrap();
                 let maybe_vec_node_idxs = graph.collect_equivalent_locals(maybe_vec_node_idx);
+                let mut index_record = Vec::new();
                 for index_node_idx in find_downside_index_node(graph, node_idx).into_iter() {
                     let maybe_vec_node_idx = graph.get_upside_idx(index_node_idx, 0).unwrap();
                     if maybe_vec_node_idxs.contains(&maybe_vec_node_idx) {
-                        // bingo！
+                        index_record.push(index_node_idx);
                     }
                 }
+                report_bug(graph, upperbound_node_idx, &index_record);
             }
         }
     }
+}
+
+fn report_bug(graph: &Graph, upperbound_node_idx: Local, index_record: &Vec<Local>) {
+    rap_warn!(
+        "Unnecessary bounds checkings detected in function {:?}.
+Index is upperbounded at:
+{}
+Checked at:
+{}
+",
+        graph.def_id,
+        underline_span_in_the_line(graph.nodes[upperbound_node_idx].span),
+        index_record
+            .iter()
+            .map(|node_idx| {
+                underline_span_in_the_line(graph.nodes[*node_idx].span) // buggy, what about multiple index in the same line?
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
+    );
 }
