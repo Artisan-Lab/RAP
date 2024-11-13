@@ -19,6 +19,9 @@ Controlflow tracing
 Dataflow tracing
     -dataflow        generate dataflow graphs
 
+Automatic optimization
+    -O or -opt       automatically detect code optimization chances
+
 General command: 
     -H or -help:     show help information
     -V or -version:  show the version of RAP
