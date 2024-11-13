@@ -3,7 +3,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 use fern::{self, Dispatch};
 use log::LevelFilter;
 use rustc_span::source_map::get_source_map;
-use rustc_span::{BytePos, Pos, Span};
+use rustc_span::{Pos, Span};
 
 fn log_level() -> LevelFilter {
     if let Ok(s) = std::env::var("RAP_LOG") {

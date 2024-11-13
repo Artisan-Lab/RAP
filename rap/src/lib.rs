@@ -1,10 +1,8 @@
 #![feature(rustc_private)]
-#![feature(control_flow_enum)]
 #![feature(box_patterns)]
 
 #[macro_use]
 pub mod utils;
-
 pub mod analysis;
 
 extern crate rustc_data_structures;

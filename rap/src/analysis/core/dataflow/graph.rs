@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexVec;
 use rustc_middle::mir::{
-    AggregateKind, BorrowKind, Const, Local, Mutability, Operand, Place, PlaceElem, Rvalue,
-    Statement, StatementKind, Terminator, TerminatorKind,
+    AggregateKind, BorrowKind, Const, Local, Operand, Place, PlaceElem, Rvalue, Statement,
+    StatementKind, Terminator, TerminatorKind,
 };
 use rustc_middle::ty::TyKind;
 use rustc_span::{Span, DUMMY_SP};
@@ -178,15 +178,6 @@ impl Graph {
                     self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::Ref;
                 }
-                Rvalue::AddressOf(mutability, place) => {
-                    let op = match mutability {
-                        Mutability::Not => EdgeOp::Immut,
-                        Mutability::Mut => EdgeOp::Mut,
-                    };
-                    let src = self.parse_place(place);
-                    self.add_node_edge(src, dst, op);
-                    self.nodes[dst].op = NodeOp::AddressOf;
-                }
                 Rvalue::Len(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
@@ -243,6 +234,7 @@ impl Graph {
                     self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::CopyForDeref;
                 }
+                Rvalue::RawPtr(_, _) => todo!(),
             };
         }
     }
