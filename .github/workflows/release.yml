@@ -33,3 +33,8 @@ jobs:
       run: |
         chmod +x ./install.sh
         ./install.sh
+
+    - name: Run Test
+      run: |
+        cd tests
+        RAP_RECURSIVE=deep cargo +nightly-2024-06-30 rap -F -M
