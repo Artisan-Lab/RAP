@@ -178,7 +178,7 @@ impl<'tcx> BodyVisitor<'tcx> {
                 }
                 _ => {}
             },
-            Rvalue::Ref(_, _, rplace) | Rvalue::AddressOf(_, rplace) => {
+            Rvalue::Ref(_, _, rplace) => {
                 let rpjc_local = self
                     .safedrop_graph
                     .projection(self.tcx, true, rplace.clone());

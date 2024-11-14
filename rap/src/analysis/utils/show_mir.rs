@@ -51,6 +51,7 @@ impl<'tcx> Display for TerminatorKind<'tcx> {
                 },
                 _ => (),
             },
+            TerminatorKind::TailCall { .. } => todo!(),
         };
         s
     }
@@ -98,7 +99,6 @@ impl<'tcx> Display for Rvalue<'tcx> {
             Rvalue::Repeat(..) => s += "Repeat",
             Rvalue::Ref(..) => s += "Ref",
             Rvalue::ThreadLocalRef(..) => s += "ThreadLocalRef",
-            Rvalue::AddressOf(..) => s += "AddressOf",
             Rvalue::Len(..) => s += "Len",
             Rvalue::Cast(..) => s += "Cast",
             Rvalue::BinaryOp(..) => s += "BinaryOp",
@@ -108,6 +108,7 @@ impl<'tcx> Display for Rvalue<'tcx> {
             Rvalue::Aggregate(..) => s += "Aggregate",
             Rvalue::ShallowInitBox(..) => s += "ShallowInitBox",
             Rvalue::CopyForDeref(..) => s += "CopyForDeref",
+            Rvalue::RawPtr(_, _) => s += "RawPtr",
         }
         s
     }

@@ -48,6 +48,7 @@ fn main() {
             "-ucons" => compiler.enable_unsafety_isolation(4),
             "-senryx" => compiler.enable_senryx(),
             "-callgraph" => compiler.enable_callgraph(),
+            "-O" | "-opt" => compiler.enable_opt(),
             "-mir" => compiler.enable_show_mir(),
             "-adt" => {}
             "-z3" => {}
