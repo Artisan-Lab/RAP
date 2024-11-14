@@ -12,6 +12,7 @@ struct Arguments {
     /// options as second half after -- in args
     args_group2: Vec<String>,
     current_exe_path: PathBuf,
+    rap_clean: bool,
 }
 
 impl Arguments {
@@ -39,15 +40,28 @@ impl Arguments {
     }
 
     fn new() -> Self {
+        fn rap_clean() -> bool {
+            match env::var("RAP_CLEAN")
+                .ok()
+                .map(|s| s.trim().to_ascii_lowercase())
+                .as_deref()
+            {
+                Some("false") => false,
+                _ => true, // clean is the preferred behavior
+            }
+        }
+
         let args: Vec<_> = env::args().collect();
         let path = env::current_exe().expect("Current executable path invalid.");
         rap_debug!("Current exe: {path:?}\tReceived args: {args:?}");
         let [args_group1, args_group2] = split_args_by_double_dash(&args);
+
         Arguments {
             args,
             args_group1,
             args_group2,
             current_exe_path: path,
+            rap_clean: rap_clean(),
         }
     }
 
@@ -62,6 +76,10 @@ impl Arguments {
         };
         entry_path.is_relative()
     }
+}
+
+pub fn rap_clean() -> bool {
+    ARGS.rap_clean
 }
 
 fn split_args_by_double_dash(args: &[String]) -> [Vec<String>; 2] {
@@ -95,15 +113,14 @@ pub fn is_current_compile_crate() -> bool {
 /// For example, checking proc-macro crates or build.rs can cause linking errors in rap.
 pub fn filter_crate_type() -> bool {
     if let Some(s) = get_arg_flag_value("--crate-type") {
-        if s == "proc-macro" {
-            return false;
-        }
-        if s == "bin" && get_arg_flag_value("--crate-name") == Some("build_script_build") {
-            return false;
-        }
+        return match s {
+            "proc-macro" => false,
+            "bin" if get_arg_flag_value("--crate-name") == Some("build_script_build") => false,
+            _ => true,
+        };
     }
-    // NOTE: tests don't have --crate-type, they are handled with --test by rustc
-    return true;
+    // NOTE: tests don't have --crate-type, they are handled with --test by rustc.
+    true
 }
 
 pub fn get_arg(pos: usize) -> Option<&'static str> {
