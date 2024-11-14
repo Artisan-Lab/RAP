@@ -37,6 +37,16 @@ e.g.
    cargo rap -F -M -- --tests
 3. detect use-after-free and memory leak for all members:
    cargo rap -F -M -- --workspace
+
+Environment Variables (Values are case insensitive):
+    RAP_LOG          verbosity of logging: debug, info, warn
+    RAP_RECURSIVE    scope of packages to check: none, shallow, deep
+                     * none or the variable not set: check for current folder
+                     * shallow: check for current workpace members
+                     * deep: check for all workspaces from current folder
+                      
+                     NOTE: for shallow or deep, rap will clean the workspace 
+                     target folder and enter each member to do the check.
 "#;
 
 pub const RAP_VERSION: &str = r#"
