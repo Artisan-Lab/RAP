@@ -13,11 +13,11 @@ cd RAP
 
 ## Usage
 
-Install `nightly-2024-06-30` on which rap is compiled with. This just needs to do once on your machine. If the toolchain exists,
+Install `nightly-2024-10-12` on which rap is compiled with. This just needs to do once on your machine. If the toolchain exists,
 this will do nothing.
 
 ```shell
-rustup toolchain install nightly-2024-06-30 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
+rustup toolchain install nightly-2024-10-12 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
 ```
 
 Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `cargo-rap` with [toolchain override shorthand syntax].
@@ -34,7 +34,7 @@ Alternatively, you can switch to the pinned toolchain ahead of time:
 
 ```rust
 # set up rap's toolchain as default
-rustup default nightly-2024-06-30
+rustup default nightly-2024-10-12
 
 # run cargo rap without +toolchain syntax any more
 cargo rap [rap options] -- [cargo check options]
@@ -43,7 +43,7 @@ cargo rap [rap options] -- [cargo check options]
 Check out supported options with `-help`:
 
 ```shell
-cargo +nightly-2024-06-30 rap -help
+cargo +nightly-2024-10-12 rap -help
 ```
 
 Environment variables (Values are case insensitive):
@@ -51,7 +51,7 @@ Environment variables (Values are case insensitive):
 | var             | default when absent | one of these values | description                  |
 |-----------------|---------------------|---------------------|------------------------------|
 | `RAP_LOG`       | info                | debug, info, warn   | verbosity of logging         |
-| `RAP_CLEAN`     | true                | ture, false         | run cargo clean before check |
+| `RAP_CLEAN`     | true                | true, false         | run cargo clean before check |
 | `RAP_RECURSIVE` | none                | none, shallow, deep | scope of packages to check   |
 
 For `RAP_RECURSIVE`:
@@ -64,7 +64,7 @@ NOTE: for shallow or deep, rap will enter each member folder to do the check.
 ### Use-After-Free Detection
 Detect bugs such as use-after-free and double free in Rust crates caused by unsafe code.
 ```shell
-cargo +nightly-2024-06-30 rap -uaf
+cargo +nightly-2024-10-12 rap -uaf
 ```
 
 If RAP gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
@@ -87,7 +87,7 @@ The feature is based on our SafeDrop paper, which was published in TOSEM.
 Detect memory leakage bugs caused by apis like [ManuallyDrop](https://doc.rust-lang.org/std/mem/struct.ManuallyDrop.html) and [into_raw()](https://doc.rust-lang.org/std/boxed/struct.Box.html#method.into_raw).
 
 ```shell
-cargo +nightly-2024-06-30 rap -mleak
+cargo +nightly-2024-10-12 rap -mleak
 ```
 
 The feature is based on our rCanary work, which was published in TSE
