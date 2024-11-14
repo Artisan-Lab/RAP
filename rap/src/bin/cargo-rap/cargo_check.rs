@@ -52,7 +52,7 @@ pub fn run(dir: &Utf8Path) {
     };
 }
 
-pub fn get_cargo_tomls_deep_recursively(dir: &Utf8Path) -> Vec<Utf8PathBuf> {
+pub fn get_cargo_tomls_deep_recursively(dir: &str) -> Vec<Utf8PathBuf> {
     walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(|entry| {
@@ -90,7 +90,10 @@ fn workspace(cargo_toml: &Utf8Path) -> Metadata {
     let metadata = match exec {
         Ok(metadata) => metadata,
         Err(err) => {
-            let err = format!("Failed to get result of cargo metadata: \n{err}");
+            let err = format!(
+                "Failed to get the result of cargo metadata \
+                 in {cargo_toml}: \n{err}"
+            );
             rap_error_and_exit(err)
         }
     };
@@ -114,5 +117,15 @@ pub fn shallow_run() {
     let metadata = workspace(".".into());
     for pkg_folder in get_member_folders(&metadata) {
         run(pkg_folder);
+    }
+}
+
+/// Recursively run cargo check in each package folder from current folder.
+pub fn deep_run() {
+    let cargo_tomls = get_cargo_tomls_deep_recursively(".");
+    for ws_metadata in workspaces(&cargo_tomls).values() {
+        for pkg_folder in get_member_folders(ws_metadata) {
+            run(pkg_folder);
+        }
     }
 }
