@@ -7,7 +7,9 @@ on:
     branches: [ "main" ]
 
 env:
+  RUSTUP_TOOLCHAIN: nightly-2024-06-30
   CARGO_TERM_COLOR: always
+  RAP_RECURSIVE: true
 
 jobs:
   build:
@@ -34,7 +36,8 @@ jobs:
         chmod +x ./install.sh
         ./install.sh
 
-    - name: Run Test
-      run: |
-        cd tests
-        RAP_RECURSIVE=deep cargo +nightly-2024-06-30 rap -F -M
+    - name: Check test cases 
+      run: cd tests && cargo rap -F -M
+
+    - name: Check rap
+      run: cd rap && cargo rap -F -M
