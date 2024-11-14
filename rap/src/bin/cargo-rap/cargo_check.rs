@@ -23,6 +23,7 @@ pub fn run() {
 }
 
 fn cargo_check(dir: &Utf8Path) {
+    rap_info!("cargo check in package folder {dir}");
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
@@ -79,8 +80,25 @@ fn shallow_run() {
         rap_error_and_exit("rap should be run in a folder directly containing Cargo.toml");
     }
     let ws_metadata = workspace(cargo_toml);
-    for pkg_folder in get_member_folders(&ws_metadata) {
+    clean_and_check(&ws_metadata);
+}
+
+fn clean_and_check(ws_metadata: &Metadata) {
+    cargo_clean(&ws_metadata.workspace_root);
+    for pkg_folder in get_member_folders(ws_metadata) {
         cargo_check(pkg_folder);
+    }
+}
+
+/// Usually run in workspace root before checking.
+fn cargo_clean(ws_root: &Utf8Path) {
+    rap_info!("cargo clean in workspace root {ws_root}");
+    if let Err(err) = Command::new("cargo")
+        .arg("clean")
+        .current_dir(ws_root)
+        .output()
+    {
+        rap_error_and_exit(format!("`cargo clean` exits unexpectedly:\n{err}"));
     }
 }
 
@@ -95,7 +113,7 @@ fn workspace(cargo_toml: &Utf8Path) -> Metadata {
         Err(err) => {
             let err = format!(
                 "Failed to get the result of cargo metadata \
-                 in {cargo_toml}: \n{err}"
+                 in {cargo_toml}:\n{err}"
             );
             rap_error_and_exit(err)
         }
@@ -114,9 +132,7 @@ fn get_member_folders(meta: &Metadata) -> Vec<&Utf8Path> {
 fn deep_run() {
     let cargo_tomls = get_cargo_tomls_deep_recursively(".");
     for ws_metadata in workspaces(&cargo_tomls).values() {
-        for pkg_folder in get_member_folders(ws_metadata) {
-            cargo_check(pkg_folder);
-        }
+        clean_and_check(ws_metadata);
     }
 }
 
