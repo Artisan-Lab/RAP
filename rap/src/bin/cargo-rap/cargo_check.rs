@@ -7,12 +7,13 @@ use rap::utils::log::rap_error_and_exit;
 use std::{collections::BTreeMap, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
-pub fn run() {
+pub fn run<'a>(dir: impl Into<&'a Utf8Path>) {
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
     /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
     let mut cmd = Command::new("cargo");
+    cmd.current_dir(dir.into());
     cmd.arg("check");
 
     /* set the target as a filter for phase_rustc_rap */
@@ -89,4 +90,9 @@ fn workspaces(cargo_tomls: &[Utf8PathBuf]) -> Workspaces {
     }
 
     map
+}
+
+/// Just like running a cargo check in a folder.
+pub fn default_run() {
+    run(".");
 }

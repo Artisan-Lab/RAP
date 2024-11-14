@@ -36,7 +36,7 @@ fn phase_cargo_rap() {
         _ => {}
     }
 
-    cargo_check::run();
+    cargo_check::default_run();
 }
 
 fn phase_rustc_wrapper() {
