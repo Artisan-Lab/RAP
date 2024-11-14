@@ -24,8 +24,12 @@ pub fn deep_run() {
 }
 
 fn check_members(ws_metadata: &Metadata) {
-    // force clean even if `RAP_CLEAN` is false
-    super::cargo_clean(&ws_metadata.workspace_root, true);
+    // Force clean even if `RAP_CLEAN` is false, because rap is in control of
+    // caches for all packages and there should be no cache.
+    let ws_root = &ws_metadata.workspace_root;
+    rap_info!("cargo clean in workspace root {ws_root}");
+    super::cargo_clean(ws_root, true);
+
     for pkg_folder in get_member_folders(ws_metadata) {
         super::cargo_check(pkg_folder);
     }

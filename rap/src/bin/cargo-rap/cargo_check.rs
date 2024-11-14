@@ -23,6 +23,7 @@ pub fn run() {
 
 fn cargo_check(dir: &Utf8Path) {
     // always clean before check due to outdated except `RAP_CLEAN` is false
+    rap_info!("cargo clean in package folder {dir}");
     cargo_clean(dir, args::rap_clean());
 
     rap_info!("cargo check in package folder {dir}");
@@ -72,7 +73,6 @@ fn cargo_check(dir: &Utf8Path) {
 
 fn cargo_clean(dir: &Utf8Path, really: bool) {
     if really {
-        rap_info!("cargo clean in workspace root {dir}");
         if let Err(err) = Command::new("cargo").arg("clean").current_dir(dir).output() {
             rap_error_and_exit(format!("`cargo clean` exits unexpectedly:\n{err}"));
         }
