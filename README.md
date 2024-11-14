@@ -48,17 +48,18 @@ cargo +nightly-2024-06-30 rap -help
 
 Environment variables (Values are case insensitive):
 
-| var             | default when absent | one of these values | description                |
-|-----------------|---------------------|---------------------|----------------------------|
-| `RAP_LOG`       | info                | debug, info, warn   | verbosity of logging       |
-| `RAP_RECURSIVE` | none                | none, shallow, deep | scope of packages to check |
+| var             | default when absent | one of these values | description                  |
+|-----------------|---------------------|---------------------|------------------------------|
+| `RAP_LOG`       | info                | debug, info, warn   | verbosity of logging         |
+| `RAP_CLEAN`     | true                | ture, false         | run cargo clean before check |
+| `RAP_RECURSIVE` | none                | none, shallow, deep | scope of packages to check   |
 
 For `RAP_RECURSIVE`:
 * none: check for current folder
 * shallow: check for current workpace members
 * deep: check for all workspaces from current folder
  
-NOTE: for shallow or deep, rap will clean the workspace target folder and enter each member to do the check.
+NOTE: for shallow or deep, rap will enter each member folder to do the check.
 
 ### Use-After-Free Detection
 Detect bugs such as use-after-free and double free in Rust crates caused by unsafe code.
