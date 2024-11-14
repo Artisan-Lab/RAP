@@ -4,10 +4,25 @@ use cargo_metadata::{
     Metadata,
 };
 use rap::utils::log::rap_error_and_exit;
-use std::{collections::BTreeMap, process::Command, time::Duration};
+use std::{collections::BTreeMap, env, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
-fn run(dir: &Utf8Path) {
+pub fn run() {
+    match env::var("RAP_RECURSIVE")
+        .ok()
+        .map(|s| s.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("shallow") => shallow_run(),
+        Some("deep") => deep_run(),
+        Some("none") | None => default_run(),
+        _ => rap_error_and_exit(
+            "`recursive` should only accept one the values: none, shallow or deep.",
+        ),
+    }
+}
+
+fn cargo_check(dir: &Utf8Path) {
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
@@ -53,15 +68,19 @@ fn run(dir: &Utf8Path) {
 }
 
 /// Just like running a cargo check in a folder.
-pub fn default_run() {
-    run(".".into());
+fn default_run() {
+    cargo_check(".".into());
 }
 
 /// Run cargo check in each member folder under current workspace.
-pub fn shallow_run() {
-    let ws_metadata = workspace(".".into());
+fn shallow_run() {
+    let cargo_toml = Utf8Path::new("Cargo.toml");
+    if !cargo_toml.exists() {
+        rap_error_and_exit("rap should be run in a folder directly containing Cargo.toml");
+    }
+    let ws_metadata = workspace(cargo_toml);
     for pkg_folder in get_member_folders(&ws_metadata) {
-        run(pkg_folder);
+        cargo_check(pkg_folder);
     }
 }
 
@@ -92,11 +111,11 @@ fn get_member_folders(meta: &Metadata) -> Vec<&Utf8Path> {
 }
 
 /// Recursively run cargo check in each package folder from current folder.
-pub fn deep_run() {
+fn deep_run() {
     let cargo_tomls = get_cargo_tomls_deep_recursively(".");
     for ws_metadata in workspaces(&cargo_tomls).values() {
         for pkg_folder in get_member_folders(ws_metadata) {
-            run(pkg_folder);
+            cargo_check(pkg_folder);
         }
     }
 }
