@@ -51,7 +51,7 @@ Environment variables (Values are case insensitive):
 | var             | default when absent | one of these values | description                  |
 |-----------------|---------------------|---------------------|------------------------------|
 | `RAP_LOG`       | info                | debug, info, warn   | verbosity of logging         |
-| `RAP_CLEAN`     | true                | ture, false         | run cargo clean before check |
+| `RAP_CLEAN`     | true                | true, false         | run cargo clean before check |
 | `RAP_RECURSIVE` | none                | none, shallow, deep | scope of packages to check   |
 
 For `RAP_RECURSIVE`:
