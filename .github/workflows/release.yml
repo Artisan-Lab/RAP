@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RAP_RECURSIVE: deep
 
 jobs:
   build:
@@ -33,3 +34,9 @@ jobs:
       run: |
         chmod +x ./install.sh
         ./install.sh
+
+    - name: Check test cases 
+      run: cd tests && cargo +nightly-2024-06-30 rap -F -M
+
+    - name: Check rap
+      run: cd rap && cargo +nightly-2024-06-30 rap -F -M
