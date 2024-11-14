@@ -1,14 +1,38 @@
 use crate::args;
+use cargo_metadata::camino::Utf8Path;
 use rap::utils::log::rap_error_and_exit;
-use std::{process::Command, time::Duration};
+use std::{env, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
+mod workspace;
+
 pub fn run() {
-    let [rap_args, cargo_args] = crate::args::rap_and_cargo_args();
+    match env::var("RAP_RECURSIVE")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("none") | None => default_run(),
+        Some("deep") => workspace::deep_run(),
+        Some("shallow") => workspace::shallow_run(),
+        _ => rap_error_and_exit(
+            "`recursive` should only accept one the values: none, shallow or deep.",
+        ),
+    }
+}
+
+fn cargo_check(dir: &Utf8Path) {
+    // always clean before check due to outdated except `RAP_CLEAN` is false
+    rap_info!("cargo clean in package folder {dir}");
+    cargo_clean(dir, args::rap_clean());
+
+    rap_info!("cargo check in package folder {dir}");
+    let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
     /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
     let mut cmd = Command::new("cargo");
+    cmd.current_dir(dir);
     cmd.arg("check");
 
     /* set the target as a filter for phase_rustc_rap */
@@ -45,4 +69,17 @@ pub fn run() {
             rap_error_and_exit("Process killed due to timeout.");
         }
     };
+}
+
+fn cargo_clean(dir: &Utf8Path, really: bool) {
+    if really {
+        if let Err(err) = Command::new("cargo").arg("clean").current_dir(dir).output() {
+            rap_error_and_exit(format!("`cargo clean` exits unexpectedly:\n{err}"));
+        }
+    }
+}
+
+/// Just like running a cargo check in a folder.
+fn default_run() {
+    cargo_check(".".into());
 }
