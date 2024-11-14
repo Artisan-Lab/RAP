@@ -9,7 +9,7 @@ mod workspace;
 pub fn run() {
     match env::var("RAP_RECURSIVE")
         .ok()
-        .map(|s| s.to_ascii_lowercase())
+        .map(|s| s.trim().to_ascii_lowercase())
         .as_deref()
     {
         Some("none") | None => default_run(),
@@ -22,6 +22,9 @@ pub fn run() {
 }
 
 fn cargo_check(dir: &Utf8Path) {
+    // always clean before check due to outdated except `RAP_CLEAN` is false
+    cargo_clean(dir, args::rap_clean());
+
     rap_info!("cargo check in package folder {dir}");
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
@@ -65,6 +68,15 @@ fn cargo_check(dir: &Utf8Path) {
             rap_error_and_exit("Process killed due to timeout.");
         }
     };
+}
+
+fn cargo_clean(dir: &Utf8Path, really: bool) {
+    if really {
+        rap_info!("cargo clean in workspace root {dir}");
+        if let Err(err) = Command::new("cargo").arg("clean").current_dir(dir).output() {
+            rap_error_and_exit(format!("`cargo clean` exits unexpectedly:\n{err}"));
+        }
+    }
 }
 
 /// Just like running a cargo check in a folder.

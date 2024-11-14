@@ -3,7 +3,7 @@ use cargo_metadata::{
     Metadata,
 };
 use rap::utils::log::rap_error_and_exit;
-use std::{collections::BTreeMap, process::Command};
+use std::collections::BTreeMap;
 
 /// Run cargo check in each member folder under current workspace.
 pub fn shallow_run() {
@@ -12,33 +12,22 @@ pub fn shallow_run() {
         rap_error_and_exit("rap should be run in a folder directly containing Cargo.toml");
     }
     let ws_metadata = workspace(cargo_toml);
-    clean_and_check(&ws_metadata);
+    check_members(&ws_metadata);
 }
 
 /// Recursively run cargo check in each package folder from current folder.
 pub fn deep_run() {
     let cargo_tomls = get_cargo_tomls_deep_recursively(".");
     for ws_metadata in workspaces(&cargo_tomls).values() {
-        clean_and_check(ws_metadata);
+        check_members(ws_metadata);
     }
 }
 
-fn clean_and_check(ws_metadata: &Metadata) {
-    cargo_clean(&ws_metadata.workspace_root);
+fn check_members(ws_metadata: &Metadata) {
+    // force clean even if `RAP_CLEAN` is false
+    super::cargo_clean(&ws_metadata.workspace_root, true);
     for pkg_folder in get_member_folders(ws_metadata) {
         super::cargo_check(pkg_folder);
-    }
-}
-
-/// Usually run in workspace root before checking.
-fn cargo_clean(ws_root: &Utf8Path) {
-    rap_info!("cargo clean in workspace root {ws_root}");
-    if let Err(err) = Command::new("cargo")
-        .arg("clean")
-        .current_dir(ws_root)
-        .output()
-    {
-        rap_error_and_exit(format!("`cargo clean` exits unexpectedly:\n{err}"));
     }
 }
 
