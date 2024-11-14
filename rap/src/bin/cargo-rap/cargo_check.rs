@@ -7,13 +7,13 @@ use rap::utils::log::rap_error_and_exit;
 use std::{collections::BTreeMap, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
-pub fn run<'a>(dir: impl Into<&'a Utf8Path>) {
+pub fn run(dir: &Utf8Path) {
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
     /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
     let mut cmd = Command::new("cargo");
-    cmd.current_dir(dir.into());
+    cmd.current_dir(dir);
     cmd.arg("check");
 
     /* set the target as a filter for phase_rustc_rap */
@@ -72,16 +72,7 @@ type Workspaces = BTreeMap<Utf8PathBuf, Metadata>;
 fn workspaces(cargo_tomls: &[Utf8PathBuf]) -> Workspaces {
     let mut map = BTreeMap::new();
     for cargo_toml in cargo_tomls {
-        let exec = cargo_metadata::MetadataCommand::new()
-            .manifest_path(cargo_toml)
-            .exec();
-        let metadata = match exec {
-            Ok(metadata) => metadata,
-            Err(err) => {
-                let err = format!("Failed to get result of cargo metadata: \n{err}");
-                rap_error_and_exit(err)
-            }
-        };
+        let metadata = workspace(cargo_toml);
         let root = &metadata.workspace_root;
         // 每个 member package 解析的 workspace_root 和 members 是一样的
         if !map.contains_key(root) {
@@ -92,7 +83,36 @@ fn workspaces(cargo_tomls: &[Utf8PathBuf]) -> Workspaces {
     map
 }
 
+fn workspace(cargo_toml: &Utf8Path) -> Metadata {
+    let exec = cargo_metadata::MetadataCommand::new()
+        .manifest_path(cargo_toml)
+        .exec();
+    let metadata = match exec {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            let err = format!("Failed to get result of cargo metadata: \n{err}");
+            rap_error_and_exit(err)
+        }
+    };
+    metadata
+}
+
+fn get_member_folders(meta: &Metadata) -> Vec<&Utf8Path> {
+    meta.workspace_packages()
+        .iter()
+        .map(|pkg| pkg.manifest_path.parent().unwrap())
+        .collect()
+}
+
 /// Just like running a cargo check in a folder.
 pub fn default_run() {
-    run(".");
+    run(".".into());
+}
+
+/// Run cargo check in each member folder under current workspace.
+pub fn shallow_run() {
+    let metadata = workspace(".".into());
+    for pkg_folder in get_member_folders(&metadata) {
+        run(pkg_folder);
+    }
 }
