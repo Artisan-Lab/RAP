@@ -1,10 +1,14 @@
 use crate::args;
+use cargo_metadata::{
+    camino::{Utf8Path, Utf8PathBuf},
+    Metadata,
+};
 use rap::utils::log::rap_error_and_exit;
-use std::{process::Command, time::Duration};
+use std::{collections::BTreeMap, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 
 pub fn run() {
-    let [rap_args, cargo_args] = crate::args::rap_and_cargo_args();
+    let [rap_args, cargo_args] = args::rap_and_cargo_args();
     rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
     /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
@@ -45,4 +49,44 @@ pub fn run() {
             rap_error_and_exit("Process killed due to timeout.");
         }
     };
+}
+
+pub fn get_cargo_tomls_deep_recursively(dir: &Utf8Path) -> Vec<Utf8PathBuf> {
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|entry| {
+            if let Ok(e) = entry {
+                if e.file_type().is_file() && e.file_name().to_str()? == "Cargo.toml" {
+                    let path = Utf8PathBuf::from_path_buf(e.into_path());
+                    return path.ok()?.canonicalize_utf8().ok();
+                }
+            }
+            None
+        })
+        .collect()
+}
+
+type Workspaces = BTreeMap<Utf8PathBuf, Metadata>;
+
+fn workspaces(cargo_tomls: &[Utf8PathBuf]) -> Workspaces {
+    let mut map = BTreeMap::new();
+    for cargo_toml in cargo_tomls {
+        let exec = cargo_metadata::MetadataCommand::new()
+            .manifest_path(cargo_toml)
+            .exec();
+        let metadata = match exec {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                let err = format!("Failed to get result of cargo metadata: \n{err}");
+                rap_error_and_exit(err)
+            }
+        };
+        let root = &metadata.workspace_root;
+        // 每个 member package 解析的 workspace_root 和 members 是一样的
+        if !map.contains_key(root) {
+            map.insert(root.clone(), metadata);
+        }
+    }
+
+    map
 }
