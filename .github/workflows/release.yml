@@ -36,7 +36,7 @@ jobs:
         ./install.sh
 
     - name: Check test cases 
-      run: cd tests && cargo rap +nightly-2024-06-30 -F -M
+      run: cd tests && cargo +nightly-2024-06-30 rap -F -M
 
     - name: Check rap
-      run: cd rap && cargo rap +nightly-2024-06-30 -F -M
+      run: cd rap && cargo +nightly-2024-06-30 rap -F -M
