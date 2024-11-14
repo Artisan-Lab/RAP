@@ -24,7 +24,7 @@ esac
 
 # Set the library path to be added
 #LIBRARY_PATH="$HOME/.rustup/toolchains/nightly-2023-10-05-x86_64-unknown-linux-gnu/lib"
-toolchain_date="nightly-2024-06-30"
+toolchain_date="nightly-2024-10-12"
 toolchain_file="rust-toolchain.toml"
 if [ ! -f "$toolchain_file" ]; then
     printf "%bError: %s does not exist.%b\n" "${RED}" "$toolchain_file" "${NC}"

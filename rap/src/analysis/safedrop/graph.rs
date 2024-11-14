@@ -246,7 +246,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                                 }
                             }
                         }
-                        Rvalue::Ref(_, _, ref p) | Rvalue::AddressOf(_, ref p) => {
+                        Rvalue::Ref(_, _, ref p) => {
                             let rv_local = p.local.as_usize();
                             if values[lv_local].may_drop && values[rv_local].may_drop {
                                 let rv = p.clone();
@@ -391,6 +391,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     }
                     cur_bb.calls.push(terminator.clone());
                 }
+                TerminatorKind::TailCall { .. } => todo!(),
                 TerminatorKind::Assert {
                     cond: _,
                     expected: _,
@@ -436,6 +437,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     line_spans: _,
                     ref unwind,
                     targets,
+                    asm_macro: _,
                 } => {
                     for target in targets {
                         cur_bb.add_next(target.as_usize());

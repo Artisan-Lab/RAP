@@ -83,7 +83,7 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                 if let FnDef(callee_def_id, callee_substs) = constant.const_.ty().kind() {
                     let param_env = self.tcx.param_env(self.def_id);
                     if let Ok(Some(instance)) =
-                        Instance::resolve(self.tcx, param_env, *callee_def_id, callee_substs)
+                        Instance::try_resolve(self.tcx, param_env, *callee_def_id, callee_substs)
                     {
                         let mut is_virtual = false;
                         // Try to analysis the specific type of callee.
@@ -114,9 +114,6 @@ impl<'b, 'tcx> CallGraphVisitor<'b, 'tcx> {
                                     None
                                 }
                             }
-                            InstanceKind::CoroutineKindShim {
-                                coroutine_def_id, ..
-                            } => Some(coroutine_def_id),
                         };
                         if let Some(instance_def_id) = instance_def_id {
                             self.add_to_call_graph(instance_def_id, Some(is_virtual));

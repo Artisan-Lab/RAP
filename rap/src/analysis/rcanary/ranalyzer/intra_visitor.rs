@@ -433,30 +433,6 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     }
                 }
             }
-            Rvalue::AddressOf(.., rplace) => {
-                let kind = AsgnKind::Reference;
-                let rvalue_has_projection = has_projection(rplace);
-                match (lvalue_has_projection, rvalue_has_projection) {
-                    (true, true) => {
-                        self.handle_copy_field_to_field(
-                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
-                        );
-                    }
-                    (true, false) => {
-                        self.handle_copy_to_field(
-                            ctx, goal, solver, kind, lplace, rplace, disc, bidx, sidx,
-                        );
-                    }
-                    (false, true) => {
-                        self.handle_copy_from_field(
-                            ctx, goal, solver, kind, lplace, rplace, bidx, sidx,
-                        );
-                    }
-                    (false, false) => {
-                        self.handle_copy(ctx, goal, solver, kind, lplace, rplace, bidx, sidx);
-                    }
-                }
-            }
             Rvalue::Cast(_cast_kind, op, ..) => {
                 let kind = AsgnKind::Cast;
                 match op {

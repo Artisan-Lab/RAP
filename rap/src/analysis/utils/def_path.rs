@@ -1,4 +1,3 @@
-use rustc_errors;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::{CrateNum, DefId, LocalDefId, LOCAL_CRATE};
 use rustc_hir::PrimTy;
@@ -45,19 +44,11 @@ pub fn def_path_def_ids(tcx: &TyCtxt<'_>, path: &[&str]) -> impl Iterator<Item =
 }
 
 pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
-    fn find_crates(tcx: TyCtxt<'_>, name: Symbol) -> impl Iterator<Item = DefId> + '_ {
-        tcx.crates(())
-            .iter()
-            .copied()
-            .filter(move |&num| tcx.crate_name(num) == name)
-            .map(CrateNum::as_def_id)
-    }
-
-    let (base, mut path) = match *path {
+    let (base, path) = match path {
         [primitive] => {
             return vec![PrimTy::from_name(Symbol::intern(primitive)).map_or(Res::Err, Res::PrimTy)];
         }
-        [base, ref path @ ..] => (base, path),
+        [base, path @ ..] => (base, path),
         _ => return Vec::new(),
     };
 
@@ -69,18 +60,21 @@ pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
         None
     };
 
-    let starts = find_primitive_impls(tcx, base)
-        .chain(find_crates(*tcx, base_sym))
+    let crates = find_primitive_impls(tcx, base)
         .chain(local_crate)
-        .map(|id| Res::Def(tcx.def_kind(id), id));
+        .map(|id| Res::Def(tcx.def_kind(id), id))
+        .chain(find_crates(tcx, base_sym))
+        .collect();
 
-    let mut resolutions: Vec<Res> = starts.collect();
+    def_path_res_with_base(tcx, crates, path)
+}
 
+pub fn def_path_res_with_base(tcx: &TyCtxt<'_>, mut base: Vec<Res>, mut path: &[&str]) -> Vec<Res> {
     while let [segment, rest @ ..] = path {
         path = rest;
         let segment = Symbol::intern(segment);
 
-        resolutions = resolutions
+        base = base
             .into_iter()
             .filter_map(|res| res.opt_def_id())
             .flat_map(|def_id| {
@@ -88,8 +82,7 @@ pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
                 // `impl S { ... }`
                 let inherent_impl_children = tcx
                     .inherent_impls(def_id)
-                    .into_iter()
-                    .flatten()
+                    .iter()
                     .flat_map(|&impl_def_id| item_children_by_name(tcx, impl_def_id, segment));
 
                 let direct_children = item_children_by_name(tcx, def_id, segment);
@@ -99,7 +92,7 @@ pub fn def_path_res(tcx: &TyCtxt<'_>, path: &[&str]) -> Vec<Res> {
             .collect();
     }
 
-    resolutions
+    base
 }
 
 fn find_primitive_impls<'tcx>(
@@ -132,14 +125,11 @@ fn find_primitive_impls<'tcx>(
         "f32" => SimplifiedType::Float(FloatTy::F32),
         "f64" => SimplifiedType::Float(FloatTy::F64),
         _ => {
-            return Result::<_, rustc_errors::ErrorGuaranteed>::Ok(&[] as &[_])
-                .into_iter()
-                .flatten()
-                .copied();
+            return [].iter().copied();
         }
     };
 
-    tcx.incoherent_impls(ty).into_iter().flatten().copied()
+    tcx.incoherent_impls(ty).iter().copied()
 }
 
 fn non_local_item_children_by_name(tcx: &TyCtxt<'_>, def_id: DefId, name: Symbol) -> Vec<Res> {
@@ -208,4 +198,14 @@ fn item_children_by_name(tcx: &TyCtxt<'_>, def_id: DefId, name: Symbol) -> Vec<R
     } else {
         non_local_item_children_by_name(tcx, def_id, name)
     }
+}
+
+pub fn find_crates(tcx: &TyCtxt<'_>, name: Symbol) -> Vec<Res> {
+    tcx.crates(())
+        .iter()
+        .copied()
+        .filter(move |&num| tcx.crate_name(num) == name)
+        .map(CrateNum::as_def_id)
+        .map(|id| Res::Def(tcx.def_kind(id), id))
+        .collect()
 }

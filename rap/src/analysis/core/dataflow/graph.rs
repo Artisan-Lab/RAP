@@ -4,10 +4,11 @@ use std::collections::HashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexVec;
 use rustc_middle::mir::{
-    AggregateKind, BorrowKind, Const, Local, Mutability, Operand, Place, PlaceElem, Rvalue,
-    StatementKind, TerminatorKind,
+    AggregateKind, BorrowKind, Const, Local, Operand, Place, PlaceElem, Rvalue, Statement,
+    StatementKind, Terminator, TerminatorKind,
 };
 use rustc_middle::ty::TyKind;
+use rustc_span::{Span, DUMMY_SP};
 
 #[derive(Clone, Debug)]
 pub enum NodeOp {
@@ -59,6 +60,7 @@ pub enum GraphEdge {
 #[derive(Clone)]
 pub struct GraphNode {
     pub op: NodeOp,
+    pub span: Span,
     pub out_edges: Vec<EdgeIdx>,
     pub in_edges: Vec<EdgeIdx>,
 }
@@ -67,6 +69,7 @@ impl GraphNode {
     pub fn new() -> Self {
         Self {
             op: NodeOp::Nop,
+            span: DUMMY_SP,
             out_edges: vec![],
             in_edges: vec![],
         }
@@ -150,10 +153,11 @@ impl Graph {
         ret
     }
 
-    pub fn add_statm_to_graph(&mut self, kind: &StatementKind) {
-        if let StatementKind::Assign(boxed_statm) = &kind {
+    pub fn add_statm_to_graph(&mut self, statement: &Statement) {
+        if let StatementKind::Assign(boxed_statm) = &statement.kind {
             let place = boxed_statm.0;
             let dst = self.parse_place(&place);
+            self.nodes[dst].span = statement.source_info.span;
             let rvalue = &boxed_statm.1;
             match rvalue {
                 Rvalue::Use(op) => {
@@ -173,15 +177,6 @@ impl Graph {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, op);
                     self.nodes[dst].op = NodeOp::Ref;
-                }
-                Rvalue::AddressOf(mutability, place) => {
-                    let op = match mutability {
-                        Mutability::Not => EdgeOp::Immut,
-                        Mutability::Mut => EdgeOp::Mut,
-                    };
-                    let src = self.parse_place(place);
-                    self.add_node_edge(src, dst, op);
-                    self.nodes[dst].op = NodeOp::AddressOf;
                 }
                 Rvalue::Len(place) => {
                     let src = self.parse_place(place);
@@ -239,17 +234,18 @@ impl Graph {
                     self.add_node_edge(src, dst, EdgeOp::Nop);
                     self.nodes[dst].op = NodeOp::CopyForDeref;
                 }
+                Rvalue::RawPtr(_, _) => todo!(),
             };
         }
     }
 
-    pub fn add_terminator_to_graph(&mut self, kind: &TerminatorKind) {
+    pub fn add_terminator_to_graph(&mut self, terminator: &Terminator) {
         if let TerminatorKind::Call {
             func,
             args,
             destination,
             ..
-        } = &kind
+        } = &terminator.kind
         {
             if let Operand::Constant(boxed_cnst) = func {
                 if let Const::Val(_, ty) = boxed_cnst.const_ {
@@ -260,6 +256,7 @@ impl Graph {
                             self.add_operand(&op.node, dst);
                         }
                         self.nodes[dst].op = NodeOp::Call(*def_id);
+                        self.nodes[dst].span = terminator.source_info.span;
                         return;
                     }
                 }
@@ -270,38 +267,45 @@ impl Graph {
 
     pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
         let mut set = HashSet::new();
-        let mut node_operator = |idx: Local| -> bool {
+        let mut root = local;
+        let mut find_root_operator = |idx: Local| -> DFSStatus {
             let node = &self.nodes[idx];
             match node.op {
                 NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
-                    //Nop means a orphan node or a parameter
-                    set.insert(idx);
-                    true
+                    //Nop means an orphan node or a parameter
+                    root = idx;
+                    DFSStatus::Continue
                 }
-                _ => false,
+                _ => DFSStatus::Stop,
             }
         };
-        let mut edge_validator = |op: &EdgeOp| -> bool {
-            match op {
-                EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => true,
-                EdgeOp::Nop
-                | EdgeOp::Const
-                | EdgeOp::Deref
-                | EdgeOp::Downcast(_)
-                | EdgeOp::Field(_) => false,
+        let mut find_equivalent_operator = |idx: Local| -> DFSStatus {
+            let node = &self.nodes[idx];
+            if set.contains(&idx) {
+                return DFSStatus::Stop;
+            }
+            match node.op {
+                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
+                    set.insert(idx);
+                    DFSStatus::Continue
+                }
+                _ => DFSStatus::Stop,
             }
         };
+        // Algorithm: dfs along upside to find the root node, and then dfs along downside to collect equivalent locals
         self.dfs(
             local,
             Direction::Upside,
-            &mut node_operator,
-            &mut edge_validator,
+            &mut find_root_operator,
+            &mut Self::equivalent_edge_validator,
+            true,
         );
         self.dfs(
-            local,
+            root,
             Direction::Downside,
-            &mut node_operator,
-            &mut edge_validator,
+            &mut find_equivalent_operator,
+            &mut Self::equivalent_edge_validator,
+            true,
         );
         set
     }
@@ -309,23 +313,29 @@ impl Graph {
     pub fn is_connected(&self, idx_1: Local, idx_2: Local) -> bool {
         let target = idx_2;
         let find = Cell::new(false);
-        let mut node_operator = |idx: Local| -> bool {
+        let mut node_operator = |idx: Local| -> DFSStatus {
             find.set(idx == target);
-            !find.get() // if not found, move on
+            if find.get() {
+                DFSStatus::Stop
+            } else {
+                // if not found, move on
+                DFSStatus::Continue
+            }
         };
-        let mut edge_validator = |_: &EdgeOp| -> bool { true };
         self.dfs(
             idx_1,
             Direction::Downside,
             &mut node_operator,
-            &mut edge_validator,
+            &mut Self::always_true_edge_validator,
+            false,
         );
         if !find.get() {
             self.dfs(
                 idx_1,
                 Direction::Upside,
                 &mut node_operator,
-                &mut edge_validator,
+                &mut Self::always_true_edge_validator,
+                false,
             );
         }
         find.get()
@@ -343,40 +353,101 @@ impl Graph {
         deps
     }
 
+    // This function uses precedence traversal.
+    // The node operator and edge validator decide how far the traversal can reach.
+    // `traverse_all` decides if a branch finds the target successfully, whether the traversal will continue or not.
+    // For example, if you need to instantly stop the traversal once finding a certain node, then set `traverse_all` to false.
+    // If you want to traverse all the reachable nodes which are decided by the operator and validator, then set `traverse_all` to true.
     pub fn dfs<F, G>(
         &self,
         now: Local,
         direction: Direction,
         node_operator: &mut F,
         edge_validator: &mut G,
-    ) where
-        F: FnMut(Local) -> bool,
-        G: FnMut(&EdgeOp) -> bool,
+        traverse_all: bool,
+    ) -> DFSStatus
+    where
+        F: FnMut(Local) -> DFSStatus,
+        G: FnMut(&EdgeOp) -> DFSStatus,
     {
-        if node_operator(now) {
-            match direction {
-                Direction::Upside => {
-                    for edge_idx in self.nodes[now].in_edges.iter() {
-                        let edge = &self.edges[*edge_idx];
-                        if let GraphEdge::NodeEdge { src, op, .. } = edge {
-                            if edge_validator(op) {
-                                self.dfs(*src, direction, node_operator, edge_validator);
-                            }
-                        }
-                    }
-                }
-                Direction::Downside => {
-                    for edge_idx in self.nodes[now].out_edges.iter() {
-                        let edge = &self.edges[*edge_idx];
-                        if let GraphEdge::NodeEdge { op, dst, .. } = edge {
-                            if edge_validator(op) {
-                                self.dfs(*dst, direction, node_operator, edge_validator);
+        macro_rules! traverse {
+            ($edges: ident, $field: ident) => {
+                for edge_idx in self.nodes[now].$edges.iter() {
+                    let edge = &self.edges[*edge_idx];
+                    if let GraphEdge::NodeEdge { $field, op, .. } = edge {
+                        if matches!(edge_validator(op), DFSStatus::Continue) {
+                            let result = self.dfs(
+                                *$field,
+                                direction,
+                                node_operator,
+                                edge_validator,
+                                traverse_all,
+                            );
+                            if matches!(result, DFSStatus::Stop) && !traverse_all {
+                                return DFSStatus::Stop;
                             }
                         }
                     }
                 }
             };
         }
+
+        if matches!(node_operator(now), DFSStatus::Continue) {
+            match direction {
+                Direction::Upside => {
+                    traverse!(in_edges, src);
+                }
+                Direction::Downside => {
+                    traverse!(out_edges, dst);
+                }
+                Direction::Both => {
+                    traverse!(in_edges, src);
+                    traverse!(out_edges, dst);
+                }
+            };
+            DFSStatus::Continue
+        } else {
+            DFSStatus::Stop
+        }
+    }
+
+    pub fn get_upside_idx(&self, node_idx: Local, order: usize) -> Option<Local> {
+        if let Some(edge_idx) = self.nodes[node_idx].in_edges.get(order) {
+            match self.edges[*edge_idx] {
+                GraphEdge::NodeEdge { src, .. } => Some(src),
+                GraphEdge::ConstEdge { .. } => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_downside_idx(&self, node_idx: Local, order: usize) -> Option<Local> {
+        if let Some(edge_idx) = self.nodes[node_idx].out_edges.get(order) {
+            match self.edges[*edge_idx] {
+                GraphEdge::NodeEdge { dst, .. } => Some(dst),
+                GraphEdge::ConstEdge { .. } => None,
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl Graph {
+    pub fn equivalent_edge_validator(op: &EdgeOp) -> DFSStatus {
+        match op {
+            EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => DFSStatus::Continue,
+            EdgeOp::Nop
+            | EdgeOp::Const
+            | EdgeOp::Deref
+            | EdgeOp::Downcast(_)
+            | EdgeOp::Field(_) => DFSStatus::Stop,
+        }
+    }
+
+    pub fn always_true_edge_validator(_: &EdgeOp) -> DFSStatus {
+        DFSStatus::Continue
     }
 }
 
@@ -384,6 +455,12 @@ impl Graph {
 pub enum Direction {
     Upside,
     Downside,
+    Both,
+}
+
+pub enum DFSStatus {
+    Continue,
+    Stop,
 }
 
 #[derive(Clone, Copy, Debug)]

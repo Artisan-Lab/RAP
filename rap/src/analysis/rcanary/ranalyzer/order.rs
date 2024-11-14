@@ -71,6 +71,7 @@ impl<'tcx> NodeOrder<'tcx> {
                         None => (),
                     }
                 }
+                TerminatorKind::TailCall { .. } => todo!(),
             }
             // Update the lev for generating topo order.
             for index in result.iter() {
