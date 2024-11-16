@@ -45,8 +45,9 @@ pub enum AllocatedState {
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum AlignState {
     Aligned,
-    Small2BigCast,
-    Big2SmallCast,
+    Small2BigCast(usize, usize),
+    Big2SmallCast(usize, usize),
+    Unaligned,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
@@ -109,7 +110,7 @@ impl AbstractStateItem {
 
 #[derive(PartialEq)]
 pub struct AbstractState {
-    pub state_map: HashMap<usize, AbstractStateItem>,
+    pub state_map: HashMap<usize, Option<AbstractStateItem>>,
 }
 
 impl AbstractState {
@@ -119,7 +120,7 @@ impl AbstractState {
         }
     }
 
-    pub fn insert_abstate(&mut self, place: usize, place_state_item: AbstractStateItem) {
+    pub fn insert_abstate(&mut self, place: usize, place_state_item: Option<AbstractStateItem>) {
         self.state_map.insert(place, place_state_item);
     }
 }

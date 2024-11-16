@@ -11,14 +11,14 @@ lazy_static! {
 // static mut GLOBAL_INTER_RECORDER: HashMap<DefId,InterAnalysisRecord> = HashMap::new();
 
 pub struct InterAnalysisRecord {
-    pub pre_analysis_state: HashMap<usize, AbstractStateItem>,
-    pub post_analysis_state: HashMap<usize, AbstractStateItem>,
+    pub pre_analysis_state: HashMap<usize, Option<AbstractStateItem>>,
+    pub post_analysis_state: HashMap<usize, Option<AbstractStateItem>>,
 }
 
 impl InterAnalysisRecord {
     pub fn new(
-        pre_analysis_state: HashMap<usize, AbstractStateItem>,
-        post_analysis_state: HashMap<usize, AbstractStateItem>,
+        pre_analysis_state: HashMap<usize, Option<AbstractStateItem>>,
+        post_analysis_state: HashMap<usize, Option<AbstractStateItem>>,
     ) -> Self {
         Self {
             pre_analysis_state,
@@ -26,7 +26,10 @@ impl InterAnalysisRecord {
         }
     }
 
-    pub fn is_pre_state_same(&self, other_pre_state: &HashMap<usize, AbstractStateItem>) -> bool {
+    pub fn is_pre_state_same(
+        &self,
+        other_pre_state: &HashMap<usize, Option<AbstractStateItem>>,
+    ) -> bool {
         self.pre_analysis_state == *other_pre_state
     }
 }

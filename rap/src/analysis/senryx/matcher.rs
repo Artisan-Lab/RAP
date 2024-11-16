@@ -32,10 +32,10 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
         for contract in contracts_vec {
             let arg_place = get_arg_place(&args[*idx].node);
             if arg_place == 0 {
-                return;
+                continue;
             }
             if let Some(abstate_item) = abstate.state_map.get(&arg_place) {
-                if !check_contract(*contract, abstate_item) {
+                if !check_contract(*contract, &abstate_item.clone().unwrap()) {
                     println!("Contract failed! ---- {:?}", contract);
                 } else {
                     println!("Contract passed! ---- {:?}", contract);

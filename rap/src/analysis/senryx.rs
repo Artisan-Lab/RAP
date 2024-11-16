@@ -58,11 +58,11 @@ impl<'tcx> SenryxCheck<'tcx> {
     pub fn pre_handle_type(&self, def_id: DefId) {
         let mut uig_checker = UnsafetyIsolationCheck::new(self.tcx);
         let func_type = uig_checker.get_type(def_id);
-        let mut body_visitor = BodyVisitor::new(self.tcx, def_id, true);
+        let mut body_visitor = BodyVisitor::new(self.tcx, def_id, 0);
         if func_type == 1 {
             let func_cons = uig_checker.search_constructor(def_id);
             for func_con in func_cons {
-                let mut cons_body_visitor = BodyVisitor::new(self.tcx, func_con, true);
+                let mut cons_body_visitor = BodyVisitor::new(self.tcx, func_con, 0);
                 cons_body_visitor.path_forward_check();
                 // TODO: cache fields' states
 
