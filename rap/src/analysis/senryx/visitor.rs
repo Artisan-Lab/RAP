@@ -1,18 +1,20 @@
 use crate::analysis::safedrop::graph::SafeDropGraph;
+// use crate::analysis::utils::show_mir::display_mir;
 use crate::rap_warn;
+use rustc_span::source_map::Spanned;
 use std::collections::{HashMap, HashSet};
 
 use super::contracts::abstract_state::{
     AbstractState, AbstractStateItem, AlignState, StateType, VType, Value,
 };
 use super::inter_record::{InterAnalysisRecord, GLOBAL_INTER_RECORDER};
-use super::matcher::match_unsafe_api_and_check_contracts;
+use super::matcher::{get_arg_place, match_unsafe_api_and_check_contracts};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
     mir::{
-        self, AggregateKind, BasicBlock, BasicBlockData, Local, Operand, Place, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        self, AggregateKind, BasicBlock, BasicBlockData, CastKind, Local, Operand, Place, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{self, GenericArgKind, Ty, TyKind},
 };
@@ -24,11 +26,11 @@ pub struct BodyVisitor<'tcx> {
     // abstract_states records the path index and variables' ab states in this path
     pub abstract_states: HashMap<usize, AbstractState>,
     pub unsafe_callee_report: HashMap<String, usize>,
-    pub first_layer_flag: bool,
+    pub visit_time: usize,
 }
 
 impl<'tcx> BodyVisitor<'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId, first_layer_flag: bool) -> Self {
+    pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId, visit_time: usize) -> Self {
         let body = tcx.optimized_mir(def_id);
         Self {
             tcx,
@@ -36,13 +38,14 @@ impl<'tcx> BodyVisitor<'tcx> {
             safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
             abstract_states: HashMap::new(),
             unsafe_callee_report: HashMap::new(),
-            first_layer_flag,
+            visit_time,
         }
     }
 
     pub fn path_forward_check(&mut self) {
         let paths = self.get_all_paths();
         let body = self.tcx.optimized_mir(self.def_id);
+        // display_mir(self.def_id,&body);
         for (index, path_info) in paths.iter().enumerate() {
             self.abstract_states.insert(index, AbstractState::new());
             for block_index in path_info.iter() {
@@ -69,7 +72,13 @@ impl<'tcx> BodyVisitor<'tcx> {
                 }
             }
         }
-        self.abstract_states_mop();
+        // self.abstract_states_mop();
+        if self.visit_time == 0 {
+            // display_mir(self.def_id,body);
+            println!("---------------");
+            println!("--def_id: {:?} \n--paths: {:?}", self.def_id, paths);
+            self.abstate_debug();
+        }
     }
 
     pub fn path_analyze_block(
@@ -78,7 +87,7 @@ impl<'tcx> BodyVisitor<'tcx> {
         path_index: usize,
         bb_index: usize,
     ) {
-        for statement in block.statements.iter().rev() {
+        for statement in block.statements.iter() {
             self.path_analyze_statement(statement, path_index);
         }
         self.path_analyze_terminator(&block.terminator(), path_index, bb_index);
@@ -102,7 +111,7 @@ impl<'tcx> BodyVisitor<'tcx> {
                 if let Operand::Constant(func_constant) = func {
                     if let ty::FnDef(ref callee_def_id, raw_list) = func_constant.const_.ty().kind()
                     {
-                        if self.first_layer_flag {
+                        if self.visit_time == 0 {
                             for generic_arg in raw_list.iter() {
                                 match generic_arg.unpack() {
                                     GenericArgKind::Type(ty) => {
@@ -117,8 +126,7 @@ impl<'tcx> BodyVisitor<'tcx> {
                                 }
                             }
                         }
-                        //TODO:path_inter_analyze
-                        self.handle_call(callee_def_id);
+                        self.handle_call(callee_def_id, args, path_index);
                     }
                 }
             }
@@ -164,9 +172,16 @@ impl<'tcx> BodyVisitor<'tcx> {
         match rvalue {
             Rvalue::Use(op) => match op {
                 Operand::Move(rplace) | Operand::Copy(rplace) => {
-                    let _rpjc_local =
-                        self.safedrop_graph
-                            .projection(self.tcx, true, rplace.clone());
+                    let rpjc_local = self
+                        .safedrop_graph
+                        .projection(self.tcx, true, rplace.clone());
+                    if let Some(ab_state) = self.abstract_states.get(&path_index) {
+                        // println!("------{:?}, {:?}-----",path_index,rpjc_local);
+                        if let Some(r_state_item) = ab_state.state_map.get(&rpjc_local) {
+                            // println!("------{:?}-----",r_state_item.clone().unwrap());
+                            self.insert_path_abstate(path_index, lpjc_local, r_state_item.clone());
+                        }
+                    }
                 }
                 _ => {}
             },
@@ -188,30 +203,14 @@ impl<'tcx> BodyVisitor<'tcx> {
                     VType::Pointer(align, size),
                     HashSet::from([StateType::AlignState(AlignState::Aligned)]),
                 );
-                self.insert_path_abstate(path_index, lpjc_local, abitem);
+                self.insert_path_abstate(path_index, lpjc_local, Some(abitem));
             }
-            Rvalue::Cast(_cast_kind, op, ty) => match op {
+            Rvalue::Cast(cast_kind, op, ty) => match op {
                 Operand::Move(rplace) | Operand::Copy(rplace) => {
                     let rpjc_local = self
                         .safedrop_graph
                         .projection(self.tcx, true, rplace.clone());
-                    let (src_align, _src_size) = self.get_layout_by_place_usize(rpjc_local);
-                    let (dst_align, dst_size) = self.visit_ty_and_get_layout(*ty);
-                    let state = match dst_align.cmp(&src_align) {
-                        std::cmp::Ordering::Greater => {
-                            StateType::AlignState(AlignState::Small2BigCast)
-                        }
-                        std::cmp::Ordering::Less => {
-                            StateType::AlignState(AlignState::Big2SmallCast)
-                        }
-                        std::cmp::Ordering::Equal => StateType::AlignState(AlignState::Aligned),
-                    };
-                    let abitem = AbstractStateItem::new(
-                        (Value::None, Value::None),
-                        VType::Pointer(dst_align, dst_size),
-                        HashSet::from([state]),
-                    );
-                    self.insert_path_abstate(path_index, lpjc_local, abitem);
+                    self.handle_cast(rpjc_local, lpjc_local, ty, path_index, cast_kind);
                 }
                 _ => {}
             },
@@ -235,25 +234,79 @@ impl<'tcx> BodyVisitor<'tcx> {
         }
     }
 
-    pub fn handle_call(&mut self, def_id: &DefId) {
-        let pre_analysis_state = HashMap::new();
+    pub fn handle_call(
+        &mut self,
+        def_id: &DefId,
+        args: &Box<[Spanned<Operand>]>,
+        path_index: usize,
+    ) {
+        if !self.tcx.is_mir_available(def_id) {
+            return;
+        }
+
+        // get pre analysis state
+        let mut pre_analysis_state = HashMap::new();
+        for (idx, arg) in args.iter().enumerate() {
+            let arg_place = get_arg_place(&arg.node);
+            let ab_state_item = self.get_abstate_by_place_in_path(arg_place, path_index);
+            pre_analysis_state.insert(idx, ab_state_item);
+        }
+
+        // check cache
         let mut recorder = GLOBAL_INTER_RECORDER.lock().unwrap();
         if let Some(record) = recorder.get_mut(def_id) {
             if record.is_pre_state_same(&pre_analysis_state) {
                 // update directly
-                self.update_inter_state_directly();
+                self.update_post_state(&record.post_analysis_state, args, path_index);
                 return;
             }
         }
-        let _inter_body_visitor = BodyVisitor::new(self.tcx, *def_id, false).path_forward_check();
-        let post_analysis_state = HashMap::new();
+        drop(recorder);
+
+        // update post states and cache
+        let mut inter_body_visitor: BodyVisitor<'_> =
+            BodyVisitor::new(self.tcx, *def_id, self.visit_time + 1);
+        inter_body_visitor.path_forward_check();
+        let post_analysis_state: HashMap<usize, Option<AbstractStateItem>> =
+            inter_body_visitor.get_args_post_states();
+        // self.update_post_state(&post_analysis_state, args, path_index);
+        let mut recorder = GLOBAL_INTER_RECORDER.lock().unwrap();
         recorder.insert(
             *def_id,
             InterAnalysisRecord::new(pre_analysis_state, post_analysis_state),
         );
+        // drop(recorder);
     }
 
-    pub fn update_inter_state_directly(&mut self) {}
+    // if inter analysis's params are in mut_ref, then we should update their post states
+    pub fn update_post_state(
+        &mut self,
+        post_state: &HashMap<usize, Option<AbstractStateItem>>,
+        args: &Box<[Spanned<Operand>]>,
+        path_index: usize,
+    ) {
+        for (idx, arg) in args.iter().enumerate() {
+            let arg_place = get_arg_place(&arg.node);
+            if let Some(state_item) = post_state.get(&idx) {
+                self.insert_path_abstate(path_index, arg_place, state_item.clone());
+            }
+        }
+    }
+
+    pub fn get_args_post_states(&mut self) -> HashMap<usize, Option<AbstractStateItem>> {
+        let final_states = self.abstract_states_mop();
+        let mut result_states = HashMap::new();
+        let fn_sig = self.tcx.fn_sig(self.def_id).skip_binder();
+        let num_params = fn_sig.inputs().skip_binder().len();
+        for i in 0..num_params {
+            if let Some(state) = final_states.state_map.get(&(i + 1)) {
+                result_states.insert(i, state.clone());
+            } else {
+                result_states.insert(i, None);
+            }
+        }
+        result_states
+    }
 
     pub fn visit_ty_and_get_layout(&self, ty: Ty<'tcx>) -> (usize, usize) {
         match ty.kind() {
@@ -270,7 +323,7 @@ impl<'tcx> BodyVisitor<'tcx> {
         results
     }
 
-    pub fn abstract_states_mop(&mut self) {
+    pub fn abstract_states_mop(&mut self) -> AbstractState {
         let mut result_state = AbstractState {
             state_map: HashMap::new(),
         };
@@ -278,7 +331,10 @@ impl<'tcx> BodyVisitor<'tcx> {
         for (_path_idx, abstract_state) in &self.abstract_states {
             for (var_index, state_item) in &abstract_state.state_map {
                 if let Some(existing_state_item) = result_state.state_map.get_mut(&var_index) {
-                    existing_state_item.meet_state_item(state_item);
+                    existing_state_item
+                        .clone()
+                        .unwrap()
+                        .meet_state_item(&state_item.clone().unwrap());
                 } else {
                     result_state
                         .state_map
@@ -286,6 +342,7 @@ impl<'tcx> BodyVisitor<'tcx> {
                 }
             }
         }
+        result_state
     }
 
     pub fn abstate_debug(&self) {
@@ -351,8 +408,11 @@ impl<'tcx> BodyVisitor<'tcx> {
         &mut self,
         path_index: usize,
         place: usize,
-        abitem: AbstractStateItem,
+        abitem: Option<AbstractStateItem>,
     ) {
+        if self.visit_time == 0 {
+            println!("insert state of place: {}", place);
+        }
         self.abstract_states
             .entry(path_index)
             .or_insert_with(|| AbstractState {
@@ -371,11 +431,72 @@ impl<'tcx> BodyVisitor<'tcx> {
 
     pub fn get_layout_by_ty(&self, ty: Ty<'tcx>) -> (usize, usize) {
         let param_env = self.tcx.param_env(self.def_id);
-        let layout = self.tcx.layout_of(param_env.and(ty)).unwrap();
-        let align = layout.align.abi.bytes_usize();
-        let size = layout.size.bytes() as usize;
-        (align, size)
+        if let Ok(_) = self.tcx.layout_of(param_env.and(ty)) {
+            let layout = self.tcx.layout_of(param_env.and(ty)).unwrap();
+            let align = layout.align.abi.bytes_usize();
+            let size = layout.size.bytes() as usize;
+            return (align, size);
+        }
+        return (0, 0);
     }
 
-    pub fn get_abstate_by_place(&self) {}
+    pub fn get_abstate_by_place_in_path(
+        &self,
+        place: usize,
+        path_index: usize,
+    ) -> Option<AbstractStateItem> {
+        if let Some(abstate) = self.abstract_states.get(&path_index) {
+            if let Some(_) = abstate.state_map.get(&place).cloned() {
+                return abstate.state_map.get(&place).cloned().unwrap();
+            }
+        }
+        return None;
+    }
+
+    pub fn handle_cast(
+        &mut self,
+        rpjc_local: usize,
+        lpjc_local: usize,
+        ty: &Ty<'tcx>,
+        path_index: usize,
+        cast_kind: &CastKind,
+    ) {
+        let mut src_align = self.get_layout_by_place_usize(rpjc_local).0;
+        match cast_kind {
+            CastKind::PtrToPtr => {
+                if let Some(r_abitem) = self.get_abstate_by_place_in_path(rpjc_local, path_index) {
+                    for state in &r_abitem.state {
+                        if let StateType::AlignState(r_align_state) = state {
+                            match r_align_state {
+                                AlignState::Small2BigCast(from, _to)
+                                | AlignState::Big2SmallCast(from, _to) => {
+                                    src_align = *from;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                let (dst_align, dst_size) = self.visit_ty_and_get_layout(*ty);
+                let align_state = match dst_align.cmp(&src_align) {
+                    std::cmp::Ordering::Greater => {
+                        StateType::AlignState(AlignState::Small2BigCast(src_align, dst_align))
+                    }
+                    std::cmp::Ordering::Less => {
+                        StateType::AlignState(AlignState::Big2SmallCast(src_align, dst_align))
+                    }
+                    std::cmp::Ordering::Equal => StateType::AlignState(AlignState::Aligned),
+                };
+                let abitem = AbstractStateItem::new(
+                    (Value::None, Value::None),
+                    VType::Pointer(dst_align, dst_size),
+                    HashSet::from([align_state]),
+                );
+                self.insert_path_abstate(path_index, lpjc_local, Some(abitem));
+            }
+            _ => {}
+        }
+    }
+
+    pub fn handle_binary_op(&mut self) {}
 }

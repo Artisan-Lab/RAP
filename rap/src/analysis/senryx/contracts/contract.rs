@@ -14,12 +14,26 @@ pub fn check_contract(contract: Contract, abstate_item: &AbstractStateItem) -> b
         }
         Contract::StateCheck { op, state } => {
             for ab_state in &abstate_item.state {
-                if handle_state_op(*ab_state, op, state) {
+                if check_is_same_state_type(ab_state, &state)
+                    && handle_state_op(*ab_state, op, state)
+                {
                     return true;
                 }
             }
             return false;
         }
+    }
+}
+
+pub fn check_is_same_state_type(left: &StateType, right: &StateType) -> bool {
+    match (*left, *right) {
+        (StateType::AllocatedState(_), StateType::AllocatedState(_)) => {
+            return true;
+        }
+        (StateType::AlignState(_), StateType::AlignState(_)) => {
+            return true;
+        }
+        _ => false,
     }
 }
 

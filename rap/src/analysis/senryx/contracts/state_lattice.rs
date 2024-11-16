@@ -131,27 +131,35 @@ impl Lattice for AlignState {
     fn join(&self, other: Self) -> Self {
         match (self, other) {
             (AlignState::Aligned, _) => AlignState::Aligned,
-            (AlignState::Big2SmallCast, AlignState::Big2SmallCast) => AlignState::Big2SmallCast,
-            (AlignState::Big2SmallCast, AlignState::Small2BigCast) => AlignState::Big2SmallCast,
-            (AlignState::Big2SmallCast, AlignState::Aligned) => AlignState::Aligned,
-            (AlignState::Small2BigCast, _) => other,
+            (AlignState::Big2SmallCast(_, _), AlignState::Big2SmallCast(_, _)) => {
+                AlignState::Aligned
+            }
+            (AlignState::Big2SmallCast(_, _), AlignState::Small2BigCast(_, _)) => {
+                AlignState::Unaligned
+            }
+            (AlignState::Big2SmallCast(_, _), AlignState::Aligned) => AlignState::Aligned,
+            (AlignState::Unaligned, _) => AlignState::Unaligned,
+            (_, AlignState::Unaligned) => AlignState::Unaligned,
+            _ => other,
         }
     }
 
     fn meet(&self, other: Self) -> Self {
-        match (self, other) {
-            (AlignState::Aligned, _) => other,
-            (AlignState::Big2SmallCast, AlignState::Big2SmallCast) => AlignState::Big2SmallCast,
-            (AlignState::Big2SmallCast, AlignState::Small2BigCast) => AlignState::Small2BigCast,
-            (AlignState::Big2SmallCast, AlignState::Aligned) => AlignState::Big2SmallCast,
-            (AlignState::Small2BigCast, _) => AlignState::Small2BigCast,
-        }
+        other
+        // match (self, other) {
+        //     (AlignState::Aligned, _) => other,
+        //     (AlignState::Big2SmallCast(_,_), AlignState::Big2SmallCast(_,_)) => AlignState::Aligned,
+        //     (AlignState::Big2SmallCast(_,_), AlignState::Small2BigCast(_,_)) => AlignState::Unaligned,
+        //     (AlignState::Big2SmallCast(_,_), AlignState::Aligned) => AlignState::Big2SmallCast(_,_),
+        //     (AlignState::Small2BigCast, _) => AlignState::Small2BigCast,
+        // }
     }
 
     fn less_than(&self, other: Self) -> bool {
         match (self, other) {
             (_, AlignState::Aligned) => true,
-            (AlignState::Small2BigCast, AlignState::Big2SmallCast) => true,
+            (AlignState::Small2BigCast(_, _), AlignState::Big2SmallCast(_, _)) => true,
+            (AlignState::Small2BigCast(_, _), AlignState::Unaligned) => true,
             _ => false,
         }
     }

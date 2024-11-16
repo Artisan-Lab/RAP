@@ -30,8 +30,8 @@ impl<T> SliceFromRawPartsChecker<T> {
                     state: StateType::AllocatedState(AllocatedState::Alloc),
                 },
                 Contract::StateCheck {
-                    op: Op::NE,
-                    state: StateType::AlignState(AlignState::Small2BigCast),
+                    op: Op::GT,
+                    state: StateType::AlignState(AlignState::Unaligned),
                 },
             ],
         );
