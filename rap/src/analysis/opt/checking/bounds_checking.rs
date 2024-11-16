@@ -7,8 +7,10 @@ use crate::analysis::core::dataflow::graph::{
     AggKind, DFSStatus, Direction, Graph, GraphEdge, GraphNode, NodeOp,
 };
 use crate::analysis::utils::def_path::DefPath;
-use crate::rap_warn;
-use crate::utils::log::underline_span_in_the_line;
+use crate::utils::log::{
+    relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
+};
+use annotate_snippets::{Level, Renderer, Snippet};
 
 static DEFPATHS: OnceCell<DefPaths> = OnceCell::new();
 
@@ -117,21 +119,29 @@ pub fn check(graph: &Graph, tcx: &TyCtxt) {
 }
 
 fn report_bug(graph: &Graph, upperbound_node_idx: Local, index_record: &Vec<Local>) {
-    rap_warn!(
-        "Unnecessary bounds checkings detected in function {:?}.
-Index is upperbounded at:
-{}
-Checked at:
-{}
-",
-        graph.def_id,
-        underline_span_in_the_line(graph.nodes[upperbound_node_idx].span),
-        index_record
-            .iter()
-            .map(|node_idx| {
-                underline_span_in_the_line(graph.nodes[*node_idx].span) // buggy, what about multiple index in the same line?
-            })
-            .collect::<Vec<String>>()
-            .join("\n")
-    );
+    let upperbound_span = graph.nodes[upperbound_node_idx].span;
+    let code_source = span_to_source_code(graph.span);
+    let filename = span_to_filename(upperbound_span);
+    let mut snippet = Snippet::source(&code_source)
+        .line_start(span_to_line_number(graph.span))
+        .origin(&filename)
+        .fold(true)
+        .annotation(
+            Level::Info
+                .span(relative_pos_range(graph.span, upperbound_span))
+                .label("Index is upperbounded."),
+        );
+    for node_idx in index_record {
+        let index_span = graph.nodes[*node_idx].span;
+        snippet = snippet.annotation(
+            Level::Error
+                .span(relative_pos_range(graph.span, index_span))
+                .label("Checked here."),
+        );
+    }
+    let message = Level::Warning
+        .title("Unnecessary bounds checkings detected")
+        .snippet(snippet);
+    let renderer = Renderer::styled();
+    println!("{}", renderer.render(message));
 }

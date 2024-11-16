@@ -47,7 +47,7 @@ impl<'tcx> DataFlow<'tcx> {
 
     fn build_graph(&self, def_id: DefId) -> Graph {
         let body: &Body = self.tcx.optimized_mir(def_id);
-        let mut graph = Graph::new(def_id, body.arg_count, body.local_decls.len());
+        let mut graph = Graph::new(def_id, body.span, body.arg_count, body.local_decls.len());
         let basic_blocks = &body.basic_blocks;
         for basic_block_data in basic_blocks.iter() {
             for statement in basic_block_data.statements.iter() {

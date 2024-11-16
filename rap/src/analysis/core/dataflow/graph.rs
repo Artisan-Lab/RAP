@@ -81,6 +81,7 @@ pub type GraphNodes = IndexVec<Local, GraphNode>;
 pub type GraphEdges = IndexVec<EdgeIdx, GraphEdge>;
 pub struct Graph {
     pub def_id: DefId,
+    pub span: Span,
     pub argc: usize,
     pub nodes: GraphNodes, //constsis of locals in mir and newly created markers
     pub edges: GraphEdges,
@@ -88,9 +89,10 @@ pub struct Graph {
 }
 
 impl Graph {
-    pub fn new(def_id: DefId, argc: usize, n_locals: usize) -> Self {
+    pub fn new(def_id: DefId, span: Span, argc: usize, n_locals: usize) -> Self {
         Self {
             def_id,
+            span,
             argc,
             nodes: GraphNodes::from_elem_n(GraphNode::new(), n_locals),
             edges: GraphEdges::new(),
