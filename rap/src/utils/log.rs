@@ -3,7 +3,8 @@ use fern::colors::{Color, ColoredLevelConfig};
 use fern::{self, Dispatch};
 use log::LevelFilter;
 use rustc_span::source_map::get_source_map;
-use rustc_span::{Pos, Span};
+use rustc_span::{FileNameDisplayPreference, Pos, Span};
+use std::ops::Range;
 
 fn log_level() -> LevelFilter {
     if let Ok(s) = std::env::var("RAP_LOG") {
@@ -86,25 +87,29 @@ pub fn rap_error_and_exit(msg: impl AsRef<str>) -> ! {
     std::process::exit(1)
 }
 
-pub fn underline_span_in_the_line(span: Span) -> String {
-    fn compose_underline(line_span: Span, span: Span) -> String {
-        let line_len = (line_span.hi() - line_span.lo()).to_u32();
-        let line_start_pos = line_span.lo();
-        let lo = (span.lo() - line_start_pos).to_u32();
-        let hi = (span.hi() - line_start_pos).to_u32();
-        (0..line_len)
-            .map(|i| if i >= lo && i < hi { '^' } else { ' ' })
-            .collect()
-    }
+#[inline]
+pub fn span_to_source_code(span: Span) -> String {
+    get_source_map().unwrap().span_to_snippet(span).unwrap()
+}
 
-    let source_map = get_source_map().unwrap();
-    let line_span = source_map.span_extend_to_line(span);
-    let line = source_map.span_to_snippet(line_span).unwrap();
-    let underline = compose_underline(line_span, span);
-    format!(
-        "{}\n{}\n{}",
-        source_map.span_to_diagnostic_string(span),
-        line,
-        underline
-    )
+#[inline]
+pub fn span_to_filename(span: Span) -> String {
+    get_source_map()
+        .unwrap()
+        .span_to_filename(span)
+        .display(FileNameDisplayPreference::Local)
+        .to_string()
+}
+
+#[inline]
+pub fn span_to_line_number(span: Span) -> usize {
+    get_source_map().unwrap().lookup_char_pos(span.lo()).line
+}
+
+#[inline]
+pub fn relative_pos_range(span: Span, sub_span: Span) -> Range<usize> {
+    let start_pos = span.lo();
+    let lo = (sub_span.lo() - start_pos).to_usize();
+    let hi = (sub_span.hi() - start_pos).to_usize();
+    lo..hi
 }
