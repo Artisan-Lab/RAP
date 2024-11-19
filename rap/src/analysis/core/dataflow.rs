@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir::Body;
 use rustc_middle::ty::TyCtxt;
@@ -36,11 +37,13 @@ impl<'tcx> DataFlow<'tcx> {
 
     pub fn build_graphs(&mut self) {
         for local_def_id in self.tcx.iter_local_def_id() {
-            let hir_map = self.tcx.hir();
-            if hir_map.maybe_body_owned_by(local_def_id).is_some() {
-                let def_id = local_def_id.to_def_id();
-                let graph = self.build_graph(def_id);
-                self.graphs.insert(def_id, graph);
+            if matches!(self.tcx.def_kind(local_def_id), DefKind::Fn) {
+                let hir_map = self.tcx.hir();
+                if hir_map.maybe_body_owned_by(local_def_id).is_some() {
+                    let def_id = local_def_id.to_def_id();
+                    let graph = self.build_graph(def_id);
+                    self.graphs.insert(def_id, graph);
+                }
             }
         }
     }

@@ -49,6 +49,9 @@ pub enum EdgeOp {
     Deref,
     Field(String),
     Downcast(String),
+    Index,
+    ConstIndex,
+    SubSlice,
 }
 
 #[derive(Clone)]
@@ -142,7 +145,18 @@ impl Graph {
                 PlaceElem::Downcast(symbol, _) => {
                     graph.add_node_edge(src, dst, EdgeOp::Downcast(symbol.unwrap().to_string()));
                 }
+                PlaceElem::Index(idx) => {
+                    graph.add_node_edge(src, dst, EdgeOp::Index);
+                    graph.add_node_edge(idx, dst, EdgeOp::Index); //Warning: no difference between src and idx in graph
+                }
+                PlaceElem::ConstantIndex { .. } => {
+                    graph.add_node_edge(src, dst, EdgeOp::ConstIndex);
+                }
+                PlaceElem::Subslice { .. } => {
+                    graph.add_node_edge(src, dst, EdgeOp::SubSlice);
+                }
                 _ => {
+                    println!("{:?}", place_elem);
                     todo!()
                 }
             }
@@ -208,7 +222,13 @@ impl Graph {
                         AggregateKind::Adt(def_id, ..) => {
                             self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id))
                         }
-                        _ => todo!(),
+                        AggregateKind::Closure(def_id, ..) => {
+                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Closure(def_id))
+                        }
+                        _ => {
+                            println!("{:?}", statement);
+                            todo!()
+                        }
                     }
                 }
                 Rvalue::UnaryOp(_, operand) => {
@@ -444,7 +464,10 @@ impl Graph {
             | EdgeOp::Const
             | EdgeOp::Deref
             | EdgeOp::Downcast(_)
-            | EdgeOp::Field(_) => DFSStatus::Stop,
+            | EdgeOp::Field(_)
+            | EdgeOp::Index
+            | EdgeOp::ConstIndex
+            | EdgeOp::SubSlice => DFSStatus::Stop,
         }
     }
 
@@ -470,4 +493,5 @@ pub enum AggKind {
     Array,
     Tuple,
     Adt(DefId),
+    Closure(DefId),
 }
