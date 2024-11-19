@@ -93,6 +93,25 @@ pub fn span_to_source_code(span: Span) -> String {
 }
 
 #[inline]
+pub fn span_to_first_line(span: Span) -> Span {
+    // extend the span to an entrie line or extract the first line if it has multiple lines
+    get_source_map()
+        .unwrap()
+        .span_extend_to_line(span.shrink_to_lo())
+}
+
+#[inline]
+pub fn span_to_trimmed_span(span: Span) -> Span {
+    // trim out the first few whitespace
+    span.trim_start(
+        get_source_map()
+            .unwrap()
+            .span_take_while(span, |c| c.is_whitespace()),
+    )
+    .unwrap()
+}
+
+#[inline]
 pub fn span_to_filename(span: Span) -> String {
     get_source_map()
         .unwrap()
