@@ -7,6 +7,7 @@ use crate::analysis::core::dataflow::graph::{
     AggKind, DFSStatus, Direction, Graph, GraphEdge, GraphNode, NodeOp,
 };
 use crate::analysis::utils::def_path::DefPath;
+use crate::rap_debug;
 use crate::utils::log::{
     relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
 };
@@ -46,7 +47,9 @@ pub fn check(graph: &Graph, tcx: &TyCtxt) {
                         index_record.push(index_node_idx);
                     }
                 }
-                report_upperbound_bug(graph, upperbound_node_idx, &index_record);
+                if !index_record.is_empty() {
+                    report_upperbound_bug(graph, upperbound_node_idx, &index_record);
+                }
             }
         }
     }
@@ -61,7 +64,7 @@ fn extract_upperbound_node_if_ops_range(graph: &Graph, node: &GraphNode) -> Opti
             if let GraphEdge::NodeEdge { src, .. } = upperbound_edge {
                 return Some(*src);
             } else {
-                panic!("The upperbound edge of Agg node is not a NodeEdge");
+                rap_debug!("The upperbound edge of Agg node is not a NodeEdge");
             }
         }
     }
