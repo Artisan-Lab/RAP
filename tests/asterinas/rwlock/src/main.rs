@@ -1,7 +1,6 @@
 use std::cell::UnsafeCell;
 
 pub struct RwLock<T: ?Sized> {
-    lock: usize,
     val: UnsafeCell<T>,
 }
 
@@ -25,7 +24,6 @@ impl<R> Drop for RwLockReadGuard<R> {
 
 fn main() {
     let rw = RwLock {
-        lock: 1,
         val: UnsafeCell::new(Box::new(1)),
     };
     rw.try_read();
