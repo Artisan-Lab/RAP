@@ -191,8 +191,8 @@ pub struct ShowMir<'tcx> {
     pub tcx: TyCtxt<'tcx>,
 }
 
-#[inline(always)]
-fn display_mir(did: DefId, body: &Body) {
+// #[inline(always)]
+pub fn display_mir(did: DefId, body: &Body) {
     rap_info!("{}", did.display().color(Color::LightRed));
     rap_info!("{}", body.local_decls.display().color(Color::Green));
     rap_info!(
