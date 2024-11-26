@@ -1,10 +1,13 @@
 use rustc_middle::mir::Operand;
 use rustc_span::source_map::Spanned;
 
-use super::contracts::{
-    abstract_state::AbstractState,
-    checker::{Checker, SliceFromRawPartsChecker},
-    contract::check_contract,
+use super::{
+    contracts::{
+        abstract_state::AbstractState,
+        checker::{Checker, SliceFromRawPartsChecker},
+        contract::check_contract,
+    },
+    visitor::CheckResult,
 };
 
 pub fn match_unsafe_api_and_check_contracts<T>(
@@ -12,7 +15,7 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     args: &Box<[Spanned<Operand>]>,
     abstate: &AbstractState,
     _ty: T,
-) {
+) -> Option<CheckResult> {
     let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
     // println!("base name ---- {:?}",base_func_name);
     let checker: Option<Box<dyn Checker>> = match base_func_name {
@@ -23,11 +26,18 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     };
 
     if let Some(c) = checker {
-        process_checker(&*c, args, abstate);
+        return Some(process_checker(&*c, args, abstate, base_func_name));
     }
+    None
 }
 
-fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstate: &AbstractState) {
+fn process_checker(
+    checker: &dyn Checker,
+    args: &Box<[Spanned<Operand>]>,
+    abstate: &AbstractState,
+    func_name: &str,
+) -> CheckResult {
+    let mut check_result = CheckResult::new(func_name);
     for (idx, contracts_vec) in checker.variable_contracts().iter() {
         for contract in contracts_vec {
             let arg_place = get_arg_place(&args[*idx].node);
@@ -36,13 +46,14 @@ fn process_checker(checker: &dyn Checker, args: &Box<[Spanned<Operand>]>, abstat
             }
             if let Some(abstate_item) = abstate.state_map.get(&arg_place) {
                 if !check_contract(*contract, &abstate_item.clone().unwrap()) {
-                    println!("Contract failed! ---- {:?}", contract);
+                    check_result.failed_contracts.push((*idx, *contract));
                 } else {
-                    println!("Contract passed! ---- {:?}", contract);
+                    check_result.passed_contracts.push((*idx, *contract));
                 }
             }
         }
     }
+    check_result
 }
 
 pub fn get_arg_place(arg: &Operand) -> usize {

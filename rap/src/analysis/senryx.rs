@@ -9,7 +9,7 @@ use crate::analysis::unsafety_isolation::{
 };
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use visitor::BodyVisitor;
+use visitor::{BodyVisitor, CheckResult};
 
 pub struct SenryxCheck<'tcx> {
     pub tcx: TyCtxt<'tcx>,
@@ -40,22 +40,20 @@ impl<'tcx> SenryxCheck<'tcx> {
     }
 
     pub fn check_soundness(&self, def_id: DefId) {
-        self.pre_handle_type(def_id);
-        println!(
-            "Find unsound safe api, def_id: {:?}, location: {:?}, ",
-            def_id, def_id
-        );
+        let check_results = self.body_visit_and_check(def_id);
+        if check_results.len() > 0 {
+            Self::show_check_results(def_id, check_results);
+        }
     }
 
     pub fn annotate_safety(&self, def_id: DefId) {
-        self.pre_handle_type(def_id);
-        println!(
-            "Annotate unsafe api, def_id: {:?}, location: {:?}, ",
-            def_id, def_id
-        );
+        let check_results = self.body_visit_and_check(def_id);
+        if check_results.len() > 0 {
+            Self::show_check_results(def_id, check_results);
+        }
     }
 
-    pub fn pre_handle_type(&self, def_id: DefId) {
+    pub fn body_visit_and_check(&self, def_id: DefId) -> Vec<CheckResult> {
         let mut uig_checker = UnsafetyIsolationCheck::new(self.tcx);
         let func_type = uig_checker.get_type(def_id);
         let mut body_visitor = BodyVisitor::new(self.tcx, def_id, 0);
@@ -73,6 +71,22 @@ impl<'tcx> SenryxCheck<'tcx> {
             }
         } else {
             body_visitor.path_forward_check();
+        }
+        return body_visitor.check_results;
+    }
+
+    pub fn show_check_results(def_id: DefId, check_results: Vec<CheckResult>) {
+        println!("--------In {:?}---------", def_id);
+        for check_result in check_results {
+            println!(
+                "  Unsafe api {:?}: {} passed, {} failed!",
+                check_result.func_name,
+                check_result.passed_contracts.len(),
+                check_result.failed_contracts.len()
+            );
+            for failed_contract in check_result.failed_contracts {
+                println!("      Contract failed: {:?}", failed_contract);
+            }
         }
     }
 }
