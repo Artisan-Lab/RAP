@@ -2,6 +2,7 @@ use crate::analysis::safedrop::graph::SafeDropGraph;
 use crate::analysis::utils::show_mir::display_mir;
 use crate::rap_warn;
 use rustc_span::source_map::Spanned;
+use rustc_span::Span;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -22,16 +23,19 @@ use rustc_middle::{
     ty::{self, GenericArgKind, Ty, TyKind},
 };
 
+//TODO: modify contracts vec to contract-bool pairs (we can also use path index to record path info)
 pub struct CheckResult {
     pub func_name: String,
+    pub func_span: Span,
     pub failed_contracts: Vec<(usize, Contract)>,
     pub passed_contracts: Vec<(usize, Contract)>,
 }
 
 impl CheckResult {
-    pub fn new(func_name: &str) -> Self {
+    pub fn new(func_name: &str, func_span: Span) -> Self {
         Self {
             func_name: func_name.to_string(),
+            func_span,
             failed_contracts: Vec::new(),
             passed_contracts: Vec::new(),
         }
@@ -128,7 +132,9 @@ impl<'tcx> BodyVisitor<'tcx> {
                 args,
                 destination: _,
                 target: _,
-                ..
+                unwind: _,
+                call_source: _,
+                fn_span,
             } => {
                 let func_name = format!("{:?}", func);
                 if let Operand::Constant(func_constant) = func {
@@ -138,15 +144,23 @@ impl<'tcx> BodyVisitor<'tcx> {
                             for generic_arg in raw_list.iter() {
                                 match generic_arg.unpack() {
                                     GenericArgKind::Type(ty) => {
-                                        if let Some(check_result) =
+                                        if let Some(new_check_result) =
                                             match_unsafe_api_and_check_contracts(
                                                 func_name.as_str(),
                                                 args,
                                                 &self.abstract_states.get(&path_index).unwrap(),
+                                                *fn_span,
                                                 ty,
                                             )
                                         {
-                                            self.check_results.push(check_result);
+                                            if let Some(_existing) =
+                                                self.check_results.iter_mut().find(|result| {
+                                                    result.func_name == new_check_result.func_name
+                                                })
+                                            {
+                                            } else {
+                                                self.check_results.push(new_check_result);
+                                            }
                                         }
                                     }
                                     _ => {}

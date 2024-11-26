@@ -1,5 +1,6 @@
 use rustc_middle::mir::Operand;
 use rustc_span::source_map::Spanned;
+use rustc_span::Span;
 
 use super::{
     contracts::{
@@ -14,6 +15,7 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     func_name: &str,
     args: &Box<[Spanned<Operand>]>,
     abstate: &AbstractState,
+    span: Span,
     _ty: T,
 ) -> Option<CheckResult> {
     let base_func_name = func_name.split::<&str>("<").next().unwrap_or(func_name);
@@ -26,7 +28,7 @@ pub fn match_unsafe_api_and_check_contracts<T>(
     };
 
     if let Some(c) = checker {
-        return Some(process_checker(&*c, args, abstate, base_func_name));
+        return Some(process_checker(&*c, args, abstate, base_func_name, span));
     }
     None
 }
@@ -36,8 +38,9 @@ fn process_checker(
     args: &Box<[Spanned<Operand>]>,
     abstate: &AbstractState,
     func_name: &str,
+    span: Span,
 ) -> CheckResult {
-    let mut check_result = CheckResult::new(func_name);
+    let mut check_result = CheckResult::new(func_name, span);
     for (idx, contracts_vec) in checker.variable_contracts().iter() {
         for contract in contracts_vec {
             let arg_place = get_arg_place(&args[*idx].node);
