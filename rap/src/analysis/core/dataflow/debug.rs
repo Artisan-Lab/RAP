@@ -19,18 +19,42 @@ impl GraphEdge {
         let mut dot = String::new();
         match self {
             //label=xxx
-            GraphEdge::NodeEdge { src: _, dst: _, op } => {
-                write!(attr, "label=\"{}\" ", escaped_string(format!("{:?}", op))).unwrap();
+            GraphEdge::NodeEdge {
+                src: _,
+                dst: _,
+                op,
+                seq,
+            } => {
+                write!(
+                    attr,
+                    "label=\"{}\" ",
+                    escaped_string(format!("{}_{:?}", seq, op))
+                )
+                .unwrap();
             }
-            GraphEdge::ConstEdge { src: _, dst: _, op } => {
-                write!(attr, "label=\"{}\" ", escaped_string(format!("{:?}", op))).unwrap();
+            GraphEdge::ConstEdge {
+                src: _,
+                dst: _,
+                op,
+                seq,
+            } => {
+                write!(
+                    attr,
+                    "label=\"{}\" ",
+                    escaped_string(format!("{}_{:?}", seq, op))
+                )
+                .unwrap();
             }
         }
         match self {
-            GraphEdge::NodeEdge { src, dst, op: _ } => {
+            GraphEdge::NodeEdge {
+                src, dst, op: _, ..
+            } => {
                 write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
             }
-            GraphEdge::ConstEdge { src, dst, op: _ } => {
+            GraphEdge::ConstEdge {
+                src, dst, op: _, ..
+            } => {
                 write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
             }
         }
@@ -134,7 +158,7 @@ impl Graph {
         for (local, node) in self.nodes.iter_enumerated() {
             let node_dot = if local <= Local::from_usize(self.argc) {
                 node.to_dot_graph(tcx, local, Some(String::from("red")), false)
-            } else if local <= Local::from_usize(self.n_locals) {
+            } else if local < Local::from_usize(self.n_locals) {
                 node.to_dot_graph(tcx, local, None, false)
             } else {
                 node.to_dot_graph(tcx, local, None, true)

@@ -24,7 +24,7 @@ pub enum NodeOp {
     Len,
     Cast,
     BinaryOp,
-    CheckedBinaryOp, //deprecated in the latest(1.81) nightly rustc
+    CheckedBinaryOp,
     NullaryOp,
     UnaryOp,
     Discriminant,
@@ -56,14 +56,25 @@ pub enum EdgeOp {
 
 #[derive(Clone)]
 pub enum GraphEdge {
-    NodeEdge { src: Local, dst: Local, op: EdgeOp },
-    ConstEdge { src: String, dst: Local, op: EdgeOp },
+    NodeEdge {
+        src: Local,
+        dst: Local,
+        op: EdgeOp,
+        seq: u32,
+    },
+    ConstEdge {
+        src: String,
+        dst: Local,
+        op: EdgeOp,
+        seq: u32,
+    },
 }
 
 #[derive(Clone)]
 pub struct GraphNode {
     pub op: NodeOp,
-    pub span: Span,
+    pub span: Span, //the corresponding code span
+    pub seq: u32, //the sequence number, edges with the same seq number are added in the same batch within a statement or terminator
     pub out_edges: Vec<EdgeIdx>,
     pub in_edges: Vec<EdgeIdx>,
 }
@@ -73,6 +84,7 @@ impl GraphNode {
         Self {
             op: NodeOp::Nop,
             span: DUMMY_SP,
+            seq: 0,
             out_edges: vec![],
             in_edges: vec![],
         }
@@ -104,14 +116,16 @@ impl Graph {
     }
 
     pub fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
-        let edge_idx = self.edges.push(GraphEdge::NodeEdge { src, dst, op });
+        let seq = self.nodes[dst].seq;
+        let edge_idx = self.edges.push(GraphEdge::NodeEdge { src, dst, op, seq });
         self.nodes[dst].in_edges.push(edge_idx);
         self.nodes[src].out_edges.push(edge_idx);
         edge_idx
     }
 
     pub fn add_const_edge(&mut self, src: String, dst: Local, op: EdgeOp) -> EdgeIdx {
-        let edge_idx = self.edges.push(GraphEdge::ConstEdge { src, dst, op });
+        let seq = self.nodes[dst].seq;
+        let edge_idx = self.edges.push(GraphEdge::ConstEdge { src, dst, op, seq });
         self.nodes[dst].in_edges.push(edge_idx);
         edge_idx
     }
@@ -164,6 +178,7 @@ impl Graph {
         }
         let mut ret = place.local;
         for place_elem in place.projection {
+            // if there are projections, then add marker nodes
             ret = parse_one_step(self, ret, place_elem);
         }
         ret
@@ -258,6 +273,7 @@ impl Graph {
                 }
                 Rvalue::RawPtr(_, _) => todo!(),
             };
+            self.nodes[dst].seq += 1;
         }
     }
 
@@ -279,6 +295,7 @@ impl Graph {
                         }
                         self.nodes[dst].op = NodeOp::Call(*def_id);
                         self.nodes[dst].span = terminator.source_info.span;
+                        self.nodes[dst].seq += 1;
                         return;
                     }
                 }
