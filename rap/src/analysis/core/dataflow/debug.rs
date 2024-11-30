@@ -120,6 +120,25 @@ impl GraphNode {
                         .unwrap();
                     }
                 }
+                AggKind::Closure(def_id) => {
+                    let agg_name = tcx.def_path_str(def_id);
+                    if is_marker {
+                        write!(
+                            attr,
+                            "label=\"Clos {}\" style=dashed ",
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    } else {
+                        write!(
+                            attr,
+                            "label=\"<f0> {:?} | <f1> Clos {}\" ",
+                            local,
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    }
+                }
                 _ => {
                     if is_marker {
                         write!(attr, "label=\"{:?}\" style=dashed ", agg_kind).unwrap();

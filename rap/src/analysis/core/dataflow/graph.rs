@@ -380,10 +380,10 @@ impl Graph {
         find.get()
     }
 
+    // Whether there exists dataflow between each parameter and the return value
     pub fn param_return_deps(&self) -> IndexVec<Local, bool> {
-        //the length is argc + 1, because _0 depends on _0 itself.
         let _0 = Local::from_usize(0);
-        let deps = (0..self.argc + 1)
+        let deps = (0..self.argc + 1) //the length is argc + 1, because _0 depends on _0 itself.
             .map(|i| {
                 let _i = Local::from_usize(i);
                 self.is_connected(_i, _0)
