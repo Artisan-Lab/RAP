@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Define color variables
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
@@ -28,6 +30,11 @@ toolchain_date="nightly-2024-10-12"
 toolchain_file="rust-toolchain.toml"
 if [ ! -f "$toolchain_file" ]; then
     printf "%bError: %s does not exist.%b\n" "${RED}" "$toolchain_file" "${NC}"
+    exit 1
+fi
+
+if ! rustup toolchain install "$toolchain_date" --profile minimal --component rustc-dev,rust-src,llvm-tools-preview; then
+    printf "%bError: Failed to install toolchain %s.%b\n" "${RED}" "$toolchain_date" "${NC}"
     exit 1
 fi
 
