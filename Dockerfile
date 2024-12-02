@@ -31,14 +31,4 @@ WORKDIR /app
 
 RUN git clone https://github.com/Artisan-Lab/RAP.git .
 
-WORKDIR /app/rap
-
-RUN git submodule update --init --recursive; \
-    cp ./config.toml ./rust/
-
-WORKDIR /app/rap/rust
-
-RUN ./x.py build --stage 2 compiler/rustc; \
-    rustup toolchain link stage2 build/${HOST_TRIPLE}/stage2; \
-
-ENTRYPOINT ["top", "-b"]
+RUN ./install.sh
