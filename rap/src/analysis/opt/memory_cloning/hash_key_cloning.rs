@@ -1,0 +1,138 @@
+use annotate_snippets::Level;
+use annotate_snippets::Renderer;
+use annotate_snippets::Snippet;
+use once_cell::sync::OnceCell;
+
+use crate::analysis::core::dataflow::graph::DFSStatus;
+use crate::analysis::core::dataflow::graph::Direction;
+use crate::analysis::core::dataflow::graph::GraphEdge::NodeEdge;
+use rustc_hir::{intravisit, Expr, ExprKind};
+use rustc_middle::mir::Local;
+use rustc_middle::ty::{TyCtxt, TyKind, TypeckResults};
+use rustc_span::Span;
+use std::collections::HashSet;
+static DEFPATHS: OnceCell<DefPaths> = OnceCell::new();
+
+use crate::analysis::core::dataflow::graph::Graph;
+use crate::analysis::core::dataflow::graph::GraphNode;
+use crate::analysis::core::dataflow::graph::NodeOp;
+use crate::analysis::utils::def_path::DefPath;
+use crate::utils::log::{
+    relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
+};
+
+struct DefPaths {
+    hashset_insert: DefPath,
+    clone: DefPath,
+}
+
+impl DefPaths {
+    pub fn new(tcx: &TyCtxt<'_>) -> Self {
+        Self {
+            hashset_insert: DefPath::new("std::collections::HashSet::insert", tcx),
+            clone: DefPath::new("std::clone::Clone::clone", tcx),
+        }
+    }
+}
+
+struct HashSetInsertFinder<'tcx> {
+    typeck_results: &'tcx TypeckResults<'tcx>,
+    record: HashSet<Span>,
+}
+
+impl<'tcx> intravisit::Visitor<'tcx> for HashSetInsertFinder<'tcx> {
+    fn visit_expr(&mut self, ex: &'tcx Expr<'tcx>) {
+        if let ExprKind::MethodCall(_, receiver, ..) = ex.kind {
+            let def_id = self
+                .typeck_results
+                .type_dependent_def_id(ex.hir_id)
+                .unwrap();
+            let target_def_id = (&DEFPATHS.get().unwrap()).hashset_insert.last_def_id();
+            if def_id == target_def_id {
+                let ty = self.typeck_results.node_type(receiver.hir_id);
+                if let TyKind::Adt(.., generic_args) = ty.kind() {
+                    // we check whether the first generic arg is a ref type
+                    if !matches!(
+                        generic_args.get(0).unwrap().expect_ty().kind(),
+                        TyKind::Ref(..)
+                    ) {
+                        self.record.insert(ex.span);
+                    }
+                }
+            }
+        }
+        intravisit::walk_expr(self, ex);
+    }
+}
+
+// check that the param of insert is moved from a cloned value
+fn find_first_param_upside_clone(graph: &Graph, node: &GraphNode) -> Option<Local> {
+    let mut clone_node_idx = None;
+    let def_paths = &DEFPATHS.get().unwrap();
+    let target_def_id = def_paths.clone.last_def_id();
+    if let NodeEdge { src, .. } = &graph.edges[node.in_edges[1]] {
+        // the first param is self, so we use 1
+        let mut node_operator = |idx: Local| -> DFSStatus {
+            let node = &graph.nodes[idx];
+            if let NodeOp::Call(def_id) = node.op {
+                if def_id == target_def_id {
+                    clone_node_idx = Some(idx);
+                    return DFSStatus::Stop;
+                }
+            }
+            DFSStatus::Continue
+        };
+        graph.dfs(
+            *src,
+            Direction::Upside,
+            &mut node_operator,
+            &mut Graph::equivalent_edge_validator,
+            false,
+        );
+    }
+    clone_node_idx
+}
+
+fn report_hash_key_cloning(graph: &Graph, clone_span: Span, insert_span: Span) {
+    let code_source = span_to_source_code(graph.span);
+    let filename = span_to_filename(clone_span);
+    let mut snippet = Snippet::source(&code_source)
+        .line_start(span_to_line_number(graph.span))
+        .origin(&filename)
+        .fold(true)
+        .annotation(
+            Level::Error
+                .span(relative_pos_range(graph.span, clone_span))
+                .label("Cloning happens here."),
+        )
+        .annotation(
+            Level::Error
+                .span(relative_pos_range(graph.span, insert_span))
+                .label("Used here."),
+        );
+    let message = Level::Warning
+        .title("Unnecessary memory cloning detected")
+        .snippet(snippet);
+    let renderer = Renderer::styled();
+    println!("{}", renderer.render(message));
+}
+
+pub fn check(graph: &Graph, tcx: &TyCtxt) {
+    let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
+    let def_id = graph.def_id;
+    let body = tcx.hir().body_owned_by(def_id.as_local().unwrap());
+    let typeck_results = tcx.typeck(def_id.as_local().unwrap());
+    let mut hashset_finder = HashSetInsertFinder {
+        typeck_results,
+        record: HashSet::new(),
+    };
+    intravisit::walk_body(&mut hashset_finder, body);
+    for (idx, node) in graph.nodes.iter_enumerated() {
+        if hashset_finder.record.contains(&node.span) {
+            if let Some(clone_node_idx) = find_first_param_upside_clone(graph, node) {
+                let clone_span = graph.nodes[clone_node_idx].span;
+                report_hash_key_cloning(graph, clone_span, node.span);
+            }
+        }
+    }
+}
