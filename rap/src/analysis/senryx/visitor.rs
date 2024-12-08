@@ -13,6 +13,7 @@ use super::contracts::abstract_state::{
 use super::contracts::contract::Contract;
 use super::inter_record::{InterAnalysisRecord, GLOBAL_INTER_RECORDER};
 use super::matcher::{get_arg_place, match_unsafe_api_and_check_contracts};
+use crate::analysis::core::heap_item::AdtOwner;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::{
@@ -60,7 +61,7 @@ impl<'tcx> BodyVisitor<'tcx> {
         Self {
             tcx,
             def_id,
-            safedrop_graph: SafeDropGraph::new(body, tcx, def_id),
+            safedrop_graph: SafeDropGraph::new(body, tcx, def_id, AdtOwner::default()),
             abstract_states: HashMap::new(),
             unsafe_callee_report: HashMap::new(),
             local_ty: HashMap::new(),

@@ -17,7 +17,10 @@ impl<'tcx> SafeDropGraph<'tcx> {
         //     let mut c = || {x+1;};
         //     c.call_mut(());
         // }
-        if def_id.index.as_usize() == CALL_MUT || def_id.index.as_usize() == NEXT {
+        if def_id.index.as_usize() == CALL_MUT
+            || def_id.index.as_usize() == NEXT
+            || def_id.index.as_usize() == CLONE
+        {
             return true;
         }
 

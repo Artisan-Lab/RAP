@@ -1,5 +1,6 @@
 use super::bug_records::*;
 use super::types::*;
+use crate::analysis::core::heap_item::AdtOwner;
 use crate::analysis::utils::intrinsic_id::*;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_middle::mir::{
@@ -162,10 +163,17 @@ pub struct SafeDropGraph<'tcx> {
     pub bug_records: BugRecords,
     // a threhold to avoid path explosion.
     pub visit_times: usize,
+    // analysis of heap item
+    pub heap_alay: AdtOwner,
 }
 
 impl<'tcx> SafeDropGraph<'tcx> {
-    pub fn new(body: &Body<'tcx>, tcx: TyCtxt<'tcx>, def_id: DefId) -> SafeDropGraph<'tcx> {
+    pub fn new(
+        body: &Body<'tcx>,
+        tcx: TyCtxt<'tcx>,
+        def_id: DefId,
+        heap_alay: AdtOwner,
+    ) -> SafeDropGraph<'tcx> {
         // handle variables
         let locals = &body.local_decls;
         let arg_size = body.arg_count;
@@ -462,6 +470,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
             return_set: FxHashSet::default(),
             bug_records: BugRecords::new(),
             visit_times: 0,
+            heap_alay,
         }
     }
 
