@@ -19,18 +19,42 @@ impl GraphEdge {
         let mut dot = String::new();
         match self {
             //label=xxx
-            GraphEdge::NodeEdge { src: _, dst: _, op } => {
-                write!(attr, "label=\"{}\" ", escaped_string(format!("{:?}", op))).unwrap();
+            GraphEdge::NodeEdge {
+                src: _,
+                dst: _,
+                op,
+                seq,
+            } => {
+                write!(
+                    attr,
+                    "label=\"{}\" ",
+                    escaped_string(format!("{}_{:?}", seq, op))
+                )
+                .unwrap();
             }
-            GraphEdge::ConstEdge { src: _, dst: _, op } => {
-                write!(attr, "label=\"{}\" ", escaped_string(format!("{:?}", op))).unwrap();
+            GraphEdge::ConstEdge {
+                src: _,
+                dst: _,
+                op,
+                seq,
+            } => {
+                write!(
+                    attr,
+                    "label=\"{}\" ",
+                    escaped_string(format!("{}_{:?}", seq, op))
+                )
+                .unwrap();
             }
         }
         match self {
-            GraphEdge::NodeEdge { src, dst, op: _ } => {
+            GraphEdge::NodeEdge {
+                src, dst, op: _, ..
+            } => {
                 write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
             }
-            GraphEdge::ConstEdge { src, dst, op: _ } => {
+            GraphEdge::ConstEdge {
+                src, dst, op: _, ..
+            } => {
                 write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
             }
         }
@@ -96,6 +120,25 @@ impl GraphNode {
                         .unwrap();
                     }
                 }
+                AggKind::Closure(def_id) => {
+                    let agg_name = tcx.def_path_str(def_id);
+                    if is_marker {
+                        write!(
+                            attr,
+                            "label=\"Clos {}\" style=dashed ",
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    } else {
+                        write!(
+                            attr,
+                            "label=\"<f0> {:?} | <f1> Clos {}\" ",
+                            local,
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    }
+                }
                 _ => {
                     if is_marker {
                         write!(attr, "label=\"{:?}\" style=dashed ", agg_kind).unwrap();
@@ -134,7 +177,7 @@ impl Graph {
         for (local, node) in self.nodes.iter_enumerated() {
             let node_dot = if local <= Local::from_usize(self.argc) {
                 node.to_dot_graph(tcx, local, Some(String::from("red")), false)
-            } else if local <= Local::from_usize(self.n_locals) {
+            } else if local < Local::from_usize(self.n_locals) {
                 node.to_dot_graph(tcx, local, None, false)
             } else {
                 node.to_dot_graph(tcx, local, None, true)
