@@ -23,6 +23,7 @@ use crate::utils::log::{
 
 struct DefPaths {
     hashset_insert: DefPath,
+    hashset_new: DefPath,
     clone: DefPath,
 }
 
@@ -30,6 +31,7 @@ impl DefPaths {
     pub fn new(tcx: &TyCtxt<'_>) -> Self {
         Self {
             hashset_insert: DefPath::new("std::collections::HashSet::insert", tcx),
+            hashset_new: DefPath::new("std::collections::HashSet::new", tcx),
             clone: DefPath::new("std::clone::Clone::clone", tcx),
         }
     }
@@ -93,10 +95,38 @@ fn find_first_param_upside_clone(graph: &Graph, node: &GraphNode) -> Option<Loca
     clone_node_idx
 }
 
+// find the upside "new" node of the "insert" node if it exists
+fn find_hashset_new_node(graph: &Graph, node: &GraphNode) -> Option<Local> {
+    let mut new_node_idx = None;
+    let def_paths = &DEFPATHS.get().unwrap();
+    let target_def_id = def_paths.hashset_new.last_def_id();
+    if let NodeEdge { src, .. } = &graph.edges[node.in_edges[0]] {
+        // the first param is self
+        let mut node_operator = |idx: Local| -> DFSStatus {
+            let node = &graph.nodes[idx];
+            if let NodeOp::Call(def_id) = node.op {
+                if def_id == target_def_id {
+                    new_node_idx = Some(idx);
+                    return DFSStatus::Stop;
+                }
+            }
+            DFSStatus::Continue
+        };
+        graph.dfs(
+            *src,
+            Direction::Upside,
+            &mut node_operator,
+            &mut Graph::equivalent_edge_validator,
+            false,
+        );
+    }
+    new_node_idx
+}
+
 fn report_hash_key_cloning(graph: &Graph, clone_span: Span, insert_span: Span) {
     let code_source = span_to_source_code(graph.span);
     let filename = span_to_filename(clone_span);
-    let mut snippet = Snippet::source(&code_source)
+    let snippet = Snippet::source(&code_source)
         .line_start(span_to_line_number(graph.span))
         .origin(&filename)
         .fold(true)
@@ -112,7 +142,8 @@ fn report_hash_key_cloning(graph: &Graph, clone_span: Span, insert_span: Span) {
         );
     let message = Level::Warning
         .title("Unnecessary memory cloning detected")
-        .snippet(snippet);
+        .snippet(snippet)
+        .footer(Level::Help.title("Use borrowings as keys."));
     let renderer = Renderer::styled();
     println!("{}", renderer.render(message));
 }
@@ -127,11 +158,15 @@ pub fn check(graph: &Graph, tcx: &TyCtxt) {
         record: HashSet::new(),
     };
     intravisit::walk_body(&mut hashset_finder, body);
-    for (idx, node) in graph.nodes.iter_enumerated() {
+    for node in graph.nodes.iter() {
         if hashset_finder.record.contains(&node.span) {
             if let Some(clone_node_idx) = find_first_param_upside_clone(graph, node) {
-                let clone_span = graph.nodes[clone_node_idx].span;
-                report_hash_key_cloning(graph, clone_span, node.span);
+                if let Some(new_node_idx) = find_hashset_new_node(graph, node) {
+                    if !graph.is_connected(new_node_idx, Local::from_usize(0)) {
+                        let clone_span = graph.nodes[clone_node_idx].span;
+                        report_hash_key_cloning(graph, clone_span, node.span);
+                    }
+                }
             }
         }
     }
