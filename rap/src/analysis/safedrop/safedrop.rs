@@ -1,6 +1,6 @@
 use rustc_middle::mir::Operand::{Constant, Copy, Move};
-use rustc_middle::mir::{Operand, TerminatorKind};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::mir::{Operand, Place, TerminatorKind};
+use rustc_middle::ty::{TyCtxt, TyKind};
 
 use crate::analysis::core::alias::FnMap;
 use crate::analysis::safedrop::SafeDropGraph;
@@ -20,6 +20,9 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     unwind: _,
                     replace: _,
                 } => {
+                    if self.drop_heap_item_check(place, tcx) {
+                        continue;
+                    }
                     let birth = self.scc_indices[bb_index];
                     let drop_local = self.projection(tcx, false, place.clone());
                     let info = drop.source_info.clone();
@@ -45,6 +48,27 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 }
                 _ => {}
             }
+        }
+    }
+
+    pub fn drop_heap_item_check(&self, place: &Place<'tcx>, tcx: TyCtxt<'tcx>) -> bool {
+        let place_ty = place.ty(&tcx.optimized_mir(self.def_id).local_decls, tcx);
+        match place_ty.ty.kind() {
+            TyKind::Adt(adtdef, ..) => match self.adt_owner.get(&adtdef.did()) {
+                None => true,
+                Some(owenr_unit) => {
+                    let idx = match place_ty.variant_index {
+                        Some(vdx) => vdx.index(),
+                        None => 0,
+                    };
+                    if owenr_unit[idx].0.is_owned() || owenr_unit[idx].1.contains(&true) {
+                        true
+                    } else {
+                        false
+                    }
+                }
+            },
+            _ => true,
         }
     }
 

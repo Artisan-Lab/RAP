@@ -164,7 +164,7 @@ pub struct SafeDropGraph<'tcx> {
     // a threhold to avoid path explosion.
     pub visit_times: usize,
     // analysis of heap item
-    pub heap_alay: AdtOwner,
+    pub adt_owner: AdtOwner,
 }
 
 impl<'tcx> SafeDropGraph<'tcx> {
@@ -172,7 +172,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         body: &Body<'tcx>,
         tcx: TyCtxt<'tcx>,
         def_id: DefId,
-        heap_alay: AdtOwner,
+        adt_owner: AdtOwner,
     ) -> SafeDropGraph<'tcx> {
         // handle variables
         let locals = &body.local_decls;
@@ -470,7 +470,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
             return_set: FxHashSet::default(),
             bug_records: BugRecords::new(),
             visit_times: 0,
-            heap_alay,
+            adt_owner,
         }
     }
 
@@ -567,6 +567,6 @@ impl<'tcx> SafeDropGraph<'tcx> {
         let mut stack: Vec<usize> = vec![0];
         self.dfs_on_spanning_tree(0, &mut stack, &mut paths);
 
-        return paths;
+        paths
     }
 }

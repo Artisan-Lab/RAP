@@ -50,7 +50,7 @@ pub fn query_safedrop<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_map: &FnMap,
     def_id: DefId,
-    heap_alay: AdtOwner,
+    adt_owner: AdtOwner,
 ) -> () {
     /* filter const mir */
     if let Some(_other) = tcx.hir().body_const_context(def_id.expect_local()) {
@@ -58,7 +58,7 @@ pub fn query_safedrop<'tcx>(
     }
     if tcx.is_mir_available(def_id) {
         let body = tcx.optimized_mir(def_id);
-        let mut safedrop_graph = SafeDropGraph::new(&body, tcx, def_id, heap_alay);
+        let mut safedrop_graph = SafeDropGraph::new(&body, tcx, def_id, adt_owner);
         safedrop_graph.solve_scc();
         safedrop_graph.check(0, tcx, fn_map);
         if safedrop_graph.visit_times <= VISIT_LIMIT {

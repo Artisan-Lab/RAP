@@ -14,7 +14,7 @@ use crate::analysis::rcanary::{rCanary, RcxMut};
 use ownership::RawTypeOwner;
 
 type TyMap<'tcx> = HashMap<Ty<'tcx>, String>;
-type OwnerUnit = (RawTypeOwner, Vec<bool>);
+pub type OwnerUnit = (RawTypeOwner, Vec<bool>);
 pub type AdtOwner = HashMap<DefId, Vec<OwnerUnit>>;
 type Parameters = HashSet<usize>;
 pub type Unique = HashSet<DefId>;
