@@ -71,7 +71,7 @@ fn find_upside_vec_len_node(graph: &Graph, node_idx: Local) -> Option<Local> {
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.vec_len.last_def_id();
     // Warning: may traverse all upside nodes and the new result will overwrite on the previous result
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == target_def_id {
@@ -95,7 +95,7 @@ fn find_downside_index_node(graph: &Graph, node_idx: Local) -> Vec<Local> {
     let mut index_node_idxs: Vec<Local> = Vec::new();
     let def_paths = &DEFPATHS.get().unwrap();
     // Warning: traverse all downside nodes
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == def_paths.ops_index.last_def_id()

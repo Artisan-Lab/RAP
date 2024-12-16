@@ -303,8 +303,8 @@ impl Graph {
     pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
         let mut set = HashSet::new();
         let mut root = local;
-        let mut find_root_operator = |idx: Local| -> DFSStatus {
-            let node = &self.nodes[idx];
+        let mut find_root_operator = |graph: &Graph, idx: Local| -> DFSStatus {
+            let node = &graph.nodes[idx];
             match node.op {
                 NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
                     //Nop means an orphan node or a parameter
@@ -314,8 +314,8 @@ impl Graph {
                 _ => DFSStatus::Stop,
             }
         };
-        let mut find_equivalent_operator = |idx: Local| -> DFSStatus {
-            let node = &self.nodes[idx];
+        let mut find_equivalent_operator = |graph: &Graph, idx: Local| -> DFSStatus {
+            let node = &graph.nodes[idx];
             if set.contains(&idx) {
                 return DFSStatus::Stop;
             }
@@ -348,7 +348,7 @@ impl Graph {
     pub fn is_connected(&self, idx_1: Local, idx_2: Local) -> bool {
         let target = idx_2;
         let find = Cell::new(false);
-        let mut node_operator = |idx: Local| -> DFSStatus {
+        let mut node_operator = |_: &Graph, idx: Local| -> DFSStatus {
             find.set(idx == target);
             if find.get() {
                 DFSStatus::Stop
@@ -402,14 +402,14 @@ impl Graph {
         traverse_all: bool,
     ) -> DFSStatus
     where
-        F: FnMut(Local) -> DFSStatus,
-        G: FnMut(&EdgeOp) -> DFSStatus,
+        F: FnMut(&Graph, Local) -> DFSStatus,
+        G: FnMut(&Graph, EdgeIdx) -> DFSStatus,
     {
         macro_rules! traverse {
             ($edges: ident, $field: ident) => {
                 for edge_idx in self.nodes[now].$edges.iter() {
                     let edge = &self.edges[*edge_idx];
-                    if matches!(edge_validator(&edge.op), DFSStatus::Continue) {
+                    if matches!(edge_validator(self, *edge_idx), DFSStatus::Continue) {
                         let result = self.dfs(
                             edge.$field,
                             direction,
@@ -425,7 +425,7 @@ impl Graph {
             };
         }
 
-        if matches!(node_operator(now), DFSStatus::Continue) {
+        if matches!(node_operator(self, now), DFSStatus::Continue) {
             match direction {
                 Direction::Upside => {
                     traverse!(in_edges, src);
@@ -462,8 +462,8 @@ impl Graph {
 }
 
 impl Graph {
-    pub fn equivalent_edge_validator(op: &EdgeOp) -> DFSStatus {
-        match op {
+    pub fn equivalent_edge_validator(graph: &Graph, idx: EdgeIdx) -> DFSStatus {
+        match graph.edges[idx].op {
             EdgeOp::Copy | EdgeOp::Move | EdgeOp::Mut | EdgeOp::Immut => DFSStatus::Continue,
             EdgeOp::Nop
             | EdgeOp::Const
@@ -476,7 +476,7 @@ impl Graph {
         }
     }
 
-    pub fn always_true_edge_validator(_: &EdgeOp) -> DFSStatus {
+    pub fn always_true_edge_validator(_: &Graph, _: EdgeIdx) -> DFSStatus {
         DFSStatus::Continue
     }
 }

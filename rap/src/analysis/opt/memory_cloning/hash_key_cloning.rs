@@ -71,7 +71,7 @@ fn find_first_param_upside_clone(graph: &Graph, node: &GraphNode) -> Option<Loca
     let mut clone_node_idx = None;
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.clone.last_def_id();
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == target_def_id {
@@ -96,7 +96,7 @@ fn find_hashset_new_node(graph: &Graph, node: &GraphNode) -> Option<Local> {
     let mut new_node_idx = None;
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.hashset_new.last_def_id();
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == target_def_id {
