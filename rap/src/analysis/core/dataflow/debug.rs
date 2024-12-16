@@ -17,47 +17,13 @@ impl GraphEdge {
     pub fn to_dot_graph<'tcx>(&self) -> String {
         let mut attr = String::new();
         let mut dot = String::new();
-        match self {
-            //label=xxx
-            GraphEdge::NodeEdge {
-                src: _,
-                dst: _,
-                op,
-                seq,
-            } => {
-                write!(
-                    attr,
-                    "label=\"{}\" ",
-                    escaped_string(format!("{}_{:?}", seq, op))
-                )
-                .unwrap();
-            }
-            GraphEdge::ConstEdge {
-                src: _,
-                dst: _,
-                op,
-                seq,
-            } => {
-                write!(
-                    attr,
-                    "label=\"{}\" ",
-                    escaped_string(format!("{}_{:?}", seq, op))
-                )
-                .unwrap();
-            }
-        }
-        match self {
-            GraphEdge::NodeEdge {
-                src, dst, op: _, ..
-            } => {
-                write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
-            }
-            GraphEdge::ConstEdge {
-                src, dst, op: _, ..
-            } => {
-                write!(dot, "{:?} -> {:?} [{}]", src, dst, attr).unwrap();
-            }
-        }
+        write!(
+            attr,
+            "label=\"{}\" ",
+            escaped_string(format!("{}_{:?}", self.seq, self.op))
+        )
+        .unwrap();
+        write!(dot, "{:?} -> {:?} [{}]", self.src, self.dst, attr).unwrap();
         dot
     }
 }
@@ -80,6 +46,14 @@ impl GraphNode {
                 } else {
                     write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();
                 }
+            }
+            NodeOp::Const(ref name) => {
+                write!(
+                    attr,
+                    "label=\"<f0> {}\" style=dashed ",
+                    escaped_string(name.clone())
+                )
+                .unwrap();
             }
             NodeOp::Call(def_id) => {
                 let func_name = tcx.def_path_str(def_id);

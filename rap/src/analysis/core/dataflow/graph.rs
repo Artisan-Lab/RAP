@@ -15,6 +15,7 @@ pub enum NodeOp {
     //warning: the fields are related to the version of the backend rustc version
     Nop,
     Err,
+    Const(String),
     //Rvalue
     Use,
     Repeat,
@@ -55,19 +56,11 @@ pub enum EdgeOp {
 }
 
 #[derive(Clone)]
-pub enum GraphEdge {
-    NodeEdge {
-        src: Local,
-        dst: Local,
-        op: EdgeOp,
-        seq: u32,
-    },
-    ConstEdge {
-        src: String,
-        dst: Local,
-        op: EdgeOp,
-        seq: u32,
-    },
+pub struct GraphEdge {
+    pub src: Local,
+    pub dst: Local,
+    pub op: EdgeOp,
+    pub seq: u32,
 }
 
 #[derive(Clone)]
@@ -117,7 +110,7 @@ impl Graph {
 
     pub fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
         let seq = self.nodes[dst].seq;
-        let edge_idx = self.edges.push(GraphEdge::NodeEdge { src, dst, op, seq });
+        let edge_idx = self.edges.push(GraphEdge { src, dst, op, seq });
         self.nodes[dst].in_edges.push(edge_idx);
         self.nodes[src].out_edges.push(edge_idx);
         edge_idx
@@ -125,7 +118,10 @@ impl Graph {
 
     pub fn add_const_edge(&mut self, src: String, dst: Local, op: EdgeOp) -> EdgeIdx {
         let seq = self.nodes[dst].seq;
-        let edge_idx = self.edges.push(GraphEdge::ConstEdge { src, dst, op, seq });
+        let mut const_node = GraphNode::new();
+        const_node.op = NodeOp::Const(src);
+        let src = self.nodes.push(const_node);
+        let edge_idx = self.edges.push(GraphEdge { src, dst, op, seq });
         self.nodes[dst].in_edges.push(edge_idx);
         edge_idx
     }
@@ -413,18 +409,16 @@ impl Graph {
             ($edges: ident, $field: ident) => {
                 for edge_idx in self.nodes[now].$edges.iter() {
                     let edge = &self.edges[*edge_idx];
-                    if let GraphEdge::NodeEdge { $field, op, .. } = edge {
-                        if matches!(edge_validator(op), DFSStatus::Continue) {
-                            let result = self.dfs(
-                                *$field,
-                                direction,
-                                node_operator,
-                                edge_validator,
-                                traverse_all,
-                            );
-                            if matches!(result, DFSStatus::Stop) && !traverse_all {
-                                return DFSStatus::Stop;
-                            }
+                    if matches!(edge_validator(&edge.op), DFSStatus::Continue) {
+                        let result = self.dfs(
+                            edge.$field,
+                            direction,
+                            node_operator,
+                            edge_validator,
+                            traverse_all,
+                        );
+                        if matches!(result, DFSStatus::Stop) && !traverse_all {
+                            return DFSStatus::Stop;
                         }
                     }
                 }
@@ -452,10 +446,7 @@ impl Graph {
 
     pub fn get_upside_idx(&self, node_idx: Local, order: usize) -> Option<Local> {
         if let Some(edge_idx) = self.nodes[node_idx].in_edges.get(order) {
-            match self.edges[*edge_idx] {
-                GraphEdge::NodeEdge { src, .. } => Some(src),
-                GraphEdge::ConstEdge { .. } => None,
-            }
+            Some(self.edges[*edge_idx].src)
         } else {
             None
         }
@@ -463,10 +454,7 @@ impl Graph {
 
     pub fn get_downside_idx(&self, node_idx: Local, order: usize) -> Option<Local> {
         if let Some(edge_idx) = self.nodes[node_idx].out_edges.get(order) {
-            match self.edges[*edge_idx] {
-                GraphEdge::NodeEdge { dst, .. } => Some(dst),
-                GraphEdge::ConstEdge { .. } => None,
-            }
+            Some(self.edges[*edge_idx].dst)
         } else {
             None
         }

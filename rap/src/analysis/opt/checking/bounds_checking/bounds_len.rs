@@ -4,10 +4,9 @@ use rustc_middle::mir::Local;
 use rustc_middle::ty::TyCtxt;
 
 use crate::analysis::core::dataflow::graph::{
-    AggKind, DFSStatus, Direction, Graph, GraphEdge, GraphNode, NodeOp,
+    AggKind, DFSStatus, Direction, Graph, GraphNode, NodeOp,
 };
 use crate::analysis::utils::def_path::DefPath;
-use crate::rap_debug;
 use crate::utils::log::{
     relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
 };
@@ -61,11 +60,7 @@ fn extract_upperbound_node_if_ops_range(graph: &Graph, node: &GraphNode) -> Opti
     if let NodeOp::Aggregate(AggKind::Adt(def_id)) = node.op {
         if def_id == target_def_id {
             let upperbound_edge = &graph.edges[node.in_edges[1]]; // the second field
-            if let GraphEdge::NodeEdge { src, .. } = upperbound_edge {
-                return Some(*src);
-            } else {
-                rap_debug!("The upperbound edge of Agg node is not a NodeEdge");
-            }
+            return Some(upperbound_edge.src);
         }
     }
     None

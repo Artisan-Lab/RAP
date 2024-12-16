@@ -5,7 +5,6 @@ use once_cell::sync::OnceCell;
 
 use crate::analysis::core::dataflow::graph::DFSStatus;
 use crate::analysis::core::dataflow::graph::Direction;
-use crate::analysis::core::dataflow::graph::GraphEdge::NodeEdge;
 use rustc_hir::{intravisit, Expr, ExprKind};
 use rustc_middle::mir::Local;
 use rustc_middle::ty::{TyCtxt, TyKind, TypeckResults};
@@ -72,26 +71,23 @@ fn find_first_param_upside_clone(graph: &Graph, node: &GraphNode) -> Option<Loca
     let mut clone_node_idx = None;
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.clone.last_def_id();
-    if let NodeEdge { src, .. } = &graph.edges[node.in_edges[1]] {
-        // the first param is self, so we use 1
-        let mut node_operator = |idx: Local| -> DFSStatus {
-            let node = &graph.nodes[idx];
-            if let NodeOp::Call(def_id) = node.op {
-                if def_id == target_def_id {
-                    clone_node_idx = Some(idx);
-                    return DFSStatus::Stop;
-                }
+    let mut node_operator = |idx: Local| -> DFSStatus {
+        let node = &graph.nodes[idx];
+        if let NodeOp::Call(def_id) = node.op {
+            if def_id == target_def_id {
+                clone_node_idx = Some(idx);
+                return DFSStatus::Stop;
             }
-            DFSStatus::Continue
-        };
-        graph.dfs(
-            *src,
-            Direction::Upside,
-            &mut node_operator,
-            &mut Graph::equivalent_edge_validator,
-            false,
-        );
-    }
+        }
+        DFSStatus::Continue
+    };
+    graph.dfs(
+        graph.edges[node.in_edges[1]].src, // the first param is self, so we use 1
+        Direction::Upside,
+        &mut node_operator,
+        &mut Graph::equivalent_edge_validator,
+        false,
+    );
     clone_node_idx
 }
 
@@ -100,26 +96,23 @@ fn find_hashset_new_node(graph: &Graph, node: &GraphNode) -> Option<Local> {
     let mut new_node_idx = None;
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.hashset_new.last_def_id();
-    if let NodeEdge { src, .. } = &graph.edges[node.in_edges[0]] {
-        // the first param is self
-        let mut node_operator = |idx: Local| -> DFSStatus {
-            let node = &graph.nodes[idx];
-            if let NodeOp::Call(def_id) = node.op {
-                if def_id == target_def_id {
-                    new_node_idx = Some(idx);
-                    return DFSStatus::Stop;
-                }
+    let mut node_operator = |idx: Local| -> DFSStatus {
+        let node = &graph.nodes[idx];
+        if let NodeOp::Call(def_id) = node.op {
+            if def_id == target_def_id {
+                new_node_idx = Some(idx);
+                return DFSStatus::Stop;
             }
-            DFSStatus::Continue
-        };
-        graph.dfs(
-            *src,
-            Direction::Upside,
-            &mut node_operator,
-            &mut Graph::equivalent_edge_validator,
-            false,
-        );
-    }
+        }
+        DFSStatus::Continue
+    };
+    graph.dfs(
+        graph.edges[node.in_edges[0]].src, // the first param is self
+        Direction::Upside,
+        &mut node_operator,
+        &mut Graph::equivalent_edge_validator,
+        false,
+    );
     new_node_idx
 }
 
