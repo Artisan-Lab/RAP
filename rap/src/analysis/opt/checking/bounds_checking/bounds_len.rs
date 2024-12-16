@@ -4,10 +4,9 @@ use rustc_middle::mir::Local;
 use rustc_middle::ty::TyCtxt;
 
 use crate::analysis::core::dataflow::graph::{
-    AggKind, DFSStatus, Direction, Graph, GraphEdge, GraphNode, NodeOp,
+    AggKind, DFSStatus, Direction, Graph, GraphNode, NodeOp,
 };
 use crate::analysis::utils::def_path::DefPath;
-use crate::rap_debug;
 use crate::utils::log::{
     relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
 };
@@ -61,11 +60,7 @@ fn extract_upperbound_node_if_ops_range(graph: &Graph, node: &GraphNode) -> Opti
     if let NodeOp::Aggregate(AggKind::Adt(def_id)) = node.op {
         if def_id == target_def_id {
             let upperbound_edge = &graph.edges[node.in_edges[1]]; // the second field
-            if let GraphEdge::NodeEdge { src, .. } = upperbound_edge {
-                return Some(*src);
-            } else {
-                rap_debug!("The upperbound edge of Agg node is not a NodeEdge");
-            }
+            return Some(upperbound_edge.src);
         }
     }
     None
@@ -76,7 +71,7 @@ fn find_upside_vec_len_node(graph: &Graph, node_idx: Local) -> Option<Local> {
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.vec_len.last_def_id();
     // Warning: may traverse all upside nodes and the new result will overwrite on the previous result
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == target_def_id {
@@ -100,7 +95,7 @@ fn find_downside_index_node(graph: &Graph, node_idx: Local) -> Vec<Local> {
     let mut index_node_idxs: Vec<Local> = Vec::new();
     let def_paths = &DEFPATHS.get().unwrap();
     // Warning: traverse all downside nodes
-    let mut node_operator = |idx: Local| -> DFSStatus {
+    let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
         if let NodeOp::Call(def_id) = node.op {
             if def_id == def_paths.ops_index.last_def_id()
