@@ -20,7 +20,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     unwind: _,
                     replace: _,
                 } => {
-                    if self.drop_heap_item_check(place, tcx) {
+                    if !self.drop_heap_item_check(place, tcx) {
                         continue;
                     }
                     let birth = self.scc_indices[bb_index];
