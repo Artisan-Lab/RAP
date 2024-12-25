@@ -5,7 +5,7 @@ use rustc_middle::ty::TyCtxt;
 
 use super::core::dataflow::DataFlow;
 use checking::bounds_checking;
-use memory_cloning::hash_key_cloning;
+use memory_cloning::used_as_immutable;
 
 pub struct Opt<'tcx> {
     pub tcx: TyCtxt<'tcx>,
@@ -21,7 +21,7 @@ impl<'tcx> Opt<'tcx> {
         dataflow.build_graphs();
         for (_, graph) in dataflow.graphs.iter() {
             bounds_checking::check(graph, &self.tcx);
-            hash_key_cloning::check(graph, &self.tcx);
+            used_as_immutable::check(graph, &self.tcx);
         }
     }
 }
