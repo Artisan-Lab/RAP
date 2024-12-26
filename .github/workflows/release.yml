@@ -19,13 +19,6 @@ jobs:
     - name: Code Formatting Check
       run: cd rap && cargo fmt --check
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-        
-    - name: Install ninja
-      run: pip install ninja
    
     - name: Build RAP 
       run: ./install.sh
