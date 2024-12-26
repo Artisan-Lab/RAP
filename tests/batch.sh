@@ -2,7 +2,7 @@
 #该脚本在目录下为每个Cargo项目执行相同的命令直到报错
 
 # 查找并编译当前目录下的所有 Rust 项目
-find CI_* -type f -name "Cargo.toml" | while read -r cargo_file; do
+find support -type f -name "Cargo.toml" | while read -r cargo_file; do
   # 获取 Cargo.toml 文件所在的目录
   project_dir=$(dirname "$cargo_file")
 
