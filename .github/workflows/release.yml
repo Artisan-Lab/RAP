@@ -25,13 +25,10 @@ jobs:
         python-version: '3.x'
         
     - name: Install ninja
-      run: |
-        pip install ninja
+      run: pip install ninja
    
     - name: Build RAP 
-      run: |
-        chmod +x ./install.sh
-        ./install.sh
+      run: ./install.sh
 
     - name: Check test cases 
       run: cd tests && ./batch.sh -F -M
