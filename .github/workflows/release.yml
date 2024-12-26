@@ -18,9 +18,11 @@ jobs:
 
     - name: Code Formatting Check
       run: cd rap && cargo fmt --check
-   
+
     - name: Build RAP 
       run: ./install.sh
+
+    - run: sudo apt install colorized-logs -y # Insall ansi2txt
 
     - name: Check test cases 
       run: cd tests && ./batch.sh -F -M
