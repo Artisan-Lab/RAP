@@ -63,11 +63,7 @@ impl<'tcx, 'a> TypeAnalysis<'tcx, 'a> {
                     EarlyBinder::skip_binder(ref_type_analysis.tcx().type_of(*elem.0))
                 );
                 let owning = format!("{:?}", elem.1);
-                rap_debug!(
-                    "{} {}",
-                    name.color(Color::Orange1),
-                    owning.color(Color::Yellow3a)
-                );
+                rap_debug!("ADT analysis: {} {}", name, owning);
             }
         }
 

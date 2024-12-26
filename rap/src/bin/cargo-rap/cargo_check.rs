@@ -51,7 +51,7 @@ fn cargo_check(dir: &Utf8Path) {
     let cargo_rap_path = args::current_exe_path();
     cmd.env("RUSTC_WRAPPER", cargo_rap_path);
 
-    rap_debug!("Command is: {:?}.", cmd);
+    rap_trace!("Command is: {:?}.", cmd);
 
     let mut child = cmd.spawn().expect("Could not run cargo check.");
     match child

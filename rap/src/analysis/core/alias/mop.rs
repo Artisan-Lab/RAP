@@ -4,8 +4,8 @@ pub mod mop;
 pub mod types;
 
 use crate::analysis::core::alias::FnMap;
-use crate::rap_debug;
 use crate::utils::source::*;
+use crate::{rap_debug, rap_trace};
 use graph::MopGraph;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
@@ -28,6 +28,7 @@ impl<'tcx> MopAlias<'tcx> {
     }
 
     pub fn start(&mut self) -> &FnMap {
+        rap_debug!("Start alias analysis via MoP.");
         for local_def_id in self.tcx.iter_local_def_id() {
             let hir_map = self.tcx.hir();
             if hir_map.maybe_body_owned_by(local_def_id).is_some() {
@@ -38,8 +39,7 @@ impl<'tcx> MopAlias<'tcx> {
         for (fn_id, fn_alias) in &self.fn_map {
             let fn_name = get_fn_name(self.tcx, *fn_id);
             if fn_alias.len() > 0 {
-                rap_debug!("{:?},{:?}", fn_name, fn_id);
-                rap_debug!("{}", fn_alias);
+                rap_debug!("Alias found in {:?}: {}", fn_name, fn_alias);
             }
         }
         &self.fn_map
@@ -47,7 +47,7 @@ impl<'tcx> MopAlias<'tcx> {
 
     pub fn query_mop(&mut self, def_id: DefId) {
         let fn_name = get_fn_name(self.tcx, def_id);
-        rap_debug!("query_mop: {:?}", fn_name);
+        rap_trace!("query_mop: {:?}", fn_name);
         /* filter const mir */
         if let Some(_other) = self.tcx.hir().body_const_context(def_id.expect_local()) {
             return;
@@ -59,10 +59,10 @@ impl<'tcx> MopAlias<'tcx> {
             let mut recursion_set = FxHashSet::default();
             mop_graph.check(0, &mut self.fn_map, &mut recursion_set);
             if mop_graph.visit_times > VISIT_LIMIT {
-                rap_debug!("Over visited: {:?}", def_id);
+                rap_trace!("Over visited: {:?}", def_id);
             }
         } else {
-            rap_debug!("mir is not available at {}", self.tcx.def_path_str(def_id));
+            rap_trace!("mir is not available at {}", self.tcx.def_path_str(def_id));
         }
     }
 }

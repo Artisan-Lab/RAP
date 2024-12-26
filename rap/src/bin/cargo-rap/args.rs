@@ -53,7 +53,7 @@ impl Arguments {
 
         let args: Vec<_> = env::args().collect();
         let path = env::current_exe().expect("Current executable path invalid.");
-        rap_debug!("Current exe: {path:?}\tReceived args: {args:?}");
+        rap_trace!("Current exe: {path:?}\tReceived args: {args:?}");
         let [args_group1, args_group2] = split_args_by_double_dash(&args);
 
         Arguments {

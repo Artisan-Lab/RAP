@@ -12,7 +12,7 @@ fn find_rap() -> PathBuf {
 }
 
 pub fn run_cmd(mut cmd: Command) {
-    rap_debug!("Command is: {:?}.", cmd);
+    rap_trace!("Command is: {:?}.", cmd);
     match cmd.status() {
         Ok(status) => {
             if !status.success() {
