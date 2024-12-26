@@ -2,9 +2,7 @@ name: Rap-booting and testing
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,22 +19,11 @@ jobs:
     - name: Code Formatting Check
       run: cd rap && cargo fmt --check
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-        
-    - name: Install ninja
-      run: |
-        pip install ninja
-   
     - name: Build RAP 
-      run: |
-        chmod +x ./install.sh
-        ./install.sh
+      run: ./install.sh
+
+    - run: sudo apt install colorized-logs -y # Insall ansi2txt
 
     - name: Check test cases 
-      run: cd tests && cargo +nightly-2024-10-12 rap -F -M
+      run: cd tests && ./batch.sh -F -M
 
-    - name: Check rap
-      run: cd rap && cargo +nightly-2024-10-12 rap -F -M
