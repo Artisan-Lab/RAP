@@ -19,7 +19,7 @@ jobs:
     - name: Code Formatting Check
       run: cd rap && cargo fmt --check
 
-    - run: apt install colorized-logs -y
+    - run: sudo apt install colorized-logs -y
    
     - name: Build RAP 
       run: ./install.sh
