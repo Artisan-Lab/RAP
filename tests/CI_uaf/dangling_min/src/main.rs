@@ -13,7 +13,7 @@ fn create_vec() -> *mut Vec<i32> {
 
 fn main() {
     let p = create_vec();
-    let v = unsafe {&mut *p};
-    v.push(4);
-    println!("{:?}", v);
+  //  let v = unsafe {&mut *p};
+  //  v.push(4);
+  //  println!("{:?}", v);
 }
