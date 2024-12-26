@@ -3,7 +3,7 @@
 extern crate rustc_driver;
 extern crate rustc_session;
 
-use rap::{compile_time_sysroot, rap_debug, utils::log::init_log, RapCallback, RAP_DEFAULT_ARGS};
+use rap::{compile_time_sysroot, rap_trace, rap_info, utils::log::init_log, RapCallback, RAP_DEFAULT_ARGS};
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyDiagCtxt;
 use std::env;
@@ -26,7 +26,7 @@ fn run_complier(args: &mut Vec<String>, callback: &mut RapCallback) -> i32 {
 
     let run_compiler = rustc_driver::RunCompiler::new(&args, callback);
     let exit_code = rustc_driver::catch_with_exit_code(move || run_compiler.run());
-    rap_debug!("The arg for compilation is {:?}", args);
+    rap_trace!("The arg for compilation is {:?}", args);
 
     exit_code
 }
@@ -57,8 +57,9 @@ fn main() {
         }
     }
     _ = init_log().inspect_err(|err| eprintln!("Failed to init log: {err}"));
-    rap_debug!("rap received arguments{:#?}", env::args());
-    rap_debug!("arguments to rustc: {:?}", &args);
+    rap_info!("Start analysis with RAP.");
+    rap_trace!("rap received arguments{:#?}", env::args());
+    rap_trace!("arguments to rustc: {:?}", &args);
 
     let exit_code = run_complier(&mut args, &mut compiler);
     std::process::exit(exit_code)

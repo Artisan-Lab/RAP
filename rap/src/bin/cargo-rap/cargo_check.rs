@@ -23,12 +23,12 @@ pub fn run() {
 
 fn cargo_check(dir: &Utf8Path) {
     // always clean before check due to outdated except `RAP_CLEAN` is false
-    rap_info!("cargo clean in package folder {dir}");
+    rap_trace!("cargo clean in package folder {dir}");
     cargo_clean(dir, args::rap_clean());
 
-    rap_info!("cargo check in package folder {dir}");
+    rap_trace!("cargo check in package folder {dir}");
     let [rap_args, cargo_args] = args::rap_and_cargo_args();
-    rap_debug!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
+    rap_trace!("rap_args={rap_args:?}\tcargo_args={cargo_args:?}");
 
     /*Here we prepare the cargo command as cargo check, which is similar to build, but much faster*/
     let mut cmd = Command::new("cargo");

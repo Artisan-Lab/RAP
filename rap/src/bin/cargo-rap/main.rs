@@ -18,7 +18,7 @@ use crate::utils::*;
 mod cargo_check;
 
 fn phase_cargo_rap() {
-    rap_info!("Start cargo-rap");
+    rap_trace!("Start cargo-rap.");
 
     // here we skip two args: cargo rap
     let Some(arg) = args::get_arg(2) else {
@@ -41,7 +41,7 @@ fn phase_cargo_rap() {
 }
 
 fn phase_rustc_wrapper() {
-    rap_debug!("Launch cargo-rap again triggered by cargo check.");
+    rap_trace!("Launch cargo-rap again triggered by cargo check.");
 
     let is_direct = args::is_current_compile_crate();
     // rap only checks local crates

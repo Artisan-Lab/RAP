@@ -10,6 +10,14 @@ Use-After-Free/double free detection.
 Memory leakage detection.
     -M or -mleak     command: "cargo rap -mleak"
 
+Debugging options:
+    -mir             print the MIR of each function
+
+General command: 
+    -H or -help:     show help information
+    -V or -version:  show the version of RAP
+
+The following features are under development
 Unsafe code tracing
     -UI or -uig      generate unsafe code isolation graphs
 
@@ -21,13 +29,6 @@ Dataflow tracing
 
 Automatic optimization
     -O or -opt       automatically detect code optimization chances
-
-General command: 
-    -H or -help:     show help information
-    -V or -version:  show the version of RAP
-
-Debugging options:
-    -mir             print the MIR of each function
 
 NOTE: multiple detections can be processed in single run by 
 appending the options to the arguments. Like `cargo rap -F -M`
@@ -42,7 +43,10 @@ e.g.
    cargo rap -F -M -- --workspace
 
 Environment Variables (Values are case insensitive):
-    RAP_LOG          verbosity of logging: debug, info, warn
+    RAP_LOG          verbosity of logging: trace, debug, info, warn
+                     trace: print all the detailed RAP execution traces.
+                     debug: display intermidiate analysis results.
+                     warn: show bugs detected only.
 
     RAP_CLEAN        run cargo clean before check: true, false
                      * true is the default value except that false is set

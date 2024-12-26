@@ -91,12 +91,12 @@ impl Callbacks for RapCallback {
         _compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        rap_info!("Execute after_analysis() of compiler callbacks");
+        rap_trace!("Execute after_analysis() of compiler callbacks");
         queries
             .global_ctxt()
             .unwrap()
             .enter(|tcx| start_analyzer(tcx, *self));
-        rap_info!("analysis done");
+        rap_trace!("analysis done");
         Compilation::Continue
     }
 }

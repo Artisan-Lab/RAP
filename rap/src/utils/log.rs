@@ -22,11 +22,11 @@ pub fn init_log() -> Result<(), fern::InitError> {
     let dispatch = Dispatch::new().level(log_level());
 
     let color_line = ColoredLevelConfig::new()
-        .info(Color::White)
         .error(Color::Red)
         .warn(Color::Yellow)
-        .debug(Color::White)
-        .trace(Color::BrightBlack);
+        .info(Color::White)
+        .debug(Color::Blue)
+        .trace(Color::Cyan);
 
     let color_level = color_line.info(Color::Green);
     let stderr_dispatch = Dispatch::new()
@@ -54,6 +54,14 @@ pub fn init_log() -> Result<(), fern::InitError> {
     Ok(())
 }
 
+
+#[macro_export]
+macro_rules! rap_trace {
+    ($($arg:tt)+) => (
+        ::log::trace!(target: "RAP", $($arg)+)
+    );
+}
+
 #[macro_export]
 macro_rules! rap_debug {
     ($($arg:tt)+) => (
@@ -69,16 +77,16 @@ macro_rules! rap_info {
 }
 
 #[macro_export]
-macro_rules! rap_error {
+macro_rules! rap_warn {
     ($($arg:tt)+) => (
-        ::log::error!(target: "RAP", $($arg)+)
+        ::log::warn!(target: "RAP", $($arg)+)
     );
 }
 
 #[macro_export]
-macro_rules! rap_warn {
+macro_rules! rap_error {
     ($($arg:tt)+) => (
-        ::log::warn!(target: "RAP", $($arg)+)
+        ::log::error!(target: "RAP", $($arg)+)
     );
 }
 
