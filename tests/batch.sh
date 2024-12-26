@@ -22,7 +22,7 @@ find support -type f -name "Cargo.toml" | while read -r cargo_file; do
     #脚本有参数时按照给定参数执行cargo命令
     #Example: batch.sh rap -uaf
     cmd="cargo rap $@"
-    $cmd 2>&1 | tee $cur/rap.txt | grep 'RAP|WARN|' && echo -e "\033[32m$project_dir pass\033[0m"
+    $cmd 2>&1 | tee $cur/rap.txt | ansi2txt | grep 'RAP|WARN|' && echo -e "\033[32m$project_dir pass\033[0m"
   fi
 
   if [ $? -ne 0 ]; then
