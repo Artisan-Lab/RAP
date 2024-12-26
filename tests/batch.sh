@@ -1,6 +1,11 @@
 #!/bin/bash
 #该脚本在目录下为每个Cargo项目执行相同的命令直到报错
 
+# All arguments passed to this script are forwarded to cargo rap
+
+# Insall ansi2txt
+sudo apt install colorized-logs -y
+
 cur=$(pwd)
 
 # 查找并编译当前目录下的所有 Rust 项目
