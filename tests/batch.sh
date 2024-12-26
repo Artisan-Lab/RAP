@@ -26,9 +26,6 @@ find support -type f -name "Cargo.toml" | while read -r cargo_file; do
     $cmd 2>&1 | tee $cur/rap.txt | ansi2txt | grep 'RAP|WARN|' && echo -e "\033[32m$project_dir pass\033[0m"
   fi
 
-  # 返回原始目录
-  popd >/dev/null
-
   if [ $? -ne 0 ]; then
     echo -e "Error: '$cmd' doesn't emit WARN diagnostics in $project_dir \nRAP output:"
     cat $cur/rap.txt
@@ -42,4 +39,6 @@ find support -type f -name "Cargo.toml" | while read -r cargo_file; do
     exit 1
   fi
 
+  # 返回原始目录
+  popd >/dev/null
 done
