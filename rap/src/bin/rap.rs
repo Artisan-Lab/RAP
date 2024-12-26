@@ -3,7 +3,9 @@
 extern crate rustc_driver;
 extern crate rustc_session;
 
-use rap::{compile_time_sysroot, rap_trace, rap_info, utils::log::init_log, RapCallback, RAP_DEFAULT_ARGS};
+use rap::{
+    compile_time_sysroot, rap_info, rap_trace, utils::log::init_log, RapCallback, RAP_DEFAULT_ARGS,
+};
 use rustc_session::config::ErrorOutputType;
 use rustc_session::EarlyDiagCtxt;
 use std::env;

@@ -54,7 +54,6 @@ pub fn init_log() -> Result<(), fern::InitError> {
     Ok(())
 }
 
-
 #[macro_export]
 macro_rules! rap_trace {
     ($($arg:tt)+) => (
