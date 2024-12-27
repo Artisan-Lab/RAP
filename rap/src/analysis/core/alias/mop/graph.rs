@@ -1,5 +1,7 @@
 use super::types::*;
 use crate::analysis::core::alias::FnRetAlias;
+use crate::rap_debug;
+use crate::utils::source::*;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_middle::mir::{
     BasicBlock, Const, Operand, Place, Rvalue, StatementKind, Terminator, TerminatorKind,
@@ -147,6 +149,8 @@ pub struct MopGraph<'tcx> {
 
 impl<'tcx> MopGraph<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, def_id: DefId) -> MopGraph<'tcx> {
+        let fn_name = get_fn_name(tcx, def_id);
+        rap_debug!("Building a new MoP graph for: {:?}", fn_name);
         // handle variables
         let body = tcx.optimized_mir(def_id);
         let locals = &body.local_decls;

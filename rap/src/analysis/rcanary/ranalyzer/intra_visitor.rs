@@ -6,7 +6,6 @@ use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
 use rustc_span::source_map::Spanned;
 use rustc_target::abi::VariantIdx;
 
-use colorful::{Color, Colorful};
 use std::ops::Add;
 use z3::ast::{self, Ast};
 
@@ -17,7 +16,7 @@ use super::{FlowAnalysis, IcxSliceFroBlock, IntraFlowAnalysis};
 use crate::analysis::core::heap_item::ownership::*;
 use crate::analysis::core::heap_item::type_visitor::*;
 use crate::analysis::core::heap_item::*;
-use crate::{rap_debug, rap_error, rap_warn};
+use crate::{rap_debug, rap_error, rap_trace, rap_warn};
 // Fixme: arg.0
 // Fixme: arg enum
 
@@ -2337,12 +2336,9 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
 
         if is_z3_goal_verbose() {
             let g = format!("{}", goal);
-            rap_debug!("{}\n", g.color(Color::LightGray).bold());
+            rap_trace!("{}\n", g);
             if model.is_some() {
-                rap_debug!(
-                    "{}",
-                    format!("{}", model.unwrap()).color(Color::LightCyan).bold()
-                );
+                rap_trace!("{}", format!("{}", model.unwrap()));
             }
         }
 

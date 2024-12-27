@@ -1,0 +1,34 @@
+thread 'rustc' panicked at /home/aisr/.cargo/registry/src/index.crates.io-6f17d22bba15001f/z3-0.12.1/src/config.rs:39:34:
+called `Result::unwrap()` on an `Err` value: NulError(9, [118, 101, 114, 98, 111, 115, 105, 116, 121, 0])
+stack backtrace:
+   0:     0x7f1113fa2f65 - std::backtrace::Backtrace::create::hce26bfdc9e07e846
+   1:     0x7f1112535b75 - std::backtrace::Backtrace::force_capture::hed55aff8408ac1d4
+   2:     0x7f11115a5fc4 - std[a52682fb6709fd50]::panicking::update_hook::<alloc[6c1b03e26bdbf4ed]::boxed::Box<rustc_driver_impl[193eb2676e99316f]::install_ice_hook::{closure#0}>>::{closure#0}
+   3:     0x7f111254d6a8 - std::panicking::rust_panic_with_hook::h41309167c2756168
+   4:     0x7f111254d47a - std::panicking::begin_panic_handler::{{closure}}::hf306b851c08afab0
+   5:     0x7f111254b119 - std::sys::backtrace::__rust_end_short_backtrace::he5588192121653f9
+   6:     0x7f111254d13c - rust_begin_unwind
+   7:     0x7f110ff65b50 - core::panicking::panic_fmt::h78fd6fa67a3d3b3d
+   8:     0x7f110f5e5956 - core::result::unwrap_failed::h21b14e5dbc872002
+   9:     0x555b980d6156 - z3::config::<impl z3::Config>::set_param_value::h36207511d224cace
+  10:     0x555b98088df0 - rap::analysis::rcanary::ranalyzer::intra_visitor::<impl rap::analysis::rcanary::ranalyzer::FlowAnalysis>::intra_run::h33868976b72fcb7d
+  11:     0x555b980bd4c0 - rap::analysis::rcanary::rCanary::start::h2d26e9b7aaf1937d
+  12:     0x555b980d4588 - rap::start_analyzer::h88bf226b115f2505
+  13:     0x555b980245c3 - rustc_middle::ty::context::GlobalCtxt::enter::h1f77214e526ceb65
+  14:     0x555b980d4304 - <rap::RapCallback as rustc_driver_impl::Callbacks>::after_analysis::h42384c817a2e84eb
+  15:     0x7f1113af715f - rustc_interface[edd3a01c1bde3f2a]::interface::run_compiler::<core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>, rustc_driver_impl[193eb2676e99316f]::run_compiler::{closure#0}>::{closure#1}
+  16:     0x7f1113c0c450 - std[a52682fb6709fd50]::sys::backtrace::__rust_begin_short_backtrace::<rustc_interface[edd3a01c1bde3f2a]::util::run_in_thread_with_globals<rustc_interface[edd3a01c1bde3f2a]::util::run_in_thread_pool_with_globals<rustc_interface[edd3a01c1bde3f2a]::interface::run_compiler<core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>, rustc_driver_impl[193eb2676e99316f]::run_compiler::{closure#0}>::{closure#1}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>::{closure#0}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>::{closure#0}::{closure#0}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>
+  17:     0x7f1113c0cb17 - <<std[a52682fb6709fd50]::thread::Builder>::spawn_unchecked_<rustc_interface[edd3a01c1bde3f2a]::util::run_in_thread_with_globals<rustc_interface[edd3a01c1bde3f2a]::util::run_in_thread_pool_with_globals<rustc_interface[edd3a01c1bde3f2a]::interface::run_compiler<core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>, rustc_driver_impl[193eb2676e99316f]::run_compiler::{closure#0}>::{closure#1}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>::{closure#0}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>::{closure#0}::{closure#0}, core[aa94f1cb029d72f2]::result::Result<(), rustc_span[66abce9569f09a61]::ErrorGuaranteed>>::{closure#1} as core[aa94f1cb029d72f2]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  18:     0x7f1113c0da01 - std::sys::pal::unix::thread::Thread::new::thread_start::h51ead510c5edae48
+  19:     0x7f110c995609 - start_thread
+                               at /build/glibc-LcI20x/glibc-2.31/nptl/pthread_create.c:477:8
+  20:     0x7f110c769353 - clone
+                               at /build/glibc-LcI20x/glibc-2.31/misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+  21:                0x0 - <unknown>
+
+
+rustc version: 1.83.0-nightly (1bc403daa 2024-10-11)
+platform: x86_64-unknown-linux-gnu
+
+query stack during panic:
+end of query stack
