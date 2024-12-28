@@ -9,7 +9,6 @@ use rustc_middle::ty::{
 use rustc_span::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
-use colorful::{Color, Colorful};
 use std::collections::HashMap;
 use std::ops::ControlFlow;
 

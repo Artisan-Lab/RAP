@@ -2,7 +2,7 @@ use super::graph::*;
 use super::types::*;
 use crate::analysis::core::alias::{FnMap, RetAlias};
 use crate::analysis::utils::intrinsic_id::*;
-use crate::rap_error;
+use crate::{rap_debug, rap_error};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir::{Operand, Place, ProjectionElem, TerminatorKind};
@@ -18,6 +18,7 @@ impl<'tcx> MopGraph<'tcx> {
         for assign in cur_block.assignments {
             let mut lv_aliaset_idx = self.projection(false, assign.lv);
             let rv_aliaset_idx = self.projection(true, assign.rv);
+            rap_debug!("{:?} = {:?}", lv_aliaset_idx, rv_aliaset_idx);
             match assign.atype {
                 AssignType::Variant => {
                     self.values[lv_aliaset_idx].alias[0] = rv_aliaset_idx;
@@ -83,9 +84,9 @@ impl<'tcx> MopGraph<'tcx> {
                 }
                 if let ty::FnDef(ref target_id, _) = constant.const_.ty().kind() {
                     //if may_drop_flag > 1 || Self::should_check(target_id.clone()) == false {
-                    if may_drop_flag > 1 {
+                    if may_drop_flag > 0 {
                         if self.tcx.is_mir_available(*target_id) {
-                            //rap_info!("target_id {:?}", target_id);
+                            rap_debug!("target_id {:?}", target_id);
                             if fn_map.contains_key(target_id) {
                                 let assignments = fn_map.get(target_id).unwrap();
                                 for assign in assignments.aliases().iter() {
@@ -184,14 +185,17 @@ impl<'tcx> MopGraph<'tcx> {
         proj_id
     }
 
-    //instruction to assign alias for a variable.
+    //assign alias for a variable.
+    //TO FIX
     pub fn merge_alias(&mut self, lv: usize, rv: usize) {
-        if self.values[lv].alias.len() > 1 {
-            let mut alias_clone = self.values[rv].alias.clone();
-            self.values[lv].alias.append(&mut alias_clone);
-        } else {
-            self.values[lv].alias = self.values[rv].alias.clone();
-        }
+        let mut alias_clone = self.values[rv].alias.clone();
+        rap_debug!("alias set for rv:{:?} is {:?}", rv, alias_clone);
+        self.values[lv].alias.append(&mut alias_clone);
+        rap_debug!(
+            "update the alias set of lv {:?}: {:?}",
+            lv,
+            self.values[lv].alias
+        );
         for field in self.values[rv].fields.clone().into_iter() {
             if !self.values[lv].fields.contains_key(&field.0) {
                 let mut node = ValueNode::new(
@@ -211,6 +215,7 @@ impl<'tcx> MopGraph<'tcx> {
     }
     //inter-procedure instruction to merge alias.
     pub fn merge(&mut self, ret_alias: &RetAlias, arg_vec: &[usize]) {
+        rap_debug!("{:?}", ret_alias);
         if ret_alias.left_index >= arg_vec.len() || ret_alias.right_index >= arg_vec.len() {
             rap_error!("Vector error!");
             return;
@@ -232,8 +237,7 @@ impl<'tcx> MopGraph<'tcx> {
             lv = *self.values[lv].fields.get(index).unwrap();
         }
         for index in ret_alias.right_field_seq.iter() {
-            if self.values[rv].alias[0] != rv {
-                rv = self.values[rv].alias[0];
+            if !self.values[rv].alias.contains(&rv) {
                 right_init = self.values[rv].local;
             }
             if !self.values[rv].fields.contains_key(index) {
@@ -253,7 +257,8 @@ impl<'tcx> MopGraph<'tcx> {
     //merge the result of current path to the final result.
     pub fn merge_results(&mut self, results_nodes: Vec<ValueNode>) {
         for node in results_nodes.iter() {
-            if node.local <= self.arg_size && (node.alias[0] != node.index || node.alias.len() > 1)
+            if node.local <= self.arg_size
+                && (node.alias.contains(&node.index) || node.alias.len() > 1)
             {
                 for alias in node.alias.clone() {
                     if results_nodes[alias].local <= self.arg_size

@@ -163,22 +163,6 @@ impl<'tcx> NodeOrder<'tcx> {
     }
 }
 
-struct InterFlowAnalysis<'tcx, 'a> {
-    rcx: &'a rCanary<'tcx>,
-}
-
-impl<'tcx, 'ctx, 'o, 'a> Rcx<'tcx, 'o, 'a> for InterFlowAnalysis<'tcx, 'a> {
-    #[inline(always)]
-    fn rcx(&'o self) -> &'a rCanary<'tcx> {
-        self.rcx
-    }
-
-    #[inline(always)]
-    fn tcx(&'o self) -> TyCtxt<'tcx> {
-        self.rcx.tcx()
-    }
-}
-
 struct IntraFlowAnalysis<'tcx, 'ctx, 'a> {
     rcx: &'a rCanary<'tcx>,
     icx: IntraFlowContext<'tcx, 'ctx>,
