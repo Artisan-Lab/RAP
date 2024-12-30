@@ -1,7 +1,13 @@
-use crate::rap_warn;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
-use rustc_span::symbol::Symbol;
 use rustc_span::Span;
+
+use annotate_snippets::Level;
+use annotate_snippets::Renderer;
+use annotate_snippets::Snippet;
+
+use crate::utils::log::{
+    relative_pos_range, span_to_filename, span_to_line_number, span_to_source_code,
+};
 
 pub struct BugRecords {
     pub df_bugs: FxHashMap<usize, Span>,
@@ -29,40 +35,78 @@ impl BugRecords {
             && self.dp_bugs_unwind.is_empty()
     }
 
-    pub fn df_bugs_output(&self, fn_name: Symbol) {
+    pub fn df_bugs_output(&self, span: Span) {
         if !self.df_bugs.is_empty() {
-            rap_warn!("Double free detected in function {:}", fn_name);
+            let code_source = span_to_source_code(span);
+            let filename = span_to_filename(span);
+            let mut snippet = Snippet::source(&code_source)
+                .line_start(span_to_line_number(span))
+                .origin(&filename)
+                .fold(true);
             for i in self.df_bugs.iter() {
-                rap_warn!("Location: {:?}", i.1);
+                snippet = snippet.annotation(
+                    Level::Warning
+                        .span(relative_pos_range(span, *i.1))
+                        .label("Double free detected."),
+                );
             }
+            let message = Level::Warning
+                .title("Double free detected.")
+                .snippet(snippet);
+            let renderer = Renderer::styled();
+            println!("{}", renderer.render(message));
         }
     }
 
-    pub fn uaf_bugs_output(&self, fn_name: Symbol) {
+    pub fn uaf_bugs_output(&self, span: Span) {
         if !self.uaf_bugs.is_empty() {
-            rap_warn!("Use after free detected in function {:?}", fn_name);
+            let code_source = span_to_source_code(span);
+            let filename = span_to_filename(span);
+            let mut snippet = Snippet::source(&code_source)
+                .line_start(span_to_line_number(span))
+                .origin(&filename)
+                .fold(true);
             for i in self.uaf_bugs.iter() {
-                rap_warn!("Location: {:?}", i);
+                snippet = snippet.annotation(
+                    Level::Warning
+                        .span(relative_pos_range(span, *i))
+                        .label("Use after free detected."),
+                );
+                println!("{:?}", *i);
             }
+            let message = Level::Warning
+                .title("Use after free detected.")
+                .snippet(snippet);
+            let renderer = Renderer::styled();
+            println!("{}", renderer.render(message));
         }
     }
 
-    pub fn dp_bug_output(&self, fn_name: Symbol) {
+    pub fn dp_bug_output(&self, span: Span) {
+        let code_source = span_to_source_code(span);
+        let filename = span_to_filename(span);
+        let mut snippet = Snippet::source(&code_source)
+            .line_start(span_to_line_number(span))
+            .origin(&filename)
+            .fold(true);
         for i in self.dp_bugs.iter() {
-            rap_warn!(
-                "Dangling pointer detected in function {:?}!!! 
-                      Location: {:?}",
-                fn_name,
-                i
+            snippet = snippet.annotation(
+                Level::Warning
+                    .span(relative_pos_range(span, *i))
+                    .label("Dangling pointer detected."),
             );
         }
         for i in self.dp_bugs_unwind.iter() {
-            rap_warn!(
-                "Dangling pointer detected in function {:?}!!!
-                      Location: {:?} during unwinding.",
-                fn_name,
-                i
+            snippet = snippet.annotation(
+                Level::Warning
+                    .span(relative_pos_range(span, *i))
+                    .label("Dangling pointer detected during unwinding."),
             );
         }
+        let message = Level::Warning
+            .title("Dangling pointer detected.")
+            .snippet(snippet);
+        let renderer = Renderer::styled();
+        println!("{}", renderer.render(message));
     }
 }
