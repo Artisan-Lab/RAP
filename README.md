@@ -5,20 +5,15 @@ The project is still under heavy development.
 
 ## Quick Start
 
-```shell
-git clone https://github.com/Artisan-Lab/RAP.git
-cd RAP 
-./install.sh
-```
-
-## Usage
-
 Install `nightly-2024-10-12` on which rap is compiled with. This just needs to do once on your machine. If the toolchain exists,
 this will do nothing.
 
 ```shell
 rustup toolchain install nightly-2024-10-12 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
+cargo +nightly-2024-10-12 install rap --git https://github.com/Artisan-Lab/RAP.git
 ```
+
+## Usage
 
 Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `cargo-rap` with [toolchain override shorthand syntax].
 
