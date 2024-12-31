@@ -92,7 +92,7 @@ pub struct ValueNode {
     pub kind: TyKind,
     pub father: usize,
     pub field_id: usize, // the field id of its father node.
-    pub alias: Vec<usize>,
+    // pub alias: Vec<usize>,
     pub fields: FxHashMap<usize, usize>,
 }
 
@@ -104,7 +104,7 @@ impl ValueNode {
             need_drop,
             father: local,
             field_id: usize::MAX,
-            alias: vec![index],
+            // alias: vec![index],
             may_drop,
             kind: TyKind::Adt,
             fields: FxHashMap::default(),
@@ -145,6 +145,7 @@ pub struct MopGraph<'tcx> {
     pub ret_alias: FnRetAlias,
     // a threhold to avoid path explosion.
     pub visit_times: usize,
+    pub alias_set: Vec<usize>,
 }
 
 impl<'tcx> MopGraph<'tcx> {
@@ -156,6 +157,7 @@ impl<'tcx> MopGraph<'tcx> {
         let locals = &body.local_decls;
         let arg_size = body.arg_count;
         let mut values = Vec::<ValueNode>::new();
+        let mut alias = Vec::<usize>::new();
         let param_env = tcx.param_env(def_id);
         for (local, local_decl) in locals.iter_enumerated() {
             let need_drop = local_decl.ty.needs_drop(tcx, param_env); // the type is drop
@@ -167,7 +169,9 @@ impl<'tcx> MopGraph<'tcx> {
                 need_drop || may_drop,
             );
             node.kind = kind(local_decl.ty);
+            alias.push(values.len());
             values.push(node);
+            // println!("{} {:?}", values.len(), alias);
         }
 
         let basicblocks = &body.basic_blocks;
@@ -250,6 +254,7 @@ impl<'tcx> MopGraph<'tcx> {
                                 let mut lvl0 = ValueNode::new(values.len(), lv_local, false, true);
                                 lvl0.field_id = 0;
                                 values[lv_local].fields.insert(0, lvl0.index);
+                                alias.push(values.len());
                                 values.push(lvl0);
                             }
                             match x {
@@ -422,6 +427,7 @@ impl<'tcx> MopGraph<'tcx> {
             values,
             arg_size,
             scc_indices,
+            alias_set: alias,
             constant: FxHashMap::default(),
             ret_alias: FnRetAlias::new(arg_size),
             visit_times: 0,
