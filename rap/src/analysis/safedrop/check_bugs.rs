@@ -2,6 +2,7 @@ use super::graph::*;
 use crate::utils::source::*;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_middle::mir::SourceInfo;
+use rustc_span::symbol::Symbol;
 use rustc_span::Span;
 
 impl<'tcx> SafeDropGraph<'tcx> {
@@ -18,9 +19,13 @@ impl<'tcx> SafeDropGraph<'tcx> {
         if self.bug_records.is_bug_free() {
             return;
         }
-        self.bug_records.df_bugs_output(self.span);
-        self.bug_records.uaf_bugs_output(self.span);
-        self.bug_records.dp_bug_output(self.span);
+        let fn_name = match get_name(self.tcx, self.def_id) {
+            Some(name) => name,
+            None => Symbol::intern("no symbol available"),
+        };
+        self.bug_records.df_bugs_output(fn_name, self.span);
+        self.bug_records.uaf_bugs_output(fn_name, self.span);
+        self.bug_records.dp_bug_output(fn_name, self.span);
     }
 
     pub fn uaf_check(&mut self, aliaset_idx: usize, span: Span, local: usize, is_func_call: bool) {

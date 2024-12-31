@@ -86,16 +86,18 @@ fn report_loop_push_bug(loop_span: Span, push_record: &Vec<Span>) {
         .fold(true)
         .annotation(
             Level::Info
-                .span(relative_pos_range(
-                    loop_span,
-                    span_to_trimmed_span(span_to_first_line(loop_span)),
-                ))
+                .span(unsafe {
+                    relative_pos_range(
+                        loop_span,
+                        span_to_trimmed_span(span_to_first_line(loop_span)),
+                    )
+                })
                 .label("A loop operation."),
         );
     for push_span in push_record {
         snippet = snippet.annotation(
             Level::Error
-                .span(relative_pos_range(loop_span, *push_span))
+                .span(unsafe { relative_pos_range(loop_span, *push_span) })
                 .label("Push happens here."),
         );
     }
