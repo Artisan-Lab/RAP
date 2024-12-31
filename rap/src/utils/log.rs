@@ -133,9 +133,16 @@ pub fn span_to_line_number(span: Span) -> usize {
 }
 
 #[inline]
-pub fn relative_pos_range(span: Span, sub_span: Span) -> Range<usize> {
+// this function computes the relative pos range of two spans which could be generated from two dirrerent files or not intersect with each other
+pub unsafe fn relative_pos_range(span: Span, sub_span: Span) -> Range<usize> {
     let start_pos = span.lo();
-    let lo = (sub_span.lo() - start_pos).to_usize();
+    let lo = (sub_span.lo() - start_pos).to_usize(); //unsafe: overflow
     let hi = (sub_span.hi() - start_pos).to_usize();
     lo..hi
+}
+
+pub fn are_spans_in_same_file(span1: Span, span2: Span) -> bool {
+    let file1 = get_source_map().unwrap().lookup_source_file(span1.lo());
+    let file2 = get_source_map().unwrap().lookup_source_file(span2.lo());
+    file1.name == file2.name
 }

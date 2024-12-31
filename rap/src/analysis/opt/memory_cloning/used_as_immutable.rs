@@ -98,12 +98,12 @@ fn report_used_as_immutable(graph: &Graph, clone_span: Span, use_span: Span) {
         .fold(true)
         .annotation(
             Level::Error
-                .span(relative_pos_range(graph.span, clone_span))
+                .span(unsafe { relative_pos_range(graph.span, clone_span) })
                 .label("Cloning happens here."),
         )
         .annotation(
             Level::Error
-                .span(relative_pos_range(graph.span, use_span))
+                .span(unsafe { relative_pos_range(graph.span, use_span) })
                 .label("Used here"),
         );
     let message = Level::Warning

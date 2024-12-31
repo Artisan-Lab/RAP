@@ -126,14 +126,14 @@ fn report_upperbound_bug(graph: &Graph, upperbound_node_idx: Local, index_record
         .fold(true)
         .annotation(
             Level::Info
-                .span(relative_pos_range(graph.span, upperbound_span))
+                .span(unsafe { relative_pos_range(graph.span, upperbound_span) })
                 .label("Index is upperbounded."),
         );
     for node_idx in index_record {
         let index_span = graph.nodes[*node_idx].span;
         snippet = snippet.annotation(
             Level::Error
-                .span(relative_pos_range(graph.span, index_span))
+                .span(unsafe { relative_pos_range(graph.span, index_span) })
                 .label("Checked here."),
         );
     }

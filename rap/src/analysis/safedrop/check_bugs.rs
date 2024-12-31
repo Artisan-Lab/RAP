@@ -23,9 +23,9 @@ impl<'tcx> SafeDropGraph<'tcx> {
             Some(name) => name,
             None => Symbol::intern("no symbol available"),
         };
-        self.bug_records.df_bugs_output(fn_name);
-        self.bug_records.uaf_bugs_output(fn_name);
-        self.bug_records.dp_bug_output(fn_name);
+        self.bug_records.df_bugs_output(fn_name, self.span);
+        self.bug_records.uaf_bugs_output(fn_name, self.span);
+        self.bug_records.dp_bug_output(fn_name, self.span);
     }
 
     pub fn uaf_check(&mut self, aliaset_idx: usize, span: Span, local: usize, is_func_call: bool) {

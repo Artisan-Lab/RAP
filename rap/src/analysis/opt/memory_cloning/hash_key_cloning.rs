@@ -125,12 +125,12 @@ fn report_hash_key_cloning(graph: &Graph, clone_span: Span, insert_span: Span) {
         .fold(true)
         .annotation(
             Level::Error
-                .span(relative_pos_range(graph.span, clone_span))
+                .span(unsafe { relative_pos_range(graph.span, clone_span) })
                 .label("Cloning happens here."),
         )
         .annotation(
             Level::Error
-                .span(relative_pos_range(graph.span, insert_span))
+                .span(unsafe { relative_pos_range(graph.span, insert_span) })
                 .label("Used here."),
         );
     let message = Level::Warning
