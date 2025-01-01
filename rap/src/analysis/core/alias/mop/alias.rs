@@ -267,7 +267,7 @@ impl<'tcx> MopGraph<'tcx> {
         for node in results_nodes.iter() {
             if node.local <= self.arg_size
                 && (self.union_is_same(node.index, self.alias_set[node.index])
-                || self.alias_set[node.index] != node.index)
+                    || self.alias_set[node.index] != node.index)
             {
                 if self.values.len() == 1 {
                     return;
