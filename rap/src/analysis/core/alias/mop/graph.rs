@@ -92,7 +92,6 @@ pub struct ValueNode {
     pub kind: TyKind,
     pub father: usize,
     pub field_id: usize, // the field id of its father node.
-    // pub alias: Vec<usize>,
     pub fields: FxHashMap<usize, usize>,
 }
 
@@ -104,7 +103,6 @@ impl ValueNode {
             need_drop,
             father: local,
             field_id: usize::MAX,
-            // alias: vec![index],
             may_drop,
             kind: TyKind::Adt,
             fields: FxHashMap::default(),
@@ -171,7 +169,6 @@ impl<'tcx> MopGraph<'tcx> {
             node.kind = kind(local_decl.ty);
             alias.push(values.len());
             values.push(node);
-            // println!("{} {:?}", values.len(), alias);
         }
 
         let basicblocks = &body.basic_blocks;

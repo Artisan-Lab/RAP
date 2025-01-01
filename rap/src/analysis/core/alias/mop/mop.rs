@@ -102,14 +102,11 @@ impl<'tcx> MopGraph<'tcx> {
                 match discr {
                     Copy(p) | Move(p) => {
                         let place = self.projection(false, *p);
-                        // if let Some(constant) = self.constant.get(&self.values[place].alias[0]) {
                         if let Some(constant) = self.constant.get(&self.values[place].index) {
                             single_target = true;
                             sw_val = *constant;
                         }
-                        // if self.values[place].alias[0] != place {
                         if self.values[place].index != place {
-                            // path_discr_id = self.values[place].alias[0];
                             path_discr_id = self.values[place].index;
                             sw_targets = Some(targets.clone());
                         }

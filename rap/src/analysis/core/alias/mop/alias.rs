@@ -21,7 +21,6 @@ impl<'tcx> MopGraph<'tcx> {
             rap_debug!("{:?} = {:?}", lv_aliaset_idx, rv_aliaset_idx);
             match assign.atype {
                 AssignType::Variant => {
-                    // self.values[lv_aliaset_idx].alias[0] = rv_aliaset_idx;
                     self.alias_set[lv_aliaset_idx] = rv_aliaset_idx;
                     continue;
                 }
@@ -154,16 +153,13 @@ impl<'tcx> MopGraph<'tcx> {
             let new_id = self.values.len();
             match proj {
                 ProjectionElem::Deref => {
-                    // proj_id = self.values[proj_id].alias[0];
                     proj_id = self.values[proj_id].index;
                 }
                 /*
                  * Objective: 2 = 1.0; 0 = 2.0; => 0 = 1.0.0
                  */
                 ProjectionElem::Field(field, ty) => {
-                    // if is_right && self.values[proj_id].alias[0] != proj_id {
                     if is_right && self.values[proj_id].index != proj_id {
-                        // proj_id = self.values[proj_id].alias[0];
                         proj_id = self.values[proj_id].index;
                         local = self.values[proj_id].local;
                     }
@@ -193,11 +189,9 @@ impl<'tcx> MopGraph<'tcx> {
     //assign alias for a variable.
     //TO FIX
     pub fn merge_alias(&mut self, lv: usize, rv: usize) {
-        // let mut alias_clone = self.values[rv].alias.clone();
         rap_debug!("alias set now: {:?}", self.alias_set);
         // println!("A:{:?} V:{:?}", self.alias_set, self.values.len());
         self.union_merge(lv, rv);
-        // self.values[lv].alias.append(&mut alias_clone);
         // println!("Li:{} Ri:{} L:{:?} R:{:?} A:{:?} V:{:?}", self.values[lv].index, self.values[rv].index, self.values[lv].alias ,self.values[rv].alias, self.alias_set, self.values.len());
         rap_debug!(
             "update the alias set for lv:{} rv:{} set:{:?}",
@@ -250,7 +244,6 @@ impl<'tcx> MopGraph<'tcx> {
             lv = *self.values[lv].fields.get(index).unwrap();
         }
         for index in ret_alias.right_field_seq.iter() {
-            // if !self.values[rv].alias.contains(&rv) {
             if self.union_is_same(rv, self.alias_set[rv]) {
                 right_init = self.values[rv].local;
             }
@@ -273,7 +266,6 @@ impl<'tcx> MopGraph<'tcx> {
     pub fn merge_results(&mut self, results_nodes: Vec<ValueNode>) {
         for node in results_nodes.iter() {
             if node.local <= self.arg_size
-                //&& (node.alias.contains(&node.index) || node.alias.len() > 1)
                 && (self.union_is_same(node.index, self.alias_set[node.index])
                 || self.alias_set[node.index] != node.index)
             {
