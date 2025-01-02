@@ -125,7 +125,11 @@ impl<'tcx> SafeDropGraph<'tcx> {
         if !alias && self.df_check(drop, info.span) {
             return;
         }
-        if self.dead_record[drop] { return; } else { self.dead_record[drop] = true; }
+        if self.dead_record[drop] {
+            return;
+        } else {
+            self.dead_record[drop] = true;
+        }
         //drop their alias
         if self.alias_set[drop] != drop {
             // for i in self.values[drop].alias.clone().into_iter() {
