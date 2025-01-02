@@ -41,7 +41,12 @@ impl<'tcx> SafeDropGraph<'tcx> {
         }
     }
 
-    pub fn exist_dead(&self, node: usize, record: &mut FxHashSet<usize>, dangling: bool) -> bool {
+    pub fn exist_dead(
+        &mut self,
+        node: usize,
+        record: &mut FxHashSet<usize>,
+        dangling: bool,
+    ) -> bool {
         //if is a dangling pointer check, only check the pointer type varible.
         if self.values[node].is_alive() == false
             && (dangling && self.values[node].is_ptr() || !dangling)
@@ -49,10 +54,18 @@ impl<'tcx> SafeDropGraph<'tcx> {
             return true;
         }
         record.insert(node);
-        if self.values[node].alias[0] != node {
-            for i in self.values[node].alias.clone().into_iter() {
-                if i != node && record.contains(&i) == false && self.exist_dead(i, record, dangling)
-                {
+        if self.union_has_alias(node) {
+            // for i in self.values[node].alias.clone().into_iter() {
+            //     if i != node && record.contains(&i) == false && self.exist_dead(i, record, dangling)
+            //     {
+            //         return true;
+            //     }
+            // }
+            for i in 0..self.alias_set.len() {
+                if i != node && !self.union_is_same(i, node) {
+                    continue;
+                }
+                if record.contains(&i) == false && self.exist_dead(i, record, dangling) {
                     return true;
                 }
             }
@@ -65,7 +78,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         return false;
     }
 
-    pub fn is_dangling(&self, local: usize) -> bool {
+    pub fn is_dangling(&mut self, local: usize) -> bool {
         let mut record = FxHashSet::default();
         return self.exist_dead(local, &mut record, local != 0);
     }
@@ -109,13 +122,20 @@ impl<'tcx> SafeDropGraph<'tcx> {
             return;
         }
         //check if there is a double free bug.
-        if self.df_check(drop, info.span) {
+        if !alias && self.df_check(drop, info.span) {
             return;
         }
+        if self.dead_record[drop] { return; } else { self.dead_record[drop] = true; }
         //drop their alias
-        if self.values[drop].alias[0] != drop {
-            for i in self.values[drop].alias.clone().into_iter() {
-                if self.values[i].is_ref() {
+        if self.alias_set[drop] != drop {
+            // for i in self.values[drop].alias.clone().into_iter() {
+            //     if self.values[i].is_ref() {
+            //         continue;
+            //     }
+            //     self.dead_node(i, birth, info, true);
+            // }
+            for i in 0..self.alias_set.len() {
+                if !self.union_is_same(drop, i) || i == drop || self.values[i].is_ref() {
                     continue;
                 }
                 self.dead_node(i, birth, info, true);
