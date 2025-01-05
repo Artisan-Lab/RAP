@@ -34,6 +34,7 @@ pub enum NodeOp {
     CopyForDeref,
     //TerminatorKind
     Call(DefId),
+    CallOperand, // the first in_edge is the func
 }
 
 #[derive(Clone, Debug)]
@@ -281,22 +282,34 @@ impl Graph {
             ..
         } = &terminator.kind
         {
-            if let Operand::Constant(boxed_cnst) = func {
-                if let Const::Val(_, ty) = boxed_cnst.const_ {
-                    if let TyKind::FnDef(def_id, _) = ty.kind() {
-                        let dst = destination.local;
-                        for op in args.iter() {
-                            //rustc version related
-                            self.add_operand(&op.node, dst);
+            let dst = destination.local;
+            match func {
+                Operand::Constant(boxed_cnst) => {
+                    if let Const::Val(_, ty) = boxed_cnst.const_ {
+                        if let TyKind::FnDef(def_id, _) = ty.kind() {
+                            for op in args.iter() {
+                                //rustc version related
+                                self.add_operand(&op.node, dst);
+                            }
+                            self.nodes[dst].op = NodeOp::Call(*def_id);
                         }
-                        self.nodes[dst].op = NodeOp::Call(*def_id);
-                        self.nodes[dst].span = terminator.source_info.span;
-                        self.nodes[dst].seq += 1;
-                        return;
                     }
+                },
+                Operand::Move(_) => {
+                    self.add_operand(func, dst); //the func is a place
+                    for op in args.iter() {
+                        //rustc version related
+                        self.add_operand(&op.node, dst);
+                    }
+                    self.nodes[dst].op = NodeOp::CallOperand;
+                },
+                _ =>  {
+                    println!("{:?}", func);
+                    todo!();
                 }
             }
-            panic!("An error happened in add_terminator_to_graph.")
+            self.nodes[dst].span = terminator.source_info.span;
+            self.nodes[dst].seq += 1;
         }
     }
 
