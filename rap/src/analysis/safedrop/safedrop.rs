@@ -5,6 +5,7 @@ use rustc_middle::ty::{TyCtxt, TyKind};
 use crate::analysis::core::alias::FnMap;
 use crate::analysis::safedrop::SafeDropGraph;
 use crate::rap_error;
+use rustc_data_structures::fx::FxHashSet;
 
 pub const VISIT_LIMIT: usize = 1000;
 
@@ -85,6 +86,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
         self.alias_set = backup_alias_set;
         self.dead_record = backup_dead;
     }
+
     pub fn split_check_with_cond(
         &mut self,
         bb_index: usize,
@@ -118,6 +120,146 @@ impl<'tcx> SafeDropGraph<'tcx> {
         self.alias_bb(self.scc_indices[bb_index], tcx);
         self.alias_bbcall(self.scc_indices[bb_index], tcx, fn_map);
         self.drop_check(self.scc_indices[bb_index], tcx);
+
+        if self.child_scc.get(&self.scc_indices[bb_index]).is_some() {
+            let init_index = self.scc_indices[bb_index];
+            let (init_block, cur_targets, scc_block_set) =
+                self.child_scc.get(&init_index).unwrap().clone();
+
+            for enum_index in cur_targets.all_targets() {
+                let backup_values = self.values.clone();
+                let backup_constant = self.constant.clone();
+
+                let mut block_node = if bb_index == init_index {
+                    init_block.clone()
+                } else {
+                    self.blocks[bb_index].clone()
+                };
+
+                if !block_node.switch_stmts.is_empty() {
+                    let TerminatorKind::SwitchInt { discr, targets } =
+                        block_node.switch_stmts[0].kind.clone()
+                    else {
+                        unreachable!();
+                    };
+                    if cur_targets == targets {
+                        block_node.next = FxHashSet::default();
+                        block_node.next.insert(enum_index.index());
+                    }
+                }
+
+                let mut work_list = Vec::new();
+                let mut work_set = FxHashSet::<usize>::default();
+                work_list.push(bb_index);
+                work_set.insert(bb_index);
+                while !work_list.is_empty() {
+                    let current_node = work_list.pop().unwrap();
+                    block_node.scc_sub_blocks.push(current_node);
+                    let real_node = if current_node != init_index {
+                        self.blocks[current_node].clone()
+                    } else {
+                        init_block.clone()
+                    };
+
+                    if real_node.switch_stmts.is_empty() {
+                        for next in &real_node.next {
+                            block_node.next.insert(*next);
+                        }
+                    } else {
+                        let TerminatorKind::SwitchInt {
+                            ref discr,
+                            ref targets,
+                        } = real_node.switch_stmts[0].kind
+                        else {
+                            unreachable!();
+                        };
+
+                        if cur_targets == *targets {
+                            block_node.next.insert(enum_index.index());
+                        } else {
+                            for next in &real_node.next {
+                                block_node.next.insert(*next);
+                            }
+                        }
+                    }
+
+                    if real_node.switch_stmts.is_empty() {
+                        for next in &real_node.next {
+                            if scc_block_set.contains(next) && !work_set.contains(next) {
+                                work_set.insert(*next);
+                                work_list.push(*next);
+                            }
+                        }
+                    } else {
+                        let TerminatorKind::SwitchInt {
+                            ref discr,
+                            ref targets,
+                        } = real_node.switch_stmts[0].kind
+                        else {
+                            unreachable!();
+                        };
+
+                        if cur_targets == *targets {
+                            let next_index = enum_index.index();
+                            if scc_block_set.contains(&next_index)
+                                && !work_set.contains(&next_index)
+                            {
+                                work_set.insert(next_index);
+                                work_list.push(next_index);
+                            }
+                        } else {
+                            for next in &real_node.next {
+                                if scc_block_set.contains(next) && !work_set.contains(next) {
+                                    work_set.insert(*next);
+                                    work_list.push(*next);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /* remove next nodes which are already in the current SCC */
+                let mut to_remove = Vec::new();
+                for i in block_node.next.iter() {
+                    if self.scc_indices[*i] == init_index {
+                        to_remove.push(*i);
+                    }
+                }
+                for i in to_remove {
+                    block_node.next.remove(&i);
+                }
+
+                for i in block_node.scc_sub_blocks.clone() {
+                    self.alias_bb(i, tcx);
+                    self.alias_bbcall(i, tcx, fn_map);
+                    self.drop_check(i, tcx);
+                }
+                /* Reach a leaf node, check bugs */
+                match block_node.next.len() {
+                    0 => {
+                        // check the bugs.
+                        if Self::should_check(self.def_id) {
+                            self.dp_check(&cur_block);
+                        }
+                        return;
+                    }
+                    _ => {
+                        /*
+                         * Equivalent to self.check(cur_block.next[0]..);
+                         * We cannot use [0] for FxHashSet.
+                         */
+                        for next in block_node.next {
+                            self.check(next, tcx, fn_map);
+                        }
+                    }
+                }
+
+                self.values = backup_values;
+                self.constant = backup_constant;
+            }
+
+            return;
+        }
 
         /* Handle cases if the current block is a merged scc block with sub block */
         if cur_block.scc_sub_blocks.len() > 0 {

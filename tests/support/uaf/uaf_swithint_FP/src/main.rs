@@ -1,7 +1,7 @@
 use std::mem::ManuallyDrop;
 enum A {
     A1,
-    A2
+    A2,
 }
 fn evil_test(a: A) {
     let mut count = 0;
@@ -12,6 +12,7 @@ fn evil_test(a: A) {
             if count < 2 {
                 unsafe {
                     ManuallyDrop::drop(&mut slot);
+                    ManuallyDrop::drop(&mut slot);
                 }
                 continue;
             }
@@ -19,6 +20,7 @@ fn evil_test(a: A) {
         } else {
             println!("{:?}", slot);
             unsafe {
+                ManuallyDrop::drop(&mut slot);
                 ManuallyDrop::drop(&mut slot);
             }
             break;
