@@ -12,7 +12,6 @@ fn evil_test(a: A) {
             if count < 2 {
                 unsafe {
                     ManuallyDrop::drop(&mut slot);
-                    ManuallyDrop::drop(&mut slot);
                 }
                 continue;
             }
@@ -20,7 +19,6 @@ fn evil_test(a: A) {
         } else {
             println!("{:?}", slot);
             unsafe {
-                ManuallyDrop::drop(&mut slot);
                 ManuallyDrop::drop(&mut slot);
             }
             break;
