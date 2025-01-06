@@ -137,7 +137,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
                 };
 
                 if !block_node.switch_stmts.is_empty() {
-                    let TerminatorKind::SwitchInt { discr: _, targets } =
+                    let TerminatorKind::SwitchInt { targets, .. } =
                         block_node.switch_stmts[0].kind.clone()
                     else {
                         unreachable!();
@@ -166,10 +166,8 @@ impl<'tcx> SafeDropGraph<'tcx> {
                             block_node.next.insert(*next);
                         }
                     } else {
-                        let TerminatorKind::SwitchInt {
-                            discr: _,
-                            ref targets,
-                        } = real_node.switch_stmts[0].kind
+                        let TerminatorKind::SwitchInt { ref targets, .. } =
+                            real_node.switch_stmts[0].kind
                         else {
                             unreachable!();
                         };
@@ -191,10 +189,8 @@ impl<'tcx> SafeDropGraph<'tcx> {
                             }
                         }
                     } else {
-                        let TerminatorKind::SwitchInt {
-                            discr: _,
-                            ref targets,
-                        } = real_node.switch_stmts[0].kind
+                        let TerminatorKind::SwitchInt { ref targets, .. } =
+                            real_node.switch_stmts[0].kind
                         else {
                             unreachable!();
                         };

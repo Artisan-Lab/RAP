@@ -548,9 +548,10 @@ impl<'tcx> SafeDropGraph<'tcx> {
                     modified_set.insert(*value);
                 }
                 if let Some(target) = self.switch_target(self.tcx, node) {
-                    switch_target.push((target, self.blocks[index].switch_stmts[0].clone()));
+                    if self.blocks[index].switch_stmts.len() > 0 {
+                        switch_target.push((target, self.blocks[index].switch_stmts[0].clone()));
+                    }
                 }
-
                 let nexts = self.blocks[node].next.clone();
                 for i in nexts {
                     self.blocks[index].next.insert(i);
@@ -631,11 +632,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
             return None;
         }
 
-        let res = if let TerminatorKind::SwitchInt {
-            ref discr,
-            targets: _,
-        } = &block.switch_stmts[0].kind
-        {
+        let res = if let TerminatorKind::SwitchInt { ref discr, .. } = &block.switch_stmts[0].kind {
             match discr {
                 Operand::Copy(p) | Operand::Move(p) => {
                     let place = self.projection(tcx, false, p.clone());
