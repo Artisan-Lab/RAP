@@ -7,7 +7,7 @@ default-run = "rapx"
 license = "MPL"
 description = "A static analysis platform for use-after-free, memory leakage detection, etc"
 homepage = "https://github.com/Artisan-Lab/RAPx"
-readme = "https://github.com/Artisan-Lab/RAPx/README.md"
+readme = "https://github.com/Artisan-Lab/RAPx/blob/main/README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
