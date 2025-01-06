@@ -10,7 +10,7 @@ this will do nothing.
 
 ```shell
 rustup toolchain install nightly-2024-10-12 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
-cargo +nightly-2024-10-12 install rapx --git https://github.com/Artisan-Lab/RAP.git
+cargo +nightly-2024-10-12 install rapx --git https://github.com/Artisan-Lab/RAPx.git
 ```
 
 ## Usage
@@ -32,7 +32,7 @@ Alternatively, you can switch to the pinned toolchain ahead of time:
 rustup default nightly-2024-10-12
 
 # run cargo rapx without +toolchain syntax any more
-cargo rap [rapx options] -- [cargo check options]
+cargo rapx [rapx options] -- [cargo check options]
 ```
 
 Check out supported options with `-help`:
@@ -62,7 +62,7 @@ Detect bugs such as use-after-free and double free in Rust crates caused by unsa
 cargo +nightly-2024-10-12 rapx -uaf
 ```
 
-If RAP gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
+If RAPx gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
 
 The feature is based on our SafeDrop paper, which was published in TOSEM.  
 ```
