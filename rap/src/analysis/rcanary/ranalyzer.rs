@@ -199,6 +199,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn did(&self) -> DefId {
         self.did
     }

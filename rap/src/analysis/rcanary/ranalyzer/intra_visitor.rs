@@ -4,8 +4,10 @@ use rustc_middle::mir::{
 };
 use rustc_middle::ty::{self, Ty, TyKind, TypeVisitable};
 use rustc_span::source_map::Spanned;
+use rustc_span::Symbol;
 use rustc_target::abi::VariantIdx;
 
+use annotate_snippets::{Level, Renderer, Snippet};
 use std::ops::Add;
 use z3::ast::{self, Ast};
 
@@ -16,9 +18,12 @@ use super::{FlowAnalysis, IcxSliceFroBlock, IntraFlowAnalysis};
 use crate::analysis::core::heap_item::ownership::*;
 use crate::analysis::core::heap_item::type_visitor::*;
 use crate::analysis::core::heap_item::*;
+use crate::utils::log::{
+    are_spans_in_same_file, relative_pos_range, span_to_filename, span_to_line_number,
+    span_to_source_code,
+};
+use crate::utils::source::get_name;
 use crate::{rap_debug, rap_error, rap_trace, rap_warn};
-// Fixme: arg.0
-// Fixme: arg enum
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AsgnKind {
@@ -2348,16 +2353,31 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
         // rap_debug!("{}\n", g.color(Color::LightGray).bold());
 
         if result == z3::SatResult::Unsat && self.taint_flag {
+            let fn_name = get_name(self.tcx(), self.did)
+                .unwrap_or_else(|| Symbol::intern("no symbol available"));
+
             rap_warn!(
-                "{}",
-                format!(
-                    "RCanary: Leak Function: {:?} {:?} {:?}",
-                    result,
-                    self.did(),
-                    self.body().span
-                )
+                "Memory leak detected in function {:} {:?}",
+                fn_name,
+                self.body().span
             );
+            let source = span_to_source_code(self.body().span);
+            let file = span_to_filename(self.body().span);
+            let mut snippet = Snippet::source(&source)
+                .line_start(span_to_line_number(self.body().span))
+                .origin(&file)
+                .fold(false);
+
             for source in self.taint_source.iter() {
+                if are_spans_in_same_file(self.body().span, source.source_info.span) {
+                    snippet = snippet.annotation(
+                        Level::Warning
+                            .span(unsafe {
+                                relative_pos_range(self.body().span, source.source_info.span)
+                            })
+                            .label("Memory Leak Candidates."),
+                    );
+                }
                 rap_warn!(
                     "{}",
                     format!(
@@ -2366,6 +2386,12 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                     )
                 );
             }
+
+            let message = Level::Warning
+                .title("Memory Leak detected.")
+                .snippet(snippet);
+            let renderer = Renderer::styled();
+            println!("{}", renderer.render(message));
         }
     }
 
