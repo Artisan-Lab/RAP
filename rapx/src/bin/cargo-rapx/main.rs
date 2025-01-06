@@ -68,8 +68,8 @@ fn main() {
     match args::get_arg(1).unwrap() {
         s if s.ends_with("rapx") => phase_cargo_rap(),
         s if s.ends_with("rustc") => phase_rustc_wrapper(),
-        _ => {
-            rap_error_and_exit("rapx must be called with either `rap` or `rustc` as first argument.")
-        }
+        _ => rap_error_and_exit(
+            "rapx must be called with either `rap` or `rustc` as first argument.",
+        ),
     }
 }
