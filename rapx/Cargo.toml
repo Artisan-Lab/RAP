@@ -1,20 +1,24 @@
 [package]
-name = "rap"
-version = "1.0.0"
-edition = "2018"
-authors = ["Moran Tsui <cuimohan@fudan.edu.cn>"]
-default-run = "rap"
+name = "rapx"
+version = "0.1.0"
+edition = "2021"
+authors = ["Artisan-Lab <xuh@fudan.edu.cn>"]
+default-run = "rapx"
+license = "MPL"
+description = "A static analysis platform for use-after-free, memory leakage detection, etc"
+homepage = "https://github.com/Artisan-Lab/RAPx"
+readme = "https://github.com/Artisan-Lab/RAPx/README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "rap"
+name = "rapx"
 
 [[bin]]
-name = "cargo-rap"
+name = "cargo-rapx"
 
 [lib]
-name = "rap"
+name = "rapx"
 
 [dependencies]
 lazy_static = "1.4"

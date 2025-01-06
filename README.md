@@ -1,26 +1,26 @@
-# ![logo](rap_logo.png)
-RAP is a static Rust analysis platform developed by researchers at [Artisan-Lab](https://hxuhack.github.io), Fudan University. The project aims to provide a foundation for Rust programmers to develop or use advanced static analysis features beyond those offered by the rustc compiler. For further details, please refer to the [RAP-Book](https://artisan-lab.github.io/RAP-Book).
+# ![logo](rapx_logo.png)
+RAPx is a static Rust analysis platform developed by researchers at [Artisan-Lab](https://hxuhack.github.io), Fudan University. The project aims to provide a foundation for Rust programmers to develop or use advanced static analysis features beyond those offered by the rustc compiler. For further details, please refer to the [RAPx-Book](https://artisan-lab.github.io/RAPx-Book).
 
 The project is still under heavy development. 
 
 ## Quick Start
 
-Install `nightly-2024-10-12` on which rap is compiled with. This just needs to do once on your machine. If the toolchain exists,
+Install `nightly-2024-10-12` on which rapx is compiled with. This just needs to do once on your machine. If the toolchain exists,
 this will do nothing.
 
 ```shell
 rustup toolchain install nightly-2024-10-12 --profile minimal --component rustc-dev,rust-src,llvm-tools-preview
-cargo +nightly-2024-10-12 install rap --git https://github.com/Artisan-Lab/RAP.git
+cargo +nightly-2024-10-12 install rapx --git https://github.com/Artisan-Lab/RAP.git
 ```
 
 ## Usage
 
-Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `cargo-rap` with [toolchain override shorthand syntax].
+Navigate to your Rust project folder containing a `Cargo.toml` file. Then run `cargo-rapx` with [toolchain override shorthand syntax].
 
 [toolchain override shorthand syntax]: https://rust-lang.github.io/rustup/overrides.html#toolchain-override-shorthand
 
 ```shell
-cargo rap [rap options] -- [cargo check options]
+cargo rapx [rapx options] -- [cargo check options]
 
 where `-- [cargo check options]` is optional, and if specified, they are passed to cargo check.
 ```
@@ -28,17 +28,17 @@ where `-- [cargo check options]` is optional, and if specified, they are passed 
 Alternatively, you can switch to the pinned toolchain ahead of time:
 
 ```rust
-# set up rap's toolchain as default
+# set up rapx's toolchain as default
 rustup default nightly-2024-10-12
 
-# run cargo rap without +toolchain syntax any more
-cargo rap [rap options] -- [cargo check options]
+# run cargo rapx without +toolchain syntax any more
+cargo rap [rapx options] -- [cargo check options]
 ```
 
 Check out supported options with `-help`:
 
 ```shell
-cargo +nightly-2024-10-12 rap -help
+cargo +nightly-2024-10-12 rapx -help
 ```
 
 Environment variables (Values are case insensitive):
@@ -54,12 +54,12 @@ For `RAP_RECURSIVE`:
 * shallow: check for current workpace members
 * deep: check for all workspaces from current folder
  
-NOTE: for shallow or deep, rap will enter each member folder to do the check.
+NOTE: for shallow or deep, rapx will enter each member folder to do the check.
 
 ### Use-After-Free Detection
 Detect bugs such as use-after-free and double free in Rust crates caused by unsafe code.
 ```shell
-cargo +nightly-2024-10-12 rap -uaf
+cargo +nightly-2024-10-12 rapx -uaf
 ```
 
 If RAP gets stuck after executing `cargo clean`, try manually downloading metadata dependencies by running `cargo metadata`.
@@ -82,7 +82,7 @@ The feature is based on our SafeDrop paper, which was published in TOSEM.
 Detect memory leakage bugs caused by apis like [ManuallyDrop](https://doc.rust-lang.org/std/mem/struct.ManuallyDrop.html) and [into_raw()](https://doc.rust-lang.org/std/boxed/struct.Box.html#method.into_raw).
 
 ```shell
-cargo +nightly-2024-10-12 rap -mleak
+cargo +nightly-2024-10-12 rapx -mleak
 ```
 
 The feature is based on our rCanary work, which was published in TSE

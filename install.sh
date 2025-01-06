@@ -2,6 +2,6 @@
 
 set -e
 
-cargo install --path rap
+cargo install --path rapx
 
-cargo rap -help
+cargo rapx -help

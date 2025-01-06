@@ -2,14 +2,14 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Metadata,
 };
-use rap::utils::log::rap_error_and_exit;
+use rapx::utils::log::rap_error_and_exit;
 use std::collections::BTreeMap;
 
 /// Run cargo check in each member folder under current workspace.
 pub fn shallow_run() {
     let cargo_toml = Utf8Path::new("Cargo.toml");
     if !cargo_toml.exists() {
-        rap_error_and_exit("rap should be run in a folder directly containing Cargo.toml");
+        rap_error_and_exit("rapx should be run in a folder directly containing Cargo.toml");
     }
     let ws_metadata = workspace(cargo_toml);
     check_members(&ws_metadata);
@@ -24,7 +24,7 @@ pub fn deep_run() {
 }
 
 fn check_members(ws_metadata: &Metadata) {
-    // Force clean even if `RAP_CLEAN` is false, because rap is in control of
+    // Force clean even if `RAP_CLEAN` is false, because rapx is in control of
     // caches for all packages and there should be no cache.
     let ws_root = &ws_metadata.workspace_root;
     rap_trace!("cargo clean in workspace root {ws_root}");

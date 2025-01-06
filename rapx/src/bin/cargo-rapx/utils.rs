@@ -7,7 +7,7 @@ use std::{
 
 fn find_rap() -> PathBuf {
     let mut path = args::current_exe_path().to_owned();
-    path.set_file_name("rap");
+    path.set_file_name("rapx");
     path
 }
 

@@ -5,9 +5,9 @@
 #![feature(rustc_private)]
 
 #[macro_use]
-extern crate rap;
+extern crate rapx;
 
-use rap::utils::log::{init_log, rap_error_and_exit};
+use rapx::utils::log::{init_log, rap_error_and_exit};
 
 mod args;
 mod help;
@@ -18,20 +18,20 @@ use crate::utils::*;
 mod cargo_check;
 
 fn phase_cargo_rap() {
-    rap_trace!("Start cargo-rap.");
+    rap_trace!("Start cargo-rapx.");
 
-    // here we skip two args: cargo rap
+    // here we skip two args: cargo rapx
     let Some(arg) = args::get_arg(2) else {
-        rap_error!("Expect command: e.g., `cargo rap -help`.");
+        rap_error!("Expect command: e.g., `cargo rapx -help`.");
         return;
     };
     match arg {
         "-V" | "-version" => {
-            rap_info!("{}", help::RAP_VERSION);
+            rap_info!("{}", help::RAPX_VERSION);
             return;
         }
         "-H" | "-help" | "--help" => {
-            rap_info!("{}", help::RAP_HELP);
+            rap_info!("{}", help::RAPX_HELP);
             return;
         }
         _ => {}
@@ -41,10 +41,10 @@ fn phase_cargo_rap() {
 }
 
 fn phase_rustc_wrapper() {
-    rap_trace!("Launch cargo-rap again triggered by cargo check.");
+    rap_trace!("Launch cargo-rapx again triggered by cargo check.");
 
     let is_direct = args::is_current_compile_crate();
-    // rap only checks local crates
+    // rapx only checks local crates
     if is_direct && args::filter_crate_type() {
         run_rap();
         return;
@@ -56,9 +56,9 @@ fn phase_rustc_wrapper() {
 
 fn main() {
     /* This function will be enteredd twice:
-       1. When we run `cargo rap ...`, cargo dispatches the execution to cargo-rap.
-      In this step, we set RUSTC_WRAPPER to cargo-rap, and execute `cargo check ...` command;
-       2. Cargo check actually triggers `path/cargo-rap path/rustc` according to RUSTC_WRAPPER.
+       1. When we run `cargo rapx ...`, cargo dispatches the execution to cargo-rapx.
+      In this step, we set RUSTC_WRAPPER to cargo-rapx, and execute `cargo check ...` command;
+       2. Cargo check actually triggers `path/cargo-rapx path/rustc` according to RUSTC_WRAPPER.
           Because RUSTC_WRAPPER is defined, Cargo calls the command: `$RUSTC_WRAPPER path/rustc ...`
     */
 
@@ -66,10 +66,10 @@ fn main() {
     init_log().expect("Failed to init log.");
 
     match args::get_arg(1).unwrap() {
-        s if s.ends_with("rap") => phase_cargo_rap(),
+        s if s.ends_with("rapx") => phase_cargo_rap(),
         s if s.ends_with("rustc") => phase_rustc_wrapper(),
         _ => {
-            rap_error_and_exit("rap must be called with either `rap` or `rustc` as first argument.")
+            rap_error_and_exit("rapx must be called with either `rap` or `rustc` as first argument.")
         }
     }
 }

@@ -1,0 +1,14 @@
+    Checking rcanary02 v0.1.0 (/home/aisr/RAPx/tests/support/leak/leak_proxy)
+22:33:39|RAP|INFO|: Start analysis with RAP.
+22:33:39|RAP|WARN|: Double free detected in function main
+warning: Memory Leak detected.
+ --> src/main.rs:7:15
+  |
+5 | fn main() {
+6 |     let buf = Box::new("buffer");
+7 |     let ptr = Box::into_raw(buf);
+  |               ------------------ Memory Leak Candidates.
+8 |     let _proxy = Proxy { _p:ptr };
+9 | }
+  |
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.16s

@@ -37,7 +37,7 @@ use std::path::PathBuf;
 
 // Insert rustc arguments at the beginning of the argument list that RAP wants to be
 // set per default, for maximal validation power.
-pub static RAP_DEFAULT_ARGS: &[&str] = &["-Zalways-encode-mir", "-Zmir-opt-level=0", "--cfg=rap"];
+pub static RAP_DEFAULT_ARGS: &[&str] = &["-Zalways-encode-mir", "-Zmir-opt-level=0"];
 
 pub type Elapsed = (i64, i64);
 
@@ -202,7 +202,7 @@ pub fn compile_time_sysroot() -> Option<String> {
         format!("{}/toolchains/{}", home.unwrap(), toolchain.unwrap())
     } else {
         option_env!("RUST_SYSROOT")
-            .expect("To build RAP without rustup, set the `RUST_SYSROOT` env var at build time")
+            .expect("To build RAPx without rustup, set the `RUST_SYSROOT` env var at build time")
             .to_string()
     };
     Some(env)

@@ -1,6 +1,6 @@
 use crate::args;
 use cargo_metadata::camino::Utf8Path;
-use rap::utils::log::rap_error_and_exit;
+use rapx::utils::log::rap_error_and_exit;
 use std::{env, process::Command, time::Duration};
 use wait_timeout::ChildExt;
 

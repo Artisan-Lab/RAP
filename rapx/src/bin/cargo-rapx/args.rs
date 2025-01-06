@@ -95,9 +95,9 @@ pub fn get_arg_flag_value(name: &str) -> Option<&'static str> {
     ARGS.get_arg_flag_value(name)
 }
 
-/// `cargo rap [rap options] -- [cargo check options]`
+/// `cargo rapx [rapx options] -- [cargo check options]`
 ///
-/// Options before the first `--` are arguments forwarding to rap.
+/// Options before the first `--` are arguments forwarding to rapx.
 /// Stuff all after the first `--` are arguments forwarding to cargo check.
 pub fn rap_and_cargo_args() -> [&'static [String]; 2] {
     [&ARGS.args_group1, &ARGS.args_group2]
@@ -109,8 +109,8 @@ pub fn is_current_compile_crate() -> bool {
 }
 
 /// Returns true for crate types to be checked;
-/// returns false for some special crate types that can't be handled by rap.
-/// For example, checking proc-macro crates or build.rs can cause linking errors in rap.
+/// returns false for some special crate types that can't be handled by rapx.
+/// For example, checking proc-macro crates or build.rs can cause linking errors in rapx.
 pub fn filter_crate_type() -> bool {
     if let Some(s) = get_arg_flag_value("--crate-type") {
         return match s {
