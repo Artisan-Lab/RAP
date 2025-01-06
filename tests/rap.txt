@@ -1,0 +1,5 @@
+    Checking rcanary02 v0.1.0 (/home/aisr/RAPx/tests/support/leak/leak_proxy)
+22:10:21|RAP|INFO|: Start analysis with RAP.
+22:10:21|RAP|WARN|: RCanary: Leak Function: Unsat DefId(0:6 ~ rcanary02[476b]::main) src/main.rs:5:1: 9:2 (#0)
+22:10:21|RAP|WARN|: RCanary: LeakItem Candidates: _2 = std::boxed::Box::<&str>::into_raw(move _3) -> [return: bb2, unwind: bb3], src/main.rs:7:15: 7:33 (#0)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
