@@ -633,7 +633,7 @@ impl<'tcx> SafeDropGraph<'tcx> {
 
         let res = if let TerminatorKind::SwitchInt {
             ref discr,
-            ref targets,
+            targets: _,
         } = &block.switch_stmts[0].kind
         {
             match discr {
