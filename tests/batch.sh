@@ -21,13 +21,16 @@ find support -type f -name "Cargo.toml" | while read -r cargo_file; do
     #Example: batch.sh
     cmd="cargo clean"
     $cmd
+    # 返回原始目录
+    popd >/dev/null
+    continue
   else
     cmd="cargo rap $@"
     $cmd 2>&1 | tee $cur/rap.txt | ansi2txt | grep 'RAP|WARN|' && echo -e "\033[32m$project_dir pass\033[0m"
   fi
 
   if [ $? -ne 0 ]; then
-    echo -e "Error: '$cmd' doesn't emit WARN diagnostics in $project_dir \nRAP output:"
+    echo -e "\033[31mError: '$cmd' doesn't emit WARN diagnostics in $project_dir \033[0m\nRAP output:"
     cat $cur/rap.txt
     exit 1
   fi
