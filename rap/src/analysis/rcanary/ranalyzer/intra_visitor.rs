@@ -2356,11 +2356,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             let fn_name = get_name(self.tcx(), self.did)
                 .unwrap_or_else(|| Symbol::intern("no symbol available"));
 
-            rap_warn!(
-                "Memory leak detected in function {:} {:?}",
-                fn_name,
-                self.body().span
-            );
+            rap_warn!("Double free detected in function {:}", fn_name);
             let source = span_to_source_code(self.body().span);
             let file = span_to_filename(self.body().span);
             let mut snippet = Snippet::source(&source)
@@ -2378,13 +2374,13 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
                             .label("Memory Leak Candidates."),
                     );
                 }
-                rap_warn!(
-                    "{}",
-                    format!(
-                        "RCanary: LeakItem Candidates: {:?}, {:?}",
-                        source.kind, source.source_info.span
-                    )
-                );
+                // rap_warn!(
+                //     "{}",
+                //     format!(
+                //         "RCanary: LeakItem Candidates: {:?}, {:?}",
+                //         source.kind, source.source_info.span
+                //     )
+                // );
             }
 
             let message = Level::Warning
