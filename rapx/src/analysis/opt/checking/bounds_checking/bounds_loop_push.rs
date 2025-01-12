@@ -29,6 +29,7 @@ impl DefPaths {
 
 struct LoopFinder<'tcx> {
     typeck_results: &'tcx TypeckResults<'tcx>,
+    record: Vec<(Span, Vec<Span>)>,
 }
 
 struct PushFinder<'tcx> {
@@ -61,20 +62,42 @@ impl<'tcx> intravisit::Visitor<'tcx> for LoopFinder<'tcx> {
             };
             intravisit::walk_block(&mut push_finder, block);
             if !push_finder.record.is_empty() {
-                report_loop_push_bug(ex.span, &push_finder.record);
+                self.record.push((ex.span, push_finder.record));
             }
         }
         intravisit::walk_expr(self, ex);
     }
 }
 
-pub fn check(graph: &Graph, tcx: &TyCtxt) {
-    let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
-    let def_id = graph.def_id;
-    let body = tcx.hir().body_owned_by(def_id.as_local().unwrap());
-    let typeck_results = tcx.typeck(def_id.as_local().unwrap());
-    let mut loop_finder = LoopFinder { typeck_results };
-    intravisit::walk_body(&mut loop_finder, body);
+use crate::analysis::opt::OptCheck;
+
+pub struct BoundsLoopPushCheck {
+    record: Vec<(Span, Vec<Span>)>,
+}
+
+impl OptCheck for BoundsLoopPushCheck {
+    fn new() -> Self {
+        Self { record: Vec::new() }
+    }
+
+    fn check(&mut self, graph: &Graph, tcx: &TyCtxt) {
+        let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
+        let def_id = graph.def_id;
+        let body = tcx.hir().body_owned_by(def_id.as_local().unwrap());
+        let typeck_results = tcx.typeck(def_id.as_local().unwrap());
+        let mut loop_finder = LoopFinder {
+            typeck_results,
+            record: Vec::new(),
+        };
+        intravisit::walk_body(&mut loop_finder, body);
+        self.record = loop_finder.record;
+    }
+
+    fn report(&self, _: &Graph) {
+        for (loop_span, push_record) in self.record.iter() {
+            report_loop_push_bug(*loop_span, push_record);
+        }
+    }
 }
 
 fn report_loop_push_bug(loop_span: Span, push_record: &Vec<Span>) {

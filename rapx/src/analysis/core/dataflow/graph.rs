@@ -34,6 +34,7 @@ pub enum NodeOp {
     CopyForDeref,
     //TerminatorKind
     Call(DefId),
+    CallOperand, // the first in_edge is the func
 }
 
 #[derive(Clone, Debug)]
@@ -53,6 +54,7 @@ pub enum EdgeOp {
     Index,
     ConstIndex,
     SubSlice,
+    SubType,
 }
 
 #[derive(Clone)]
@@ -60,14 +62,14 @@ pub struct GraphEdge {
     pub src: Local,
     pub dst: Local,
     pub op: EdgeOp,
-    pub seq: u32,
+    pub seq: usize,
 }
 
 #[derive(Clone)]
 pub struct GraphNode {
-    pub op: NodeOp,
+    pub ops: Vec<NodeOp>,
     pub span: Span, //the corresponding code span
-    pub seq: u32, //the sequence number, edges with the same seq number are added in the same batch within a statement or terminator
+    pub seq: usize, //the sequence number, edges with the same seq number are added in the same batch within a statement or terminator
     pub out_edges: Vec<EdgeIdx>,
     pub in_edges: Vec<EdgeIdx>,
 }
@@ -75,7 +77,7 @@ pub struct GraphNode {
 impl GraphNode {
     pub fn new() -> Self {
         Self {
-            op: NodeOp::Nop,
+            ops: vec![NodeOp::Nop],
             span: DUMMY_SP,
             seq: 0,
             out_edges: vec![],
@@ -108,6 +110,7 @@ impl Graph {
         }
     }
 
+    // add an edge into an existing node
     pub fn add_node_edge(&mut self, src: Local, dst: Local, op: EdgeOp) -> EdgeIdx {
         let seq = self.nodes[dst].seq;
         let edge_idx = self.edges.push(GraphEdge { src, dst, op, seq });
@@ -116,10 +119,11 @@ impl Graph {
         edge_idx
     }
 
+    // add an edge into an existing node with const value as src
     pub fn add_const_edge(&mut self, src: String, dst: Local, op: EdgeOp) -> EdgeIdx {
         let seq = self.nodes[dst].seq;
         let mut const_node = GraphNode::new();
-        const_node.op = NodeOp::Const(src);
+        const_node.ops[0] = NodeOp::Const(src);
         let src = self.nodes.push(const_node);
         let edge_idx = self.edges.push(GraphEdge { src, dst, op, seq });
         self.nodes[dst].in_edges.push(edge_idx);
@@ -165,6 +169,9 @@ impl Graph {
                 PlaceElem::Subslice { .. } => {
                     graph.add_node_edge(src, dst, EdgeOp::SubSlice);
                 }
+                PlaceElem::Subtype(..) => {
+                    graph.add_node_edge(src, dst, EdgeOp::SubType);
+                }
                 _ => {
                     println!("{:?}", place_elem);
                     todo!()
@@ -186,14 +193,19 @@ impl Graph {
             let dst = self.parse_place(&place);
             self.nodes[dst].span = statement.source_info.span;
             let rvalue = &boxed_statm.1;
+            let seq = self.nodes[dst].seq;
+            if seq == self.nodes[dst].ops.len() {
+                //warning: we do not check whether seq > len
+                self.nodes[dst].ops.push(NodeOp::Nop);
+            }
             match rvalue {
                 Rvalue::Use(op) => {
                     self.add_operand(op, dst);
-                    self.nodes[dst].op = NodeOp::Use;
+                    self.nodes[dst].ops[seq] = NodeOp::Use;
                 }
                 Rvalue::Repeat(op, _) => {
                     self.add_operand(op, dst);
-                    self.nodes[dst].op = NodeOp::Repeat;
+                    self.nodes[dst].ops[seq] = NodeOp::Repeat;
                 }
                 Rvalue::Ref(_, borrow_kind, place) => {
                     let op = match borrow_kind {
@@ -203,21 +215,21 @@ impl Graph {
                     };
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, op);
-                    self.nodes[dst].op = NodeOp::Ref;
+                    self.nodes[dst].ops[seq] = NodeOp::Ref;
                 }
                 Rvalue::Len(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
-                    self.nodes[dst].op = NodeOp::Len;
+                    self.nodes[dst].ops[seq] = NodeOp::Len;
                 }
                 Rvalue::Cast(_cast_kind, operand, _) => {
                     self.add_operand(operand, dst);
-                    self.nodes[dst].op = NodeOp::Cast;
+                    self.nodes[dst].ops[seq] = NodeOp::Cast;
                 }
                 Rvalue::BinaryOp(_, operands) => {
                     self.add_operand(&operands.0, dst);
                     self.add_operand(&operands.1, dst);
-                    self.nodes[dst].op = NodeOp::CheckedBinaryOp;
+                    self.nodes[dst].ops[seq] = NodeOp::CheckedBinaryOp;
                 }
                 Rvalue::Aggregate(boxed_kind, operands) => {
                     for operand in operands.iter() {
@@ -225,16 +237,19 @@ impl Graph {
                     }
                     match **boxed_kind {
                         AggregateKind::Array(_) => {
-                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Array)
+                            self.nodes[dst].ops[seq] = NodeOp::Aggregate(AggKind::Array)
                         }
                         AggregateKind::Tuple => {
-                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Tuple)
+                            self.nodes[dst].ops[seq] = NodeOp::Aggregate(AggKind::Tuple)
                         }
                         AggregateKind::Adt(def_id, ..) => {
-                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Adt(def_id))
+                            self.nodes[dst].ops[seq] = NodeOp::Aggregate(AggKind::Adt(def_id))
                         }
                         AggregateKind::Closure(def_id, ..) => {
-                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Closure(def_id))
+                            self.nodes[dst].ops[seq] = NodeOp::Aggregate(AggKind::Closure(def_id))
+                        }
+                        AggregateKind::Coroutine(def_id, ..) => {
+                            self.nodes[dst].ops[seq] = NodeOp::Aggregate(AggKind::Coroutine(def_id))
                         }
                         _ => {
                             println!("{:?}", statement);
@@ -244,11 +259,11 @@ impl Graph {
                 }
                 Rvalue::UnaryOp(_, operand) => {
                     self.add_operand(operand, dst);
-                    self.nodes[dst].op = NodeOp::UnaryOp;
+                    self.nodes[dst].ops[seq] = NodeOp::UnaryOp;
                 }
                 Rvalue::NullaryOp(_, ty) => {
                     self.add_const_edge(ty.to_string(), dst, EdgeOp::Nop);
-                    self.nodes[dst].op = NodeOp::NullaryOp;
+                    self.nodes[dst].ops[seq] = NodeOp::NullaryOp;
                 }
                 Rvalue::ThreadLocalRef(_) => {
                     todo!()
@@ -256,20 +271,20 @@ impl Graph {
                 Rvalue::Discriminant(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
-                    self.nodes[dst].op = NodeOp::Discriminant;
+                    self.nodes[dst].ops[seq] = NodeOp::Discriminant;
                 }
                 Rvalue::ShallowInitBox(operand, _) => {
                     self.add_operand(operand, dst);
-                    self.nodes[dst].op = NodeOp::ShallowInitBox;
+                    self.nodes[dst].ops[seq] = NodeOp::ShallowInitBox;
                 }
                 Rvalue::CopyForDeref(place) => {
                     let src = self.parse_place(place);
                     self.add_node_edge(src, dst, EdgeOp::Nop);
-                    self.nodes[dst].op = NodeOp::CopyForDeref;
+                    self.nodes[dst].ops[seq] = NodeOp::CopyForDeref;
                 }
                 Rvalue::RawPtr(_, _) => todo!(),
             };
-            self.nodes[dst].seq += 1;
+            self.nodes[dst].seq = seq + 1;
         }
     }
 
@@ -281,51 +296,85 @@ impl Graph {
             ..
         } = &terminator.kind
         {
-            if let Operand::Constant(boxed_cnst) = func {
-                if let Const::Val(_, ty) = boxed_cnst.const_ {
-                    if let TyKind::FnDef(def_id, _) = ty.kind() {
-                        let dst = destination.local;
-                        for op in args.iter() {
-                            //rustc version related
-                            self.add_operand(&op.node, dst);
+            let dst = destination.local;
+            let seq = self.nodes[dst].seq;
+            if seq == self.nodes[dst].ops.len() {
+                self.nodes[dst].ops.push(NodeOp::Nop);
+            }
+            match func {
+                Operand::Constant(boxed_cnst) => {
+                    if let Const::Val(_, ty) = boxed_cnst.const_ {
+                        if let TyKind::FnDef(def_id, _) = ty.kind() {
+                            for op in args.iter() {
+                                //rustc version related
+                                self.add_operand(&op.node, dst);
+                            }
+                            self.nodes[dst].ops[seq] = NodeOp::Call(*def_id);
                         }
-                        self.nodes[dst].op = NodeOp::Call(*def_id);
-                        self.nodes[dst].span = terminator.source_info.span;
-                        self.nodes[dst].seq += 1;
-                        return;
                     }
                 }
+                Operand::Move(_) => {
+                    self.add_operand(func, dst); //the func is a place
+                    for op in args.iter() {
+                        //rustc version related
+                        self.add_operand(&op.node, dst);
+                    }
+                    self.nodes[dst].ops[seq] = NodeOp::CallOperand;
+                }
+                _ => {
+                    println!("{:?}", func);
+                    todo!();
+                }
             }
-            panic!("An error happened in add_terminator_to_graph.")
+            self.nodes[dst].span = terminator.source_info.span;
+            self.nodes[dst].seq = seq + 1;
         }
     }
 
-    pub fn collect_equivalent_locals(&self, local: Local) -> HashSet<Local> {
+    // Because a node(local) may have multiple ops, we need to decide whether to strictly collect equivalent locals or not
+    // For the former, all the ops should meet the equivalent condition.
+    // For the later, if only one op meets the condition, we still take it into consideration.
+    pub fn collect_equivalent_locals(&self, local: Local, strict: bool) -> HashSet<Local> {
         let mut set = HashSet::new();
         let mut root = local;
+        let reduce_func = if strict {
+            DFSStatus::and
+        } else {
+            DFSStatus::or
+        };
         let mut find_root_operator = |graph: &Graph, idx: Local| -> DFSStatus {
             let node = &graph.nodes[idx];
-            match node.op {
-                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
-                    //Nop means an orphan node or a parameter
-                    root = idx;
-                    DFSStatus::Continue
-                }
-                _ => DFSStatus::Stop,
-            }
+            node.ops
+                .iter()
+                .map(|op| {
+                    match op {
+                        NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
+                            //Nop means an orphan node or a parameter
+                            root = idx;
+                            DFSStatus::Continue
+                        }
+                        _ => DFSStatus::Stop,
+                    }
+                })
+                .reduce(reduce_func)
+                .unwrap()
         };
         let mut find_equivalent_operator = |graph: &Graph, idx: Local| -> DFSStatus {
             let node = &graph.nodes[idx];
             if set.contains(&idx) {
                 return DFSStatus::Stop;
             }
-            match node.op {
-                NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
-                    set.insert(idx);
-                    DFSStatus::Continue
-                }
-                _ => DFSStatus::Stop,
-            }
+            node.ops
+                .iter()
+                .map(|op| match op {
+                    NodeOp::Nop | NodeOp::Use | NodeOp::Ref => {
+                        set.insert(idx);
+                        DFSStatus::Continue
+                    }
+                    _ => DFSStatus::Stop,
+                })
+                .reduce(reduce_func)
+                .unwrap()
         };
         // Algorithm: dfs along upside to find the root node, and then dfs along downside to collect equivalent locals
         self.dfs(
@@ -472,7 +521,8 @@ impl Graph {
             | EdgeOp::Field(_)
             | EdgeOp::Index
             | EdgeOp::ConstIndex
-            | EdgeOp::SubSlice => DFSStatus::Stop,
+            | EdgeOp::SubSlice
+            | EdgeOp::SubType => DFSStatus::Stop,
         }
     }
 
@@ -489,8 +539,26 @@ pub enum Direction {
 }
 
 pub enum DFSStatus {
-    Continue,
-    Stop,
+    Continue, // true
+    Stop,     // false
+}
+
+impl DFSStatus {
+    pub fn and(s1: DFSStatus, s2: DFSStatus) -> DFSStatus {
+        if matches!(s1, DFSStatus::Stop) || matches!(s2, DFSStatus::Stop) {
+            DFSStatus::Stop
+        } else {
+            DFSStatus::Continue
+        }
+    }
+
+    pub fn or(s1: DFSStatus, s2: DFSStatus) -> DFSStatus {
+        if matches!(s1, DFSStatus::Continue) || matches!(s2, DFSStatus::Continue) {
+            DFSStatus::Continue
+        } else {
+            DFSStatus::Stop
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -499,4 +567,5 @@ pub enum AggKind {
     Tuple,
     Adt(DefId),
     Closure(DefId),
+    Coroutine(DefId),
 }

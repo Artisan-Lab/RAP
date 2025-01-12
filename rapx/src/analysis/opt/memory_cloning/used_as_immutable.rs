@@ -6,6 +6,7 @@ use once_cell::sync::OnceCell;
 use crate::analysis::core::dataflow::graph::DFSStatus;
 use crate::analysis::core::dataflow::graph::Direction;
 use crate::analysis::core::dataflow::graph::EdgeIdx;
+use crate::analysis::opt::OptCheck;
 use rustc_middle::mir::Local;
 use rustc_middle::ty::{TyCtxt, TyKind};
 use rustc_span::Span;
@@ -40,9 +41,11 @@ fn find_downside_use_as_param(graph: &Graph, clone_node_idx: Local) -> Option<(L
             return DFSStatus::Continue; //the start point, clone, is a Call node as well
         }
         let node = &graph.nodes[idx];
-        if let NodeOp::Call(_) = node.op {
-            record = Some((idx, edge_idx.get())); //here, the edge_idx must be the upside edge of the node
-            return DFSStatus::Stop;
+        for op in node.ops.iter() {
+            if let NodeOp::Call(_) = op {
+                record = Some((idx, edge_idx.get())); //here, the edge_idx must be the upside edge of the node
+                return DFSStatus::Stop;
+            }
         }
         DFSStatus::Continue
     };
@@ -60,31 +63,56 @@ fn find_downside_use_as_param(graph: &Graph, clone_node_idx: Local) -> Option<(L
     record
 }
 
-pub fn check(graph: &Graph, tcx: &TyCtxt) {
-    let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
-    let def_paths = &DEFPATHS.get().unwrap();
-    let target_def_id = def_paths.clone.last_def_id();
-    for (idx, node) in graph.nodes.iter_enumerated() {
-        if let NodeOp::Call(def_id) = node.op {
-            if def_id == target_def_id {
-                if let Some((node_idx, edge_idx)) = find_downside_use_as_param(graph, idx) {
-                    if let NodeOp::Call(callee_def_id) = graph.nodes[node_idx].op {
-                        let fn_sig = tcx.normalize_erasing_late_bound_regions(
-                            rustc_middle::ty::ParamEnv::reveal_all(),
-                            tcx.fn_sig(callee_def_id).skip_binder(),
-                        );
-                        let use_node = &graph.nodes[node_idx];
-                        let index = use_node.in_edges.binary_search(&edge_idx).unwrap();
-                        let ty = fn_sig.inputs().iter().nth(index).unwrap();
-                        if !matches!(ty.kind(), TyKind::Ref(..)) {
-                            //not &T or &mut T
-                            let clone_span = node.span;
-                            let use_span = use_node.span;
-                            report_used_as_immutable(graph, clone_span, use_span);
+pub struct UsedAsImmutableCheck {
+    record: Vec<(Span, Span)>,
+}
+
+impl OptCheck for UsedAsImmutableCheck {
+    fn new() -> Self {
+        Self { record: Vec::new() }
+    }
+
+    fn check(&mut self, graph: &Graph, tcx: &TyCtxt) {
+        let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
+        let def_paths = &DEFPATHS.get().unwrap();
+        let target_def_id = def_paths.clone.last_def_id();
+        for (idx, node) in graph.nodes.iter_enumerated() {
+            for op in node.ops.iter() {
+                if let NodeOp::Call(def_id) = op {
+                    if *def_id == target_def_id {
+                        if let Some((node_idx, edge_idx)) = find_downside_use_as_param(graph, idx) {
+                            let use_node = &graph.nodes[node_idx];
+
+                            let seq = graph.edges[edge_idx].seq;
+                            let filtered_in_edges: Vec<&usize> = use_node
+                                .in_edges
+                                .iter()
+                                .filter(|idx| graph.edges[**idx].seq == seq)
+                                .collect();
+                            let index = filtered_in_edges.binary_search(&&edge_idx).unwrap();
+                            if let NodeOp::Call(callee_def_id) = use_node.ops[seq] {
+                                let fn_sig = tcx.normalize_erasing_late_bound_regions(
+                                    rustc_middle::ty::ParamEnv::reveal_all(),
+                                    tcx.fn_sig(callee_def_id).skip_binder(),
+                                );
+                                let ty = fn_sig.inputs().iter().nth(index).unwrap();
+                                if !matches!(ty.kind(), TyKind::Ref(..)) {
+                                    //not &T or &mut T
+                                    let clone_span = node.span;
+                                    let use_span = use_node.span;
+                                    self.record.push((clone_span, use_span));
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    fn report(&self, graph: &Graph) {
+        for (clone_span, use_span) in self.record.iter() {
+            report_used_as_immutable(graph, *clone_span, *use_span);
         }
     }
 }
