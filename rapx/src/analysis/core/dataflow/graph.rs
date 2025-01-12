@@ -54,6 +54,7 @@ pub enum EdgeOp {
     Index,
     ConstIndex,
     SubSlice,
+    SubType,
 }
 
 #[derive(Clone)]
@@ -166,6 +167,9 @@ impl Graph {
                 PlaceElem::Subslice { .. } => {
                     graph.add_node_edge(src, dst, EdgeOp::SubSlice);
                 }
+                PlaceElem::Subtype (..) => {
+                    graph.add_node_edge(src, dst, EdgeOp::SubType);
+                }
                 _ => {
                     println!("{:?}", place_elem);
                     todo!()
@@ -237,6 +241,9 @@ impl Graph {
                         AggregateKind::Closure(def_id, ..) => {
                             self.nodes[dst].op = NodeOp::Aggregate(AggKind::Closure(def_id))
                         }
+                        AggregateKind::Coroutine(def_id, ..) => {
+                            self.nodes[dst].op = NodeOp::Aggregate(AggKind::Coroutine(def_id))
+                        }
                         _ => {
                             println!("{:?}", statement);
                             todo!()
@@ -294,7 +301,7 @@ impl Graph {
                             self.nodes[dst].op = NodeOp::Call(*def_id);
                         }
                     }
-                },
+                }
                 Operand::Move(_) => {
                     self.add_operand(func, dst); //the func is a place
                     for op in args.iter() {
@@ -302,8 +309,8 @@ impl Graph {
                         self.add_operand(&op.node, dst);
                     }
                     self.nodes[dst].op = NodeOp::CallOperand;
-                },
-                _ =>  {
+                }
+                _ => {
                     println!("{:?}", func);
                     todo!();
                 }
@@ -485,7 +492,8 @@ impl Graph {
             | EdgeOp::Field(_)
             | EdgeOp::Index
             | EdgeOp::ConstIndex
-            | EdgeOp::SubSlice => DFSStatus::Stop,
+            | EdgeOp::SubSlice
+            | EdgeOp::SubType => DFSStatus::Stop,
         }
     }
 
@@ -512,4 +520,5 @@ pub enum AggKind {
     Tuple,
     Adt(DefId),
     Closure(DefId),
+    Coroutine(DefId),
 }

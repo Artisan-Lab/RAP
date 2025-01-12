@@ -32,24 +32,43 @@ impl DefPaths {
     }
 }
 
-pub fn check(graph: &Graph, tcx: &TyCtxt) {
-    let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
-    for (node_idx, node) in graph.nodes.iter_enumerated() {
-        if let Some(upperbound_node_idx) = extract_upperbound_node_if_ops_range(graph, node) {
-            if let Some(vec_len_node_idx) = find_upside_vec_len_node(graph, upperbound_node_idx) {
-                let maybe_vec_node_idx = graph.get_upside_idx(vec_len_node_idx, 0).unwrap();
-                let maybe_vec_node_idxs = graph.collect_equivalent_locals(maybe_vec_node_idx);
-                let mut index_record = Vec::new();
-                for index_node_idx in find_downside_index_node(graph, node_idx).into_iter() {
-                    let maybe_vec_node_idx = graph.get_upside_idx(index_node_idx, 0).unwrap();
-                    if maybe_vec_node_idxs.contains(&maybe_vec_node_idx) {
-                        index_record.push(index_node_idx);
+use crate::analysis::opt::OptCheck;
+
+pub struct BoundsLenCheck {
+    record: Vec<(Local, Vec<Local>)>,
+}
+
+impl OptCheck for BoundsLenCheck {
+    fn new() -> Self {
+        Self { record: Vec::new() }
+    }
+
+    fn check(&mut self, graph: &Graph, tcx: &TyCtxt) {
+        let _ = &DEFPATHS.get_or_init(|| DefPaths::new(tcx));
+        for (node_idx, node) in graph.nodes.iter_enumerated() {
+            if let Some(upperbound_node_idx) = extract_upperbound_node_if_ops_range(graph, node) {
+                if let Some(vec_len_node_idx) = find_upside_vec_len_node(graph, upperbound_node_idx)
+                {
+                    let maybe_vec_node_idx = graph.get_upside_idx(vec_len_node_idx, 0).unwrap();
+                    let maybe_vec_node_idxs = graph.collect_equivalent_locals(maybe_vec_node_idx);
+                    let mut index_record = Vec::new();
+                    for index_node_idx in find_downside_index_node(graph, node_idx).into_iter() {
+                        let maybe_vec_node_idx = graph.get_upside_idx(index_node_idx, 0).unwrap();
+                        if maybe_vec_node_idxs.contains(&maybe_vec_node_idx) {
+                            index_record.push(index_node_idx);
+                        }
+                    }
+                    if !index_record.is_empty() {
+                        self.record.push((upperbound_node_idx, index_record));
                     }
                 }
-                if !index_record.is_empty() {
-                    report_upperbound_bug(graph, upperbound_node_idx, &index_record);
-                }
             }
+        }
+    }
+
+    fn report(&self, graph: &Graph) {
+        for (upperbound_node_idx, index_record) in self.record.iter() {
+            report_upperbound_bug(graph, *upperbound_node_idx, index_record);
         }
     }
 }
