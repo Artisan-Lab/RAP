@@ -38,97 +38,78 @@ impl GraphNode {
     ) -> String {
         let mut attr = String::new();
         let mut dot = String::new();
-        match self.op {
-            //label=xxx
-            NodeOp::Nop => {
-                if is_marker {
+        if is_marker {
+            // only Nop and Const can be marker node and they only have one op
+            assert!(self.ops.len() == 1);
+            match self.ops[0] {
+                NodeOp::Nop => {
                     write!(attr, "label=\"\" style=dashed ").unwrap();
-                } else {
-                    write!(attr, "label=\"<f0> {:?}\" ", local).unwrap();
                 }
-            }
-            NodeOp::Const(ref name) => {
-                write!(
-                    attr,
-                    "label=\"<f0> {}\" style=dashed ",
-                    escaped_string(name.clone())
-                )
-                .unwrap();
-            }
-            NodeOp::Call(def_id) => {
-                let func_name = tcx.def_path_str(def_id);
-                if is_marker {
+                NodeOp::Const(ref name) => {
                     write!(
                         attr,
-                        "label=\"fn {}\" style=dashed ",
-                        escaped_string(func_name)
+                        "label=\"<f0> {}\" style=dashed ",
+                        escaped_string(name.clone())
                     )
                     .unwrap();
-                } else {
-                    write!(
-                        attr,
-                        "label=\"<f0> {:?} | <f1> fn {}\" ",
-                        local,
-                        escaped_string(func_name)
-                    )
-                    .unwrap();
-                }
-            }
-            NodeOp::Aggregate(agg_kind) => match agg_kind {
-                AggKind::Adt(def_id) => {
-                    let agg_name = format!("{}::{{..}}", tcx.def_path_str(def_id));
-                    if is_marker {
-                        write!(
-                            attr,
-                            "label=\"Agg {}\" style=dashed ",
-                            escaped_string(agg_name)
-                        )
-                        .unwrap();
-                    } else {
-                        write!(
-                            attr,
-                            "label=\"<f0> {:?} | <f1> Agg {}\" ",
-                            local,
-                            escaped_string(agg_name)
-                        )
-                        .unwrap();
-                    }
-                }
-                AggKind::Closure(def_id) => {
-                    let agg_name = tcx.def_path_str(def_id);
-                    if is_marker {
-                        write!(
-                            attr,
-                            "label=\"Clos {}\" style=dashed ",
-                            escaped_string(agg_name)
-                        )
-                        .unwrap();
-                    } else {
-                        write!(
-                            attr,
-                            "label=\"<f0> {:?} | <f1> Clos {}\" ",
-                            local,
-                            escaped_string(agg_name)
-                        )
-                        .unwrap();
-                    }
                 }
                 _ => {
-                    if is_marker {
-                        write!(attr, "label=\"{:?}\" style=dashed ", agg_kind).unwrap();
-                    } else {
-                        write!(attr, "label=\"<f0> {:?} | {:?}\" ", local, agg_kind).unwrap();
-                    }
-                }
-            },
-            _ => {
-                if is_marker {
-                    write!(attr, "label=\"<f1> {:?}\" style=dashed ", self.op).unwrap();
-                } else {
-                    write!(attr, "label=\"<f0> {:?} | <f1> {:?}\" ", local, self.op).unwrap();
+                    panic!("Wrong arm!");
                 }
             }
-        };
+        }
+        write!(attr, "label=\"<f0> {:?} ", local).unwrap();
+        let mut seq = 1;
+        self.ops.iter().for_each(|op| {
+            match op {
+                //label=xxx
+                NodeOp::Nop => {}
+                NodeOp::Const(..) => {}
+                NodeOp::Call(def_id) => {
+                    let func_name = tcx.def_path_str(def_id);
+                    write!(
+                        attr,
+                        "| <f{}> ({})fn {} ",
+                        seq,
+                        seq - 1,
+                        escaped_string(func_name)
+                    )
+                    .unwrap();
+                }
+                NodeOp::Aggregate(agg_kind) => match agg_kind {
+                    AggKind::Adt(def_id) => {
+                        let agg_name = format!("{}::{{..}}", tcx.def_path_str(def_id));
+                        write!(
+                            attr,
+                            "| <f{}> ({})Agg {} ",
+                            seq,
+                            seq - 1,
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    }
+                    AggKind::Closure(def_id) => {
+                        let agg_name = tcx.def_path_str(def_id);
+                        write!(
+                            attr,
+                            "| <f{}> ({})Clos {} ",
+                            seq,
+                            seq - 1,
+                            escaped_string(agg_name)
+                        )
+                        .unwrap();
+                    }
+                    _ => {
+                        write!(attr, "| <f{}> ({}){:?} ", seq, seq - 1, agg_kind).unwrap();
+                    }
+                },
+                _ => {
+                    write!(attr, "| <f{}> ({}){:?} ", seq, seq - 1, op).unwrap();
+                }
+            };
+            seq += 1;
+        });
+        write!(attr, "\"").unwrap();
         match color {
             //color=xxx
             None => {}

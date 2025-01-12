@@ -50,7 +50,8 @@ impl OptCheck for BoundsLenCheck {
                 if let Some(vec_len_node_idx) = find_upside_vec_len_node(graph, upperbound_node_idx)
                 {
                     let maybe_vec_node_idx = graph.get_upside_idx(vec_len_node_idx, 0).unwrap();
-                    let maybe_vec_node_idxs = graph.collect_equivalent_locals(maybe_vec_node_idx);
+                    let maybe_vec_node_idxs =
+                        graph.collect_equivalent_locals(maybe_vec_node_idx, true);
                     let mut index_record = Vec::new();
                     for index_node_idx in find_downside_index_node(graph, node_idx).into_iter() {
                         let maybe_vec_node_idx = graph.get_upside_idx(index_node_idx, 0).unwrap();
@@ -76,10 +77,12 @@ impl OptCheck for BoundsLenCheck {
 fn extract_upperbound_node_if_ops_range(graph: &Graph, node: &GraphNode) -> Option<Local> {
     let def_paths = &DEFPATHS.get().unwrap();
     let target_def_id = def_paths.ops_range.last_def_id();
-    if let NodeOp::Aggregate(AggKind::Adt(def_id)) = node.op {
-        if def_id == target_def_id {
-            let upperbound_edge = &graph.edges[node.in_edges[1]]; // the second field
-            return Some(upperbound_edge.src);
+    for op in node.ops.iter() {
+        if let NodeOp::Aggregate(AggKind::Adt(def_id)) = op {
+            if *def_id == target_def_id {
+                let upperbound_edge = &graph.edges[node.in_edges[1]]; // the second field
+                return Some(upperbound_edge.src);
+            }
         }
     }
     None
@@ -92,10 +95,12 @@ fn find_upside_vec_len_node(graph: &Graph, node_idx: Local) -> Option<Local> {
     // Warning: may traverse all upside nodes and the new result will overwrite on the previous result
     let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
-        if let NodeOp::Call(def_id) = node.op {
-            if def_id == target_def_id {
-                vec_len_node_idx = Some(idx);
-                return DFSStatus::Stop;
+        for op in node.ops.iter() {
+            if let NodeOp::Call(def_id) = op {
+                if *def_id == target_def_id {
+                    vec_len_node_idx = Some(idx);
+                    return DFSStatus::Stop;
+                }
             }
         }
         DFSStatus::Continue
@@ -116,11 +121,14 @@ fn find_downside_index_node(graph: &Graph, node_idx: Local) -> Vec<Local> {
     // Warning: traverse all downside nodes
     let mut node_operator = |graph: &Graph, idx: Local| -> DFSStatus {
         let node = &graph.nodes[idx];
-        if let NodeOp::Call(def_id) = node.op {
-            if def_id == def_paths.ops_index.last_def_id()
-                || def_id == def_paths.ops_index_mut.last_def_id()
-            {
-                index_node_idxs.push(idx);
+        for op in node.ops.iter() {
+            if let NodeOp::Call(def_id) = op {
+                if *def_id == def_paths.ops_index.last_def_id()
+                    || *def_id == def_paths.ops_index_mut.last_def_id()
+                {
+                    index_node_idxs.push(idx);
+                    break;
+                }
             }
         }
         DFSStatus::Continue

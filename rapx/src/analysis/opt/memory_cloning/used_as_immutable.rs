@@ -41,9 +41,11 @@ fn find_downside_use_as_param(graph: &Graph, clone_node_idx: Local) -> Option<(L
             return DFSStatus::Continue; //the start point, clone, is a Call node as well
         }
         let node = &graph.nodes[idx];
-        if let NodeOp::Call(_) = node.op {
-            record = Some((idx, edge_idx.get())); //here, the edge_idx must be the upside edge of the node
-            return DFSStatus::Stop;
+        for op in node.ops.iter() {
+            if let NodeOp::Call(_) = op {
+                record = Some((idx, edge_idx.get())); //here, the edge_idx must be the upside edge of the node
+                return DFSStatus::Stop;
+            }
         }
         DFSStatus::Continue
     };
@@ -75,22 +77,31 @@ impl OptCheck for UsedAsImmutableCheck {
         let def_paths = &DEFPATHS.get().unwrap();
         let target_def_id = def_paths.clone.last_def_id();
         for (idx, node) in graph.nodes.iter_enumerated() {
-            if let NodeOp::Call(def_id) = node.op {
-                if def_id == target_def_id {
-                    if let Some((node_idx, edge_idx)) = find_downside_use_as_param(graph, idx) {
-                        if let NodeOp::Call(callee_def_id) = graph.nodes[node_idx].op {
-                            let fn_sig = tcx.normalize_erasing_late_bound_regions(
-                                rustc_middle::ty::ParamEnv::reveal_all(),
-                                tcx.fn_sig(callee_def_id).skip_binder(),
-                            );
+            for op in node.ops.iter() {
+                if let NodeOp::Call(def_id) = op {
+                    if *def_id == target_def_id {
+                        if let Some((node_idx, edge_idx)) = find_downside_use_as_param(graph, idx) {
                             let use_node = &graph.nodes[node_idx];
-                            let index = use_node.in_edges.binary_search(&edge_idx).unwrap();
-                            let ty = fn_sig.inputs().iter().nth(index).unwrap();
-                            if !matches!(ty.kind(), TyKind::Ref(..)) {
-                                //not &T or &mut T
-                                let clone_span = node.span;
-                                let use_span = use_node.span;
-                                self.record.push((clone_span, use_span));
+
+                            let seq = graph.edges[edge_idx].seq;
+                            let filtered_in_edges: Vec<&usize> = use_node
+                                .in_edges
+                                .iter()
+                                .filter(|idx| graph.edges[**idx].seq == seq)
+                                .collect();
+                            let index = filtered_in_edges.binary_search(&&edge_idx).unwrap();
+                            if let NodeOp::Call(callee_def_id) = use_node.ops[seq] {
+                                let fn_sig = tcx.normalize_erasing_late_bound_regions(
+                                    rustc_middle::ty::ParamEnv::reveal_all(),
+                                    tcx.fn_sig(callee_def_id).skip_binder(),
+                                );
+                                let ty = fn_sig.inputs().iter().nth(index).unwrap();
+                                if !matches!(ty.kind(), TyKind::Ref(..)) {
+                                    //not &T or &mut T
+                                    let clone_span = node.span;
+                                    let use_span = use_node.span;
+                                    self.record.push((clone_span, use_span));
+                                }
                             }
                         }
                     }
