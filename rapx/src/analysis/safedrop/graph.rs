@@ -405,6 +405,8 @@ impl<'tcx> SafeDropGraph<'tcx> {
                                     if id.index.as_usize() == DROP
                                         || id.index.as_usize() == DROP_IN_PLACE
                                         || id.index.as_usize() == MANUALLYDROP
+                                        || id.index.as_usize() == BOX_DROP_IN_PLACE
+                                        || id.index.as_usize() == DEALLOC
                                     {
                                         cur_bb.drops.push(terminator.clone());
                                     }

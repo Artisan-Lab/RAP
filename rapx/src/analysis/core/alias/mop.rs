@@ -3,7 +3,7 @@ pub mod graph;
 pub mod mop;
 pub mod types;
 
-use crate::analysis::core::alias::FnMap;
+use crate::analysis::core::alias::{FnMap, RetAlias};
 use crate::utils::source::*;
 use crate::{rap_debug, rap_trace};
 use graph::MopGraph;
@@ -11,6 +11,7 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
+use crate::analysis::utils::intrinsic_id::{COPY_FROM, COPY_FROM_NONOVERLAPPING, COPY_TO, COPY_TO_NONOVERLAPPING};
 
 pub const VISIT_LIMIT: usize = 100;
 
@@ -42,7 +43,26 @@ impl<'tcx> MopAlias<'tcx> {
                 rap_debug!("Alias found in {:?}: {}", fn_name, fn_alias);
             }
         }
+        self.handle_conor_cases();
         &self.fn_map
+    }
+
+    pub fn handle_conor_cases(&mut self) {
+        let cases = [COPY_FROM_NONOVERLAPPING, COPY_TO_NONOVERLAPPING, COPY_TO, COPY_FROM];
+        let alias = RetAlias::new(
+            1,
+            true,
+            true,
+            2,
+            true,
+            true,
+        );
+        for (key, value) in self.fn_map.iter_mut() {
+            if cases.contains(&key.index.as_usize()) {
+                value.alias_set.clear();
+                value.alias_set.insert(alias.clone());
+            }
+        }
     }
 
     pub fn query_mop(&mut self, def_id: DefId) {
