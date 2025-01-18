@@ -2356,7 +2356,7 @@ impl<'tcx, 'ctx, 'a> IntraFlowAnalysis<'tcx, 'ctx, 'a> {
             let fn_name = get_name(self.tcx(), self.did)
                 .unwrap_or_else(|| Symbol::intern("no symbol available"));
 
-            rap_warn!("Double free detected in function {:}", fn_name);
+            rap_warn!("Memory Leak detected in function {:}", fn_name);
             let source = span_to_source_code(self.body().span);
             let file = span_to_filename(self.body().span);
             let mut snippet = Snippet::source(&source)
